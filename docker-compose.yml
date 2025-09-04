@@ -17,56 +17,56 @@ services:
       context: .
       dockerfile: brain-api/Dockerfile.brain
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     ports:
       - "8000:8000"
     depends_on:
       - postgres
     restart: unless-stopped
     volumes:
-      - ./logs:/app/logs:rw
+      - ./logs:/logs:rw
 
-  calendar:
-    build: 
-      context: .
-      dockerfile: calendar-api/Dockerfile.calendar
-    environment:
-      - 
-    ports:
-      - "8001:8001"
-    depends_on:
-      - brain
-    restart: unless-stopped
-    volumes:
-      - ./logs:/app/logs:rw
+  # calendar:
+  #   build: 
+  #     context: .
+  #     dockerfile: calendar-api/Dockerfile.calendar
+  #   environment:
+  #     - 
+  #   ports:
+  #     - "8001:8001"
+  #   depends_on:
+  #     - brain
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./logs:/app/logs:rw
 
-  task:
-    build: 
-      context: .
-      dockerfile: task-api/Dockerfile.task
-    environment:
-      - 
-    ports:
-      - "8002:8002"
-    depends_on:
-      - brain
-    restart: unless-stopped
-    volumes:
-      - ./logs:/app/logs:rw
+  # task:
+  #   build: 
+  #     context: .
+  #     dockerfile: task-api/Dockerfile.task
+  #   environment:
+  #     - 
+  #   ports:
+  #     - "8002:8002"
+  #   depends_on:
+  #     - brain
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./logs:/app/logs:rw
 
-  executors:
-    build: 
-      context: .
-      dockerfile: executors/Dockerfile.executors
-    environment:
-      - 
-    ports:
-      - "8003:8003"
-    depends_on:
-      - brain
-    restart: unless-stopped
-    volumes:
-      - ./logs:/app/logs:rw
+  # executors:
+  #   build: 
+  #     context: .
+  #     dockerfile: executors/Dockerfile.executors
+  #   environment:
+  #     - 
+  #   ports:
+  #     - "8003:8003"
+  #   depends_on:
+  #     - brain
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./logs:/app/logs:rw
 
 volumes:
   postgres_data:
