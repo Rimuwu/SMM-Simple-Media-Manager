@@ -12,7 +12,7 @@ uuidPK = Annotated[_UUID, mapped_column(UUID(as_uuid=True),
     primary_key=True, default=uuid4)
                    ]
 
-# Старндартный тип для создания поля с временем создания (UTC)
+# Стандартный тип для создания поля с временем создания (UTC)
 createAT = Annotated[datetime, mapped_column(DateTime,
     server_default=text("TIMEZONE('utc', now())"))
                      ]
