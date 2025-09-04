@@ -1,1 +1,1 @@
-# SMM-Simple-Media-Manager
+# SMM — Simple Media Manager
