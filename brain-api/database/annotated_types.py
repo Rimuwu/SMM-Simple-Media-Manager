@@ -24,6 +24,6 @@ updateAT = Annotated[datetime, mapped_column(DateTime,
                    ]
 
 # Стандартный тип для создания автоинкрементных полей числа
-intAutoPK = Annotated[Integer, mapped_column(Integer,
+intAutoPK = Annotated[int, mapped_column(Integer,
     primary_key=True, autoincrement=True)
                    ]
