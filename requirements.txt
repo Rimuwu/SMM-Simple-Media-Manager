@@ -7,3 +7,7 @@ pydantic==2.11.7
 pydantic-settings==2.10.1
 psycopg2-binary==2.9.10
 asyncpg==0.30.0
+
+# Для работы с соц. сетями
+vk_api==11.10.0
+aiogram==3.22.0
