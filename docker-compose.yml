@@ -54,19 +54,19 @@ services:
   #   volumes:
   #     - ./logs:/app/logs:rw
 
-  # executors:
-  #   build: 
-  #     context: .
-  #     dockerfile: executors/Dockerfile.executors
-  #   environment:
-  #     - 
-  #   ports:
-  #     - "8003:8003"
-  #   depends_on:
-  #     - brain
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./logs:/app/logs:rw
+  executors:
+    build: 
+      context: .
+      dockerfile: executors/Dockerfile.executors
+    environment:
+      - TG_BOT_TOKEN=${TG_BOT_TOKEN}
+    ports:
+      - "8003:8003"
+    depends_on:
+      - brain
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs:rw
 
 volumes:
   postgres_data:

@@ -1,0 +1,7 @@
+FROM python:3.10-slim
+
+WORKDIR /
+
+COPY executors/ ./
+
+CMD ["python", "main.py"]
