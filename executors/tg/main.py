@@ -2,13 +2,13 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from executor import BaseExecutor
-
+from global_modules.logs import logger
 
 class TelegramExecutor(BaseExecutor):
     """Исполнитель для Telegram"""
 
-    def __init__(self, config: dict):
-        super().__init__(config)
+    def __init__(self, config: dict, executor_name: str = "telegram"):
+        super().__init__(config, executor_name)
         self.token = config.get("token")
         self.bot = Bot(
             token=self.token) if self.token else None
@@ -23,6 +23,10 @@ class TelegramExecutor(BaseExecutor):
         @self.dp.message()
         async def handle_message(message: Message):
             print(f"TG Message: {message.text}")
+
+        @self.dp.startup()
+        async def on_startup():
+            logger.info("Telegram bot started.")
 
     async def send_message(self, chat_id: str, text: str) -> dict:
         """Отправить сообщение"""
