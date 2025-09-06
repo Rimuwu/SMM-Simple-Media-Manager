@@ -7,7 +7,7 @@ from security.limiter import setup_rate_limiter, limiter
 from middlewares.logs_mid import RequestLoggingMiddleware
 
 from routers.db_health import router as db_health_router
-from modules.logs import logger
+from global_modules.logs import logger
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

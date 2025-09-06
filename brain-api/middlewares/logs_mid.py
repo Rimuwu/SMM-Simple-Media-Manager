@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from modules.logs import logger
+from global_modules.logs import logger
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
