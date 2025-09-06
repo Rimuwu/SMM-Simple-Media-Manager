@@ -7,6 +7,7 @@ WORKDIR /
 
 COPY executors/ ./
 COPY global_modules/ ./global_modules/
+COPY middlewares/ ./middlewares/
 
 RUN pip install --no-cache-dir -r requirements.txt
 
