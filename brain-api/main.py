@@ -6,20 +6,20 @@ from global_modules.limiter import limiter
 from middlewares.logs_mid import RequestLoggingMiddleware
 
 from routers.db_health import router as db_health_router
-from global_modules.logs import logger
 from global_modules.api_configurate import get_fastapi_app
+
+from modules.logs import brain_logger
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("API is starting up...")
-    logger.info("Creating missing tables on startup...")
+    brain_logger.info("API is starting up...")
+    brain_logger.info("Creating missing tables on startup...")
     await create_tables()
 
     yield
 
     # Shutdown
-    logger.info("🛑 API is shutting down...")
 
 app = get_fastapi_app(
     title="API",
@@ -28,9 +28,11 @@ app = get_fastapi_app(
     debug=False,
     lifespan=lifespan,
     limiter=True,
-    middlewares=[RequestLoggingMiddleware],
-    routers=[db_health_router]
+    middlewares=[],
+    routers=[db_health_router],
+    api_logger=brain_logger
 )
+app.add_middleware(RequestLoggingMiddleware, logger=brain_logger)
 
 @app.get("/")
 @limiter.limit("2/second")
