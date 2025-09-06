@@ -1,40 +1,27 @@
-"""
-Простой пример использования системы исполнителей
-"""
 import asyncio
-from executor import ExecutorManager
-from global_modules.logs import logger
-from modules.constants import EXECUTORS
-from modules.json_format import check_env_config
-from global_modules.function_way import str_to_func
+import uvicorn
 
-manager = ExecutorManager()
+from modules.executors_manager import executors_start
+from modules.api import app
+
+async def api_start():
+    config = uvicorn.Config(app, 
+                            host="0.0.0.0", 
+                            port=8003, 
+                            log_level="info"
+                            )
+    server = uvicorn.Server(config)
+    await server.serve()
 
 async def main():
-    logger.info("Starting Executors...")
+    tasks = await executors_start() # Запускаем всех исполнителей
 
-    for exe_name, executor_data in EXECUTORS.items():
-        base_class = str_to_func(executor_data['base_class'])
+    tasks.append(
+        asyncio.create_task(api_start())
+        ) # Добавляем запуск API в список тасков
 
-        executor = base_class(
-            config=check_env_config(
-                executor_data['config'] # Заменяем данные на переменные из окружения
-                ),
-            executor_name=exe_name
-        )
-        manager.register(executor)
-
-    logger.info(f"Registered executors: {list(manager.executors.keys())}")
-    tasks = manager.start_all()
- 
-    # Отправляем тестовое сообщение
-    tg = manager.get("telegram_executor")
-    await tg.send_message(
-        1191252229, "Test message from main.py")
-
-    # Запускаем все таски
+    # Запускаем все таски параллельно
     await asyncio.gather(*tasks)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
