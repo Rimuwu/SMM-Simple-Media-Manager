@@ -7,9 +7,9 @@ from executor import BaseExecutor
 
 class VKExecutor(BaseExecutor):
     """Исполнитель для VK через сообщество"""
-    
-    def __init__(self, config: dict):
-        super().__init__(config)
+
+    def __init__(self, config: dict, executor_name: str = "vk"):
+        super().__init__(config, executor_name)
         self.token = config.get("token")
         self.group_id = config.get("group_id")
         
@@ -70,7 +70,7 @@ class VKExecutor(BaseExecutor):
             except Exception as e:
                 print(f"VK Polling error: {e}")
                 await asyncio.sleep(5)
-    
+
     def is_available(self) -> bool:
         """Проверить доступность"""
         return self.token is not None and self.vk is not None
