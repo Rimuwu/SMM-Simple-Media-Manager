@@ -1,9 +1,10 @@
 import logging
 import os
 import sys
-from config import settings
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
+
+settings = {}
 
 # Настройка логгера
 log_level = getattr(settings, "log_level", "INFO")
@@ -26,7 +27,7 @@ stream_handler.setFormatter(formatter)
 logger.addHandler(stream_handler)
 
 now_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-file_name = f'{log_dir}/{now_str}_brain.log'
+file_name = f'{log_dir}/{now_str}.log'
 
 # Настройка файлового логирования
 if log_dir:
