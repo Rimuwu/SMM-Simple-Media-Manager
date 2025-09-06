@@ -3,40 +3,38 @@
 """
 import asyncio
 from executor import ExecutorManager
-from os import getenv
-from tg.main import TelegramExecutor
-from vk.main import VKExecutor
+from global_modules.logs import logger
+from modules.constants import EXECUTORS
+from modules.json_format import check_env_config
+from global_modules.function_way import str_to_func
 
-def main():
-    print('start executors')
-    manager = ExecutorManager()
-    
-    clients = {
+manager = ExecutorManager()
 
-        # "vk": {
-        #     "base_class": VKExecutor
-        # },
+async def main():
+    logger.info("Starting Executors...")
 
-        "telegram": {
-            "base_class": TelegramExecutor,
-            "config": {
-                "token": getenv('TG_BOT_TOKEN')
-            }
-        }
-    }
+    for exe_name, executor_data in EXECUTORS.items():
+        base_class = str_to_func(executor_data['base_class'])
 
-    for key, client in clients.items():
-        executor = client['base_class'](
-            config=client['config']
+        executor = base_class(
+            config=check_env_config(
+                executor_data['config'] # Заменяем данные на переменные из окружения
+                ),
+            executor_name=exe_name
         )
         manager.register(executor)
-        print(f'{key} executor register...')
 
-    print(manager.get_available())
-    manager.start_all()
-    print('end-2')
+    logger.info(f"Registered executors: {list(manager.executors.keys())}")
+    tasks = manager.start_all()
+ 
+    # Отправляем тестовое сообщение
+    tg = manager.get("telegram_executor")
+    await tg.send_message(
+        1191252229, "Test message from main.py")
+
+    # Запускаем все таски
+    await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
-    # asyncio.run(main())
-    main()
+    asyncio.run(main())
