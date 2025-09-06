@@ -1,7 +1,7 @@
 import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
-from executor import BaseExecutor
+from modules.executor import BaseExecutor
 from global_modules.logs import logger
 
 class TelegramExecutor(BaseExecutor):
