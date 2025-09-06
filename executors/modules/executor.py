@@ -47,10 +47,10 @@ class BaseExecutor(ABC):
 
 class ExecutorManager:
     """Менеджер исполнителей"""
-    
+
     def __init__(self):
         self.executors: Dict[str, BaseExecutor] = {}
-    
+
     def register(self, executor: BaseExecutor):
         """Зарегистрировать исполнителя"""
         if executor.is_available():
