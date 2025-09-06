@@ -6,6 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 WORKDIR /
 
 COPY brain-api/ ./
+COPY global_modules/ ./global_modules/
 
 RUN pip install --no-cache-dir -r requirements.txt
 
