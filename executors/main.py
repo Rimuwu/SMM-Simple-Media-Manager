@@ -2,42 +2,41 @@
 Простой пример использования системы исполнителей
 """
 import asyncio
-from executor import create_manager, send_message_to_platform
+from executor import ExecutorManager
 from os import getenv
+from tg.main import TelegramExecutor
+from vk.main import VKExecutor
 
-async def main():
-    """Пример использования"""
+def main():
+    print('start executors')
+    manager = ExecutorManager()
     
-    # Конфигурация
-    config = {
-        "telegram": {
-            "token": getenv("TG_BOT_TOKEN")
-        },
+    clients = {
+
         # "vk": {
-        #     "token": "YOUR_VK_TOKEN",
-        #     "group_id": "YOUR_GROUP_ID"
-        # }
-    }
-    
-    # Создаем менеджер
-    manager = create_manager(config)
+        #     "base_class": VKExecutor
+        # },
 
-    print(f"Доступные платформы: {manager.get_available()}")
-    
-    # Отправляем сообщения
-    result_tg = await send_message_to_platform(
-        manager, "telegram", "1191252229", "Привет из TG!"
-    )
-    print(f"Telegram: {result_tg}")
-    
-    result_vk = await send_message_to_platform(
-        manager, "vk", "789012", "Привет из VK!"
-    )
-    print(f"VK: {result_vk}")
-    
-    # Запускаем пуллинг
-    await manager.start_all()
+        "telegram": {
+            "base_class": TelegramExecutor,
+            "config": {
+                "token": getenv('TG_BOT_TOKEN')
+            }
+        }
+    }
+
+    for key, client in clients.items():
+        executor = client['base_class'](
+            config=client['config']
+        )
+        manager.register(executor)
+        print(f'{key} executor register...')
+
+    print(manager.get_available())
+    manager.start_all()
+    print('end-2')
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # asyncio.run(main())
+    main()

@@ -64,7 +64,7 @@ services:
       - "8003:8003"
     depends_on:
       - brain
-    restart: unless-stopped
+    restart: always
     volumes:
       - ./logs:/app/logs:rw
 

@@ -42,6 +42,8 @@ class BaseExecutor(ABC):
         pass
 
 
+ioloop = asyncio.get_event_loop()
+
 class ExecutorManager:
     """Менеджер исполнителей"""
     
@@ -56,13 +58,19 @@ class ExecutorManager:
     def get(self, executor_type: str) -> BaseExecutor:
         """Получить исполнителя"""
         return self.executors.get(executor_type)
-    
+
     def get_available(self) -> List[str]:
         """Получить список доступных типов"""
         return list(self.executors.keys())
-    
-    async def start_all(self):
+
+    def start_all(self):
         """Запустить всех исполнителей"""
+        tasks = []
         for executor in self.executors.values():
             executor.is_running = True
-            asyncio.create_task(executor.start_polling())
+            tasks.append(
+                ioloop.create_task(executor.start_polling()
+                ))
+
+        ioloop.run_until_complete(asyncio.gather(*tasks))
+        ioloop.close()

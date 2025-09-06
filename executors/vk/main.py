@@ -2,7 +2,7 @@ import asyncio
 import random
 import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType
-from ..executor import BaseExecutor
+from executor import BaseExecutor
 
 
 class VKExecutor(BaseExecutor):
@@ -33,7 +33,7 @@ class VKExecutor(BaseExecutor):
             return {"success": True, "message_id": result}
         except Exception as e:
             return {"success": False, "error": str(e)}
-    
+
     async def edit_message(self, chat_id: str, message_id: str, text: str) -> dict:
         """Изменить сообщение"""
         try:
@@ -64,7 +64,7 @@ class VKExecutor(BaseExecutor):
                 for event in self.longpoll.listen():
                     if event.type == VkEventType.MESSAGE_NEW:
                         print(f"VK Message: {event.text}")
-                    
+
                     if not self.is_running:
                         break
             except Exception as e:
@@ -74,7 +74,7 @@ class VKExecutor(BaseExecutor):
     def is_available(self) -> bool:
         """Проверить доступность"""
         return self.token is not None and self.vk is not None
-    
+
     def get_type(self) -> str:
         """Получить тип"""
         return "vk"

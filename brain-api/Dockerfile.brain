@@ -5,11 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /
 
-COPY ../requirements.txt .
+COPY brain-api/ ./
 
 RUN pip install --no-cache-dir -r requirements.txt
-
-COPY brain-api/ ./
 
 EXPOSE 8000
 
