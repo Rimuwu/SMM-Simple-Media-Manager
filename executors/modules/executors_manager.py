@@ -1,5 +1,5 @@
 from modules.executor import ExecutorManager
-from global_modules.logs import logger
+from modules.logs import executors_logger
 from modules.constants import EXECUTORS
 from modules.json_format import check_env_config
 from global_modules.function_way import str_to_func
@@ -7,7 +7,7 @@ from global_modules.function_way import str_to_func
 manager = ExecutorManager()
 
 async def executors_start():
-    logger.info("Starting Executors...")
+    executors_logger.info("Starting Executors...")
 
     for exe_name, executor_data in EXECUTORS.items():
         base_class = str_to_func(executor_data['base_class'])
@@ -20,7 +20,7 @@ async def executors_start():
         )
         manager.register(executor)
 
-    logger.info(
+    executors_logger.info(
         f"Registered executors: {list(manager.executors.keys())}"
         )
     tasks = manager.start_all()

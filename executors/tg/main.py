@@ -2,7 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from modules.executor import BaseExecutor
-from global_modules.logs import logger
+from modules.logs import executors_logger as logger
 
 class TelegramExecutor(BaseExecutor):
     """Исполнитель для Telegram"""

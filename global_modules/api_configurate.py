@@ -1,7 +1,6 @@
 
 
 from fastapi import APIRouter, FastAPI
-from global_modules.logs import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
 def get_fastapi_app(
@@ -12,7 +11,8 @@ def get_fastapi_app(
         limiter: bool = False,
         lifespan: any = None,
         middlewares: list[BaseHTTPMiddleware] = None,
-        routers: list[APIRouter] = None
+        routers: list[APIRouter] = None,
+        api_logger = None
     ):
     """Создание FastAPI приложения с базовыми настройками"""
 
@@ -24,7 +24,9 @@ def get_fastapi_app(
         lifespan=lifespan
     )
 
-    app.state.logger = logger
+    if api_logger:
+        app.state.logger = api_logger
+
     if limiter: 
         from global_modules.limiter import setup_rate_limiter
         setup_rate_limiter(app)
