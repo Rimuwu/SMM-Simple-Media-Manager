@@ -2,7 +2,7 @@ import asyncio
 import random
 import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType
-from executor import BaseExecutor
+from modules.executor import BaseExecutor
 
 
 class VKExecutor(BaseExecutor):
