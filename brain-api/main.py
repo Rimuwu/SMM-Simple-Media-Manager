@@ -1,13 +1,13 @@
 from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 
-from config import settings
 from database.core import create_tables
-from security.limiter import setup_rate_limiter, limiter
+from global_modules.limiter import limiter
 from middlewares.logs_mid import RequestLoggingMiddleware
 
 from routers.db_health import router as db_health_router
 from global_modules.logs import logger
+from global_modules.api_configurate import get_fastapi_app
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,23 +21,16 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("🛑 API is shutting down...")
 
-# Инициализация FastAPI приложения
-app = FastAPI(
-    title=getattr(settings, "api_title", "API"),
-    version=getattr(settings, "api_version", "1.0.0"),
+app = get_fastapi_app(
+    title="API",
+    version="1.0.0",
     description="Brain API",
     debug=False,
-    lifespan=lifespan
+    lifespan=lifespan,
+    limiter=True,
+    middlewares=[RequestLoggingMiddleware],
+    routers=[db_health_router]
 )
-
-setup_rate_limiter(app)
-app.state.logger = logger
-
-# Middleware для логирования запросов
-app.add_middleware(RequestLoggingMiddleware)
-
-# Подключение роутеров
-app.include_router(db_health_router)
 
 @app.get("/")
 @limiter.limit("2/second")
