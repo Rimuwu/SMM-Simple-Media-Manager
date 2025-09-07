@@ -58,6 +58,12 @@ services:
       dockerfile: executors/Dockerfile.executors
     environment:
       - TG_BOT_TOKEN=${TG_BOT_TOKEN}
+      - TP_API_ID=${TP_API_ID}
+      - TP_API_HASH=${TP_API_HASH}
+      - TP_PHONE_NUMBER=${TP_PHONE_NUMBER}
+      - VK_GROUP_ID=${VK_GROUP_ID}
+      - VK_ACCESS_TOKEN=${VK_ACCESS_TOKEN}
+      - TP_PASSWORD=${TP_PASSWORD}
     ports:
       - "8003:8003"
     depends_on:
@@ -65,6 +71,7 @@ services:
     restart: always
     volumes:
       - ./logs:/logs:rw
+      - ./sessions:/sessions:rw
 
 volumes:
   postgres_data:
