@@ -1,0 +1,10 @@
+{
+
+    "main_tg": {
+        "client_id": 1000000000,
+        "executor_name": "telegram_executor",
+
+        "label": "Канал ТГ",
+        "tag_suffix": "tag_suffix"
+    }
+}
