@@ -210,3 +210,4 @@ __marimo__/
 
 logs/*
 .idea/*
+executors/json/clients.json
