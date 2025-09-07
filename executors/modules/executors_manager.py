@@ -5,6 +5,7 @@ from modules.json_format import check_env_config
 from global_modules.function_way import str_to_func
 from typing import Dict, List, Type
 import asyncio
+import traceback
 
 class ExecutorManager:
     """Менеджер исполнителей"""
@@ -14,6 +15,9 @@ class ExecutorManager:
 
     def register(self, executor: BaseExecutor):
         """Зарегистрировать исполнителя"""
+        executors_logger.info(
+            f"{executor.get_name()} ({executor.get_type()}) is available: {executor.is_available()}"
+            )
         if executor.is_available():
             self.executors[executor.get_name()] = executor
 
@@ -45,12 +49,18 @@ async def executors_start():
     for exe_name, executor_data in EXECUTORS.items():
         base_class = str_to_func(executor_data['base_class'])
 
-        executor = base_class(
-            config=check_env_config(
-                executor_data['config'] # Заменяем данные на переменные из окружения
-                ),
-            executor_name=exe_name
-        )
+        try:
+            executor = base_class(
+                config=check_env_config(
+                    executor_data['config'] # Заменяем данные на переменные из окружения
+                    ),
+                executor_name=exe_name
+            )
+        except Exception as e:
+            executors_logger.error(
+                f"Error initializing {exe_name} executor: {e}\n{traceback.format_exc()}"
+            )
+            continue
         manager.register(executor)
 
     executors_logger.info(
