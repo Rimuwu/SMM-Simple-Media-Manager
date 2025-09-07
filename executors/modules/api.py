@@ -1,7 +1,9 @@
 from global_modules.api_configurate import get_fastapi_app
-from routers.test import router as test_router
 from modules.logs import executors_logger
 from middlewares.logs_mid import RequestLoggingMiddleware
+
+from routers.test import router as test_router
+from routers.info import router as info_router
 
 app = get_fastapi_app(
     title="Executors API",
@@ -9,9 +11,11 @@ app = get_fastapi_app(
     description="Executors API",
     debug=False,
     lifespan=None,
-    limiter=False,
+    limiter=True,
     middlewares=[],
-    routers=[test_router],
+    routers=[
+        test_router, info_router
+        ],
     api_logger=executors_logger,
 )
 app.add_middleware(RequestLoggingMiddleware, logger=executors_logger)
