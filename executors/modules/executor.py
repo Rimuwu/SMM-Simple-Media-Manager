@@ -1,6 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Type
-import asyncio
 
 class BaseExecutor(ABC):
     """Базовый класс исполнителя"""
@@ -43,34 +41,3 @@ class BaseExecutor(ABC):
     def get_name(self) -> str:
         """Получить имя исполнителя"""
         return self.executor_name
-
-
-class ExecutorManager:
-    """Менеджер исполнителей"""
-
-    def __init__(self):
-        self.executors: Dict[str, BaseExecutor] = {}
-
-    def register(self, executor: BaseExecutor):
-        """Зарегистрировать исполнителя"""
-        if executor.is_available():
-            self.executors[executor.get_name()] = executor
-
-    def get(self, executor_name: str) -> Type[BaseExecutor]:
-        """Получить исполнителя"""
-        return self.executors.get(executor_name)
-
-    def get_available(self) -> List[str]:
-        """Получить список доступных исполнителей"""
-        return list(self.executors.keys())
-
-    def start_all(self):
-        """Запустить всех исполнителей"""
-        tasks = []
-        for executor in self.executors.values():
-            executor.is_running = True
-            tasks.append(
-                asyncio.create_task(executor.start_polling()
-                ))
-
-        return tasks
