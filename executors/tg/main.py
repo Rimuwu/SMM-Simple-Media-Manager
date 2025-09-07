@@ -28,6 +28,10 @@ class TelegramExecutor(BaseExecutor):
         async def on_startup():
             logger.info("Telegram bot started.")
 
+        @self.dp.shutdown()
+        async def on_shutdown():
+            logger.info("Telegram bot stopped.")
+
     async def send_message(self, chat_id: str, text: str) -> dict:
         """Отправить сообщение"""
         try:
