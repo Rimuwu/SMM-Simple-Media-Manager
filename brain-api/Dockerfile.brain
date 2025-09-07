@@ -5,11 +5,13 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /
 
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем код приложения
 COPY brain-api/ ./
 COPY global_modules/ ./global_modules/
 COPY middlewares/ ./middlewares/
-
-RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
 
