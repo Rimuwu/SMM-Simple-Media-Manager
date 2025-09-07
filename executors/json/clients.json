@@ -2,25 +2,9 @@
 
     "main_tg": {
         "client_id": 1000000000,
-
         "executor_name": "telegram_executor",
-        "label": "Киберкружочек РТУ МИРЭА",
-        "tag_suffix": "@mirea_esports"
-    },
 
-    "boardgames_tg": {
-        "client_id": 1000000001,
-
-        "executor_name": "telegram_executor",
-        "label": "Настольные игры РТУ МИРЭА",
-        "tag_suffix": "@mirea_boardgames"
-    },
-
-    "main_vk": {
-        "client_id": "2000000000",
-
-        "executor": "vk_executor",
-        "label": "Киберспорт РТУ МИРЭА",
-        "tag_suffix": "@esports.mirea"
+        "label": "Канал ТГ",
+        "tag_suffix": "tag_suffix"
     }
 }
