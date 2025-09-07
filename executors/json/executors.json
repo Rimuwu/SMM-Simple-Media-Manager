@@ -1,0 +1,44 @@
+{
+
+    "telegram_executor": {
+        "base_class": "tg.main.TelegramExecutor",
+        "config": {
+            "token": {
+                "env": "TG_BOT_TOKEN"
+            }
+        }
+    },
+
+    "vk_executor": {
+        "base_class": "vk.main.VKExecutor",
+        "config": {
+            "group_id": {
+                "env": "VK_GROUP_ID"
+            },
+            "access_token": {
+                "env": "VK_ACCESS_TOKEN"
+            }
+        }
+    },
+
+    "tp_executor": {
+        "base_class": "tp.main.TelegramPyrogramExecutor",
+        "config": {
+            "api_id": {
+                "env": "TP_API_ID"
+            },
+            "api_hash": {
+                "env": "TP_API_HASH"
+            },
+            "phone_number": {
+                "env": "TP_PHONE_NUMBER"
+            },
+            "password": {
+                "env": "TP_PASSWORD"
+            },
+            "session_name": "tp_session",
+            "workdir": "./sessions"
+        }
+    }
+
+}

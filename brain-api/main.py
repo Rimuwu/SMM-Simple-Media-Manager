@@ -1,43 +1,38 @@
 from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 
-from config import settings
 from database.core import create_tables
-from security.limiter import setup_rate_limiter, limiter
+from global_modules.limiter import limiter
 from middlewares.logs_mid import RequestLoggingMiddleware
 
 from routers.db_health import router as db_health_router
-from modules.logs import logger
+from global_modules.api_configurate import get_fastapi_app
+
+from modules.logs import brain_logger
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("API is starting up...")
-    logger.info("Creating missing tables on startup...")
+    brain_logger.info("API is starting up...")
+    brain_logger.info("Creating missing tables on startup...")
     await create_tables()
 
     yield
 
     # Shutdown
-    logger.info("🛑 API is shutting down...")
 
-# Инициализация FastAPI приложения
-app = FastAPI(
-    title=getattr(settings, "api_title", "API"),
-    version=getattr(settings, "api_version", "1.0.0"),
+app = get_fastapi_app(
+    title="API",
+    version="1.0.0",
     description="Brain API",
     debug=False,
-    lifespan=lifespan
+    lifespan=lifespan,
+    limiter=True,
+    middlewares=[],
+    routers=[db_health_router],
+    api_logger=brain_logger
 )
-
-setup_rate_limiter(app)
-app.state.logger = logger
-
-# Middleware для логирования запросов
-app.add_middleware(RequestLoggingMiddleware)
-
-# Подключение роутеров
-app.include_router(db_health_router)
+app.add_middleware(RequestLoggingMiddleware, logger=brain_logger)
 
 @app.get("/")
 @limiter.limit("2/second")

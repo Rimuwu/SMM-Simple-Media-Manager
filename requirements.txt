@@ -1,13 +1,24 @@
-
-slowapi==0.1.9
-sqlalchemy==2.0.42
-uvicorn==0.35.0
+# Общие зависимости для всех сервисов
+pip==25.2
 fastapi==0.116.1
+uvicorn==0.35.0
 pydantic==2.11.7
 pydantic-settings==2.10.1
+
+# Brain API зависимости
+slowapi==0.1.9
+sqlalchemy==2.0.42
 psycopg2-binary==2.9.10
 asyncpg==0.30.0
 
-# Для работы с соц. сетями
+# Calendar API зависимости
+google-api-python-client==2.181.0
+google-auth==2.40.3
+google-auth-oauthlib==1.2.2
+google-auth-httplib2==0.2.0
+
+# Executors зависимости
 vk_api==11.10.0
 aiogram==3.22.0
+pyrogram==2.0.106
+tgcrypto==1.2.5

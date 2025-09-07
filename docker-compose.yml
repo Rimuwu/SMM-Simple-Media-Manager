@@ -26,19 +26,17 @@ services:
     volumes:
       - ./logs:/logs:rw
 
-  # calendar:
-  #   build: 
-  #     context: .
-  #     dockerfile: calendar-api/Dockerfile.calendar
-  #   environment:
-  #     - 
-  #   ports:
-  #     - "8001:8001"
-  #   depends_on:
-  #     - brain
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./logs:/app/logs:rw
+  calendar:
+    build: 
+      context: .
+      dockerfile: calendar-api/Dockerfile.calendar
+    ports:
+      - "8001:8001"
+    depends_on:
+      - brain
+    restart: unless-stopped
+    volumes:
+      - ./logs:/logs:rw
 
   # task:
   #   build: 
@@ -52,21 +50,28 @@ services:
   #     - brain
   #   restart: unless-stopped
   #   volumes:
-  #     - ./logs:/app/logs:rw
+  #     - ./logs:/logs:rw
 
-  # executors:
-  #   build: 
-  #     context: .
-  #     dockerfile: executors/Dockerfile.executors
-  #   environment:
-  #     - 
-  #   ports:
-  #     - "8003:8003"
-  #   depends_on:
-  #     - brain
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./logs:/app/logs:rw
+  executors:
+    build: 
+      context: .
+      dockerfile: executors/Dockerfile.executors
+    environment:
+      - TG_BOT_TOKEN=${TG_BOT_TOKEN}
+      - TP_API_ID=${TP_API_ID}
+      - TP_API_HASH=${TP_API_HASH}
+      - TP_PHONE_NUMBER=${TP_PHONE_NUMBER}
+      - VK_GROUP_ID=${VK_GROUP_ID}
+      - VK_ACCESS_TOKEN=${VK_ACCESS_TOKEN}
+      - TP_PASSWORD=${TP_PASSWORD}
+    ports:
+      - "8003:8003"
+    depends_on:
+      - brain
+    restart: always
+    volumes:
+      - ./logs:/logs:rw
+      - ./sessions:/sessions:rw
 
 volumes:
   postgres_data:
