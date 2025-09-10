@@ -1,4 +1,5 @@
 import aiohttp
+from os import getenv
 
 class APIClient:
 
@@ -12,6 +13,8 @@ class APIClient:
                 return await response.json(), response.status
 
     async def post(self, endpoint: str, data: dict = None):
+        if getenv("DEBUG", False) == 'true': print(data)
+
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.base_url}{endpoint}", json=data) as response:
                 return await response.json(), response.status
