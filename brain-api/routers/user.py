@@ -51,3 +51,8 @@ async def get_user_by_telegram_id(telegram_id: int):
         tasker_id=user.tasker_id,
         role=user.role
     )
+
+@router.get("/all")
+async def get_user_by_telegram_id():
+    users = await UserService.get_all_users()
+    return {"users": users}
