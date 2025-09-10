@@ -28,10 +28,11 @@ class Card(Base):
 
     # Связь с пользователем (заказчиком)
     customer_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
-    customer: Mapped[Optional["User"]] = relationship("User", back_populates="cards")
+    customer: Mapped[Optional["User"]] = relationship("User", back_populates="cards", foreign_keys=[customer_id])
 
     # Исполнитель
     executor_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
+    executor: Mapped[Optional["User"]] = relationship("User", back_populates="executed_cards", foreign_keys=[executor_id])
 
     # JSON поля
     task_id: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)

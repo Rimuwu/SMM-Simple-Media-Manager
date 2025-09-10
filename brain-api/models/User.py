@@ -19,7 +19,8 @@ class User(Base):
     user_id: Mapped[uuidPK]
     telegram_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     tasker_id: Mapped[str] = mapped_column(String, nullable=True)
-    role: Mapped[UserRole] = mapped_column(nullable=False, default=UserRole.customer)
+    role: Mapped[UserRole] = mapped_column(nullable=False, default=UserRole.copywriter)
 
     # Связи
-    cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer")
+    cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer", foreign_keys="[Card.customer_id]")
+    executed_cards: Mapped[list["Card"]] = relationship("Card", back_populates="executor", foreign_keys="[Card.executor_id]")

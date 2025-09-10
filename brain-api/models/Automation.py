@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey
+from sqlalchemy import String, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from enum import Enum
@@ -28,7 +28,7 @@ class Preset(Base):
     executor_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
 
     # Связи
-    automations_rel: Mapped[list["Automation"]] = relationship("Automation", back_populates="card")
+    automations_rel: Mapped[list["Automation"]] = relationship("Automation", back_populates="preset")
 
 
 class Automation(Base):
@@ -36,8 +36,10 @@ class Automation(Base):
 
     auto_id: Mapped[intAutoPK]
     card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id"), nullable=False)
+    preset_id: Mapped[Optional[int]] = mapped_column(ForeignKey("presets.preset_id"), nullable=True)
     type: Mapped[AutomationTypes] = mapped_column(nullable=False)
     settings: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # Связи
     card: Mapped["Card"] = relationship("Card")
+    preset: Mapped[Optional["Preset"]] = relationship("Preset", back_populates="automations_rel")
