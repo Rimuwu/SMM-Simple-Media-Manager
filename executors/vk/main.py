@@ -230,8 +230,7 @@ class VKExecutor(BaseExecutor):
             return {"success": False, "error": str(e)}
 
     async def start_polling(self):
-        """Запустить polling (для VK executor без LongPoll - просто ждем)"""
-        logger.info("VK executor started (wall operations only, no polling)")
+        logger.info("VK executor started")
 
         while self.is_running:
             # Просто ждем, пока executor работает
