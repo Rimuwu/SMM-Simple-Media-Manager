@@ -6,6 +6,7 @@ from global_modules.limiter import limiter
 from middlewares.logs_mid import RequestLoggingMiddleware
 
 from routers.db_health import router as db_health_router
+from routers.user import router as user_router
 from global_modules.api_configurate import get_fastapi_app
 
 from modules.logs import brain_logger
@@ -29,7 +30,7 @@ app = get_fastapi_app(
     lifespan=lifespan,
     limiter=True,
     middlewares=[],
-    routers=[db_health_router],
+    routers=[db_health_router, user_router],
     api_logger=brain_logger
 )
 app.add_middleware(RequestLoggingMiddleware, logger=brain_logger)
