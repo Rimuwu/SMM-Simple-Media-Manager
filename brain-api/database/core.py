@@ -1,10 +1,9 @@
 
 
-
-from config import Settings
 from database.connection import Base, engine
 from sqlalchemy import text
 import models
+from os import getenv
 
 async def create_tables():
     """Удалить все таблицы и пересоздать их заново."""
@@ -16,4 +15,4 @@ async def create_tables():
         await conn.execute(text("CREATE SCHEMA public"))
         # Создаём заново
         await conn.run_sync(Base.metadata.create_all)
-    engine.echo = getattr(Settings, "debug", False)
+    engine.echo = getenv("DEBUG", False) == "true"
