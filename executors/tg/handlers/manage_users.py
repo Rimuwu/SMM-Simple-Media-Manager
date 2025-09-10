@@ -22,15 +22,14 @@ async def create_user(message: Message):
     tasker_id = None
 
     args = message.text.split()[1:]
-    if args:
-        args_count = len(args)
-        if args_count == 0:
-            await message.answer("Использование: /create_user <telegram_id> [role] [tasker_id]")
-            return
+    args_count = len(args)
+    if args_count == 0:
+        await message.answer("Использование: /create_user <telegram_id> [role] [tasker_id]")
+        return
 
-        if args_count >= 1: telegram_id = int(args[0])
-        if args_count >= 2: role = args[1]
-        if args_count >= 3: tasker_id = args[2]
+    if args_count >= 1: telegram_id = int(args[0])
+    if args_count >= 2: role = args[1]
+    if args_count >= 3: tasker_id = args[2]
 
     existing_user, status_code = await api.get(
         f"/user/telegram/{telegram_id}")
@@ -41,8 +40,8 @@ async def create_user(message: Message):
 
     data = {
         "telegram_id": telegram_id,
-        "role": role,
-        "tasker_id": tasker_id
+        "tasker_id": tasker_id,
+        "role": role
     }
 
     user, status_code = await api.post(
