@@ -7,7 +7,7 @@ from modules.executors_manager import manager
 from aiogram import F
 from aiogram.filters import Command
 
-from modules.apiclient import brain_api as api
+from tg.modules.apiclient import brain_api as api
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
