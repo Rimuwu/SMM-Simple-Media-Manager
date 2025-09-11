@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 
-from database.core import create_tables
+from database.core import create_superuser, create_tables
 from global_modules.limiter import limiter
 from middlewares.logs_mid import RequestLoggingMiddleware
 
@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
     brain_logger.info("API is starting up...")
     brain_logger.info("Creating missing tables on startup...")
     await create_tables()
+    await create_superuser()
 
     yield
 
