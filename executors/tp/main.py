@@ -1,9 +1,7 @@
 import asyncio
-from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram import Client
 from pyrogram.errors import (
     ApiIdInvalid, 
-    PhoneNumberInvalid, 
     SessionPasswordNeeded,
     FloodWait,
     UserDeactivated,
@@ -38,8 +36,6 @@ class TelegramPyrogramExecutor(BaseExecutor):
                 workdir=self.workdir,
                 password=self.password
             )
-            # self.setup_handlers()
-
             # Проверяем наличие сессии при инициализации
             session_file = os.path.join(self.workdir, f"{self.session_name}.session")
             if not os.path.exists(session_file):
@@ -51,7 +47,6 @@ class TelegramPyrogramExecutor(BaseExecutor):
         if not self.client: 
             logger.warning("Client not initialized when setting up handlers")
             return
-        
         # Импортируем хендлеры после того, как клиент готов
         try:
             # import tp.handlers.test
@@ -234,18 +229,13 @@ class TelegramPyrogramExecutor(BaseExecutor):
 
         while self.is_running:
             try:
-                logger.info("Starting Telegram Pyrogram client...")
-
                 # Проверяем, авторизован ли уже клиент
                 if await self.is_authorized():
-                    logger.info("Client already authorized, connecting...")
                     if not self.client.is_connected:
                         await self.client.start()
                 else:
                     logger.error("Client not authorized and session not found. Stopping executor.")
                     break
-
-                logger.info("Telegram Pyrogram client started successfully")
 
                 # Настраиваем хендлеры после запуска клиента
                 self.setup_handlers()
@@ -253,13 +243,6 @@ class TelegramPyrogramExecutor(BaseExecutor):
                 # Получаем информацию о текущем пользователе
                 me = await self.client.get_me()
                 logger.info(f"Logged in as: {me.first_name} (@{me.username}) ID: {me.id}")
-
-                # Проверяем, есть ли у нас обработчики
-                try:
-                    handlers_count = len(self.client.dispatcher.groups[0])
-                except:
-                    handlers_count = 0
-                logger.info(f"Active message handlers: {handlers_count}")
 
                 # Ожидаем остановки
                 while self.is_running:

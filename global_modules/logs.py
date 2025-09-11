@@ -26,15 +26,12 @@ class Logger:
 
     def _setup_handlers(self):
         """Настройка общих обработчиков логирования"""
-        self.log_level = os.getenv("LOG_LEVEL", "INFO")
-        self.log_dir = os.getenv("LOG_DIR", "logs")
-        self.max_bytes = int(os.getenv("LOG_MAX_BYTES", 50 * 1024 * 1024))  # 50 MB
-        self.backup_count = int(os.getenv("LOG_BACKUP_COUNT", 10))
-        self.log_format = os.getenv(
-            "LOG_FORMAT", 
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-        )
-        unicorn_logs = os.getenv("UNICORN_LOGS", "false").lower() == "true"
+        self.log_level = "INFO"
+        self.log_dir ="logs"
+        self.max_bytes = 50 * 1024 * 1024
+        self.backup_count = 10
+        self.log_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        unicorn_logs = False
 
         self.formatter = logging.Formatter(self.log_format)
 

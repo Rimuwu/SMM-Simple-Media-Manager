@@ -11,6 +11,8 @@ services:
     ports:
       - "5432:5432"
     restart: unless-stopped
+    networks:
+      - smm_network
   
   brain:
     build: 
@@ -18,6 +20,8 @@ services:
       dockerfile: brain-api/Dockerfile.brain
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - DEBUG=${DEBUG}
+      - ADMIN_ID=${ADMIN_ID}
     ports:
       - "8000:8000"
     depends_on:
@@ -25,11 +29,17 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
+    networks:
+      - smm_network
 
   calendar:
     build: 
       context: .
       dockerfile: calendar-api/Dockerfile.calendar
+    environment:
+      - DEBUG=${DEBUG}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GOOGLE_CALENDAR_ID=${GOOGLE_CALENDAR_ID}
     ports:
       - "8001:8001"
     depends_on:
@@ -37,13 +47,13 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
+    networks:
+      - smm_network
 
   # task:
   #   build: 
   #     context: .
   #     dockerfile: task-api/Dockerfile.task
-  #   environment:
-  #     - 
   #   ports:
   #     - "8002:8002"
   #   depends_on:
@@ -51,6 +61,8 @@ services:
   #   restart: unless-stopped
   #   volumes:
   #     - ./logs:/logs:rw
+  #   networks:
+  #     - smm_network
 
   executors:
     build: 
@@ -64,6 +76,7 @@ services:
       - VK_GROUP_ID=${VK_GROUP_ID}
       - VK_ACCESS_TOKEN=${VK_ACCESS_TOKEN}
       - TP_PASSWORD=${TP_PASSWORD}
+      - DEBUG=${DEBUG}
     ports:
       - "8003:8003"
     depends_on:
@@ -72,6 +85,12 @@ services:
     volumes:
       - ./logs:/logs:rw
       - ./sessions:/sessions:rw
+    networks:
+      - smm_network
 
 volumes:
   postgres_data:
+
+networks:
+  smm_network:
+    driver: bridge

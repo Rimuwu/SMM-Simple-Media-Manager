@@ -1,17 +1,17 @@
 from global_modules.api_configurate import get_fastapi_app
-from routers.test import router as test_router
+from routers.calendar import router as calendar_router
 from modules.logs import calendar_logger
 from middlewares.logs_mid import RequestLoggingMiddleware
 
 app = get_fastapi_app(
-    title="API",
+    title="Calendar API",
     version="1.0.0",
-    description="Calendar API",
+    description="Calendar API for Google Calendar integration",
     debug=False,
     lifespan=None,
     limiter=False,
     middlewares=[],
-    routers=[test_router],
+    routers=[calendar_router],
     api_logger=calendar_logger
 )
 app.add_middleware(RequestLoggingMiddleware, logger=calendar_logger)

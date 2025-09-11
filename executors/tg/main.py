@@ -14,23 +14,9 @@ class TelegramExecutor(BaseExecutor):
             token=self.token) if self.token else None
         self.dp = Dispatcher()
 
-        if self.bot:
-            self.setup_handlers()
-
     def setup_handlers(self):
         """Настройка обработчиков"""
-
-        @self.dp.message()
-        async def handle_message(message: Message):
-            print(f"TG Message: {message.text}")
-
-        @self.dp.startup()
-        async def on_startup():
-            logger.info("Telegram bot started.")
-
-        @self.dp.shutdown()
-        async def on_shutdown():
-            logger.info("Telegram bot stopped.")
+        import tg.handlers
 
     async def send_message(self, chat_id: str, text: str) -> dict:
         """Отправить сообщение"""
@@ -58,6 +44,7 @@ class TelegramExecutor(BaseExecutor):
 
     async def start_polling(self):
         """Запустить пуллинг"""
+        self.setup_handlers()
 
         while self.is_running:
             try:
