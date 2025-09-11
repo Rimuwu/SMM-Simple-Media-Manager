@@ -38,6 +38,8 @@ services:
       dockerfile: calendar-api/Dockerfile.calendar
     environment:
       - DEBUG=${DEBUG}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GOOGLE_CALENDAR_ID=${GOOGLE_CALENDAR_ID}
     ports:
       - "8001:8001"
     depends_on:
