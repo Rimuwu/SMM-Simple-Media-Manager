@@ -11,7 +11,7 @@ class User(Base):
 
     user_id: Mapped[uuidPK]
     telegram_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
-    tasker_id: Mapped[str] = mapped_column(String, nullable=True)
+    tasker_id: Mapped[str] = mapped_column(String, nullable=True, default=None)
     role: Mapped[UserRole] = mapped_column(nullable=False, default=UserRole.copywriter)
 
     # Связи
