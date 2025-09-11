@@ -7,12 +7,10 @@ from modules.executors_manager import manager
 from aiogram import F
 from aiogram.filters import Command
 
-from global_modules.api_client import APIClient
+from modules.apiclient import brain_api as api
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
-
-api = APIClient('http://brain:8000')
 
 @dp.message(Command('create_user'))
 async def create_user(message: Message):
