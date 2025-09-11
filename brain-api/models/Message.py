@@ -5,13 +5,7 @@ from enum import Enum
 from uuid import UUID as _UUID
 from database.connection import Base
 from database.annotated_types import intAutoPK
-
-
-class MessageType(str, Enum):
-    """Типы сообщений"""
-    can_take = "can_take"
-    ready_review = "ready_review"
-    ready_post = "ready_post"
+from global_modules.classes.enums import MessageType
 
 
 class Message(Base):

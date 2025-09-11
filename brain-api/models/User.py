@@ -3,14 +3,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
 from database.connection import Base
 from database.annotated_types import uuidPK
-
-
-class UserRole(str, Enum):
-    """Роли пользователей в системе"""
-    copywriter = "copywriter"
-    editor = "editor"
-    customer = "customer"
-    admin = "admin"
+from global_modules.classes.enums import UserRole
 
 
 class User(Base):

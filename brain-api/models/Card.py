@@ -7,14 +7,7 @@ from typing import Optional
 from uuid import UUID as _UUID
 from database.connection import Base
 from database.annotated_types import uuidPK, createAT
-
-
-class CardStatus(str, Enum):
-    """Статусы карточек"""
-    pass_ = "pass"
-    edited = "edited"
-    review = "review"
-    ready = "ready"
+from global_modules.classes.enums import CardStatus
 
 
 class Card(Base):

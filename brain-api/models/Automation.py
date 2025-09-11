@@ -6,14 +6,7 @@ from typing import Optional
 from uuid import UUID as _UUID
 from database.connection import Base
 from database.annotated_types import intAutoPK
-
-
-class AutomationTypes(str, Enum):
-    """Типы автоматизации"""
-    auto_story = "auto_story"
-    auto_repost = "auto_repost"
-    auto_reaction = "auto_reaction"
-    auto_pin = "auto_pin"
+from global_modules.classes.enums import AutomationTypes
 
 
 class Preset(Base):
