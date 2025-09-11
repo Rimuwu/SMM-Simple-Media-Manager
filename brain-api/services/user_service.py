@@ -98,7 +98,7 @@ class UserService:
                 )
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
-            
+
             if user:
                 user.tasker_id = tasker_id
                 await session.commit()
