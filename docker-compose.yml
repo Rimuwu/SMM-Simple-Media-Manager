@@ -50,19 +50,23 @@ services:
     networks:
       - smm_network
 
-  # task:
-  #   build: 
-  #     context: .
-  #     dockerfile: task-api/Dockerfile.task
-  #   ports:
-  #     - "8002:8002"
-  #   depends_on:
-  #     - brain
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./logs:/logs:rw
-  #   networks:
-  #     - smm_network
+  task:
+    build: 
+      context: .
+      dockerfile: task-api/Dockerfile.task
+    environment:
+      - DEBUG=${DEBUG}
+      - KAITEN_TOKEN=${KAITEN_TOKEN}
+      - KAITEN_DOMAIN=${KAITEN_DOMAIN}
+    ports:
+      - "8002:8002"
+    depends_on:
+      - brain
+    restart: unless-stopped
+    volumes:
+      - ./logs:/logs:rw
+    networks:
+      - smm_network
 
   executors:
     build: 
