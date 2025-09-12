@@ -21,18 +21,6 @@ class KaitenConfig:
     RATE_LIMIT_REQUESTS = 100
     RATE_LIMIT_WINDOW = 60  # seconds
 
-    # HTTP Status Codes
-    HTTP_OK: int = 200
-    HTTP_CREATED: int = 201
-    HTTP_NO_CONTENT: int = 204
-    HTTP_BAD_REQUEST: int = 400
-    HTTP_UNAUTHORIZED: int = 401
-    HTTP_FORBIDDEN: int = 403
-    HTTP_NOT_FOUND: int = 404
-    HTTP_CONFLICT: int = 409
-    HTTP_RATE_LIMITED: int = 429
-    HTTP_INTERNAL_SERVER_ERROR: int = 500
-    
     # API Endpoints
     # Основные ресурсы
     ENDPOINT_SPACES: str = "/spaces"
