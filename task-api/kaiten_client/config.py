@@ -18,8 +18,7 @@ class KaitenConfig:
     API_VERSION = "latest"
 
     # Rate Limiting (согласно документации Kaiten)
-    RATE_LIMIT_REQUESTS = 100
-    RATE_LIMIT_WINDOW = 60  # seconds
+    LIMIT_PER_SEC = 5
 
     # API Endpoints
     # Основные ресурсы
