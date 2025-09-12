@@ -3,6 +3,7 @@
 Предоставляет простой интерфейс без необходимости создавать специальные типы данных.
 """
 
+import asyncio
 from typing import Optional, List, Dict, Any, Union
 import logging
 import aiohttp
@@ -65,6 +66,7 @@ class KaitenClient:
         self.token = token
         self.domain = domain
         self.session: Optional[aiohttp.ClientSession] = None
+        self._request_times: List[float] = []
 
         logger.info("Kaiten client initialized")
 
@@ -86,31 +88,49 @@ class KaitenClient:
             await self.session.close()
 
     async def _request(self, method: str, endpoint: str, **kwargs) -> Any:
-        """Выполняет HTTP запрос к API."""
+        """Выполняет HTTP запрос к API с поддержкой повторов и лимитом запросов в секунду."""
         if not self.session:
             raise RuntimeError("Client not initialized. Use 'async with' context manager.")
 
-        url = KaitenConfig.get_base_url(self.domain) + endpoint
+        # --- Лимит запросов в секунду ---
+        now = asyncio.get_event_loop().time()
+        # Удаляем устаревшие таймштампы
+        self._request_times = [t for t in self._request_times if now - t < 1.0]
+        if len(self._request_times) >= KaitenConfig.LIMIT_PER_SEC:
+            sleep_time = 1.0 - (now - self._request_times[0])
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+            now = asyncio.get_event_loop().time()
+            self._request_times = [t for t in self._request_times if now - t < 1.0]
+        self._request_times.append(now)
+        # --- Конец лимита ---
 
-        try:
-            async with self.session.request(method, url, **kwargs) as response:
-                if response.status == 404:
-                    raise KaitenNotFoundError(f"Resource not found: {endpoint}")
-                elif response.status == 422:
-                    error_data = await response.json()
-                    raise KaitenValidationError(f"Validation error: {error_data}")
-                elif response.status >= 400:
-                    error_data = await response.text()
-                    raise KaitenApiError(f"API error {response.status}: {error_data}")
-                
-                if response.status == 204:  # No Content
-                    return None
-                
-                return await response.json()
-        
-        except aiohttp.ClientError as e:
-            raise KaitenApiError(f"HTTP client error: {e}")
-    
+        url = KaitenConfig.get_base_url(self.domain) + endpoint
+        retries = KaitenConfig.MAX_RETRIES
+        delay = KaitenConfig.RETRY_DELAY
+
+        for attempt in range(1, retries + 1):
+            try:
+                async with self.session.request(method, url, **kwargs) as response:
+                    if response.status == 404:
+                        raise KaitenNotFoundError(f"Resource not found: {endpoint}")
+                    elif response.status == 422:
+                        error_data = await response.json()
+                        raise KaitenValidationError(f"Validation error: {error_data}")
+                    elif response.status >= 400:
+                        error_data = await response.text()
+                        raise KaitenApiError(f"API error {response.status}: {error_data}")
+
+                    if response.status == 204:  # No Content
+                        return None
+
+                    return await response.json()
+            except aiohttp.ClientError as e:
+                if attempt < retries:
+                    logger.warning(f"HTTP client error: {e}. Retrying {attempt}/{retries} after {delay} seconds...")
+                    await asyncio.sleep(delay)
+                else:
+                    raise KaitenApiError(f"HTTP client error after {retries} retries: {e}")
     # === КАРТОЧКИ ===
     
     async def get_cards(self, 
