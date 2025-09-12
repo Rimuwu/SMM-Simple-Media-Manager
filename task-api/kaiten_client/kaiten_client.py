@@ -10,6 +10,7 @@ from datetime import datetime
 
 from .config import KaitenConfig, KaitenCredentials
 from .exceptions import KaitenApiError, KaitenNotFoundError, KaitenValidationError
+from .models import Space, Board, Column, Card, Tag, Comment, Member, File
 
 
 logger = logging.getLogger(__name__)
@@ -25,15 +26,26 @@ class KaitenClient:
     
     async def main():
         async with KaitenClient("your-token") as client:
-            # Получение карточек
-            cards = await client.get_cards()
+            # Получение пространств
+            spaces = await client.get_spaces()
+            space = spaces[0]
             
-            # Создание карточки
-            card = await client.create_card(
+            # Получение досок через пространство
+            boards = await space.get_boards()
+            board = boards[0]
+            
+            # Получение колонок через доску
+            columns = await board.get_columns()
+            column = columns[0]
+            
+            # Создание карточки через колонку
+            card = await column.create_card(
                 title="Новая задача",
-                column_id=123,
                 description="Описание задачи"
             )
+            
+            # Добавление комментария к карточке
+            comment = await card.add_comment("Первый комментарий")
             
             # Создание тега
             tag = await client.create_tag(name="Важный", color="#ff0000")
@@ -102,7 +114,7 @@ class KaitenClient:
     # === КАРТОЧКИ ===
     
     async def get_cards(self, 
-                        board_id: Optional[int] = None, **filters) -> List[Dict[str, Any]]:
+                        board_id: Optional[int] = None, **filters) -> List[Card]:
         """
         Получает список карточек.
         
@@ -119,11 +131,13 @@ class KaitenClient:
             endpoint = KaitenConfig.ENDPOINT_CARDS
         
         response = await self._request('GET', endpoint, params=filters)
-        return response if isinstance(response, list) else response.get('items', [])
+        cards_data = response if isinstance(response, list) else response.get('items', [])
+        return [Card(self, card_data) for card_data in cards_data]
     
-    async def get_card(self, card_id: int) -> Dict[str, Any]:
+    async def get_card(self, card_id: int) -> Card:
         """Получает карточку по ID."""
-        return await self._request('GET', f'{KaitenConfig.ENDPOINT_CARDS}/{card_id}')
+        data = await self._request('GET', f'{KaitenConfig.ENDPOINT_CARDS}/{card_id}')
+        return Card(self, data)
 
     async def create_card(
         self,
@@ -138,7 +152,7 @@ class KaitenClient:
         tags: Optional[List[int]] = None,
         parent_id: Optional[int] = None,
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> Card:
         """
         Создает новую карточку.
         
@@ -178,7 +192,8 @@ class KaitenClient:
             if value is not None:
                 data[field] = value
         
-        return await self._request('POST', KaitenConfig.ENDPOINT_CARDS, json=data)
+        card_data = await self._request('POST', KaitenConfig.ENDPOINT_CARDS, json=data)
+        return Card(self, card_data)
     
     async def update_card(self, card_id: int, **fields) -> Dict[str, Any]:
         """
@@ -198,23 +213,26 @@ class KaitenClient:
         await self._request('DELETE', f'{KaitenConfig.ENDPOINT_CARDS}/{card_id}')
         return True
     
-    async def move_card(self, card_id: int, column_id: int) -> Dict[str, Any]:
+    async def move_card(self, card_id: int, column_id: int) -> Card:
         """Перемещает карточку в другую колонку."""
-        return await self.update_card(card_id, column_id=column_id)
+        data = await self.update_card(card_id, column_id=column_id)
+        return Card(self, data)
     
     # === КОММЕНТАРИИ ===
     
-    async def get_card_comments(self, card_id: int) -> List[Dict[str, Any]]:
+    async def get_card_comments(self, card_id: int) -> List[Comment]:
         """Получает комментарии карточки."""
         endpoint = KaitenConfig.ENDPOINT_CARD_COMMENTS.format(card_id=card_id)
         response = await self._request('GET', endpoint)
-        return response if isinstance(response, list) else response.get('items', [])
+        comments_data = response if isinstance(response, list) else response.get('items', [])
+        return [Comment(self, comment_data) for comment_data in comments_data]
     
-    async def add_comment(self, card_id: int, text: str) -> Dict[str, Any]:
+    async def add_comment(self, card_id: int, text: str) -> Comment:
         """Добавляет комментарий к карточке."""
         data = {'text': text}
         endpoint = KaitenConfig.ENDPOINT_CARD_COMMENTS.format(card_id=card_id)
-        return await self._request('POST', endpoint, json=data)
+        comment_data = await self._request('POST', endpoint, json=data)
+        return Comment(self, comment_data)
     
     async def update_comment(self, card_id: int, 
                              comment_id: int, text: str) -> Dict[str, Any]:
@@ -232,17 +250,19 @@ class KaitenClient:
     
     # === УЧАСТНИКИ КАРТОЧКИ ===
     
-    async def get_card_members(self, card_id: int) -> List[Dict[str, Any]]:
+    async def get_card_members(self, card_id: int) -> List[Member]:
         """Получает участников карточки."""
         endpoint = KaitenConfig.ENDPOINT_CARD_MEMBERS.format(card_id=card_id)
         response = await self._request('GET', endpoint)
-        return response if isinstance(response, list) else response.get('items', [])
+        members_data = response if isinstance(response, list) else response.get('items', [])
+        return [Member(self, member_data) for member_data in members_data]
     
-    async def add_card_member(self, card_id: int, user_id: int) -> Dict[str, Any]:
+    async def add_card_member(self, card_id: int, user_id: int) -> Member:
         """Добавляет участника к карточке."""
         data = {'user_id': user_id}
         endpoint = KaitenConfig.ENDPOINT_CARD_MEMBERS.format(card_id=card_id)
-        return await self._request('POST', endpoint, json=data)
+        member_data = await self._request('POST', endpoint, json=data)
+        return Member(self, member_data)
     
     async def remove_card_member(self, card_id: int, user_id: int) -> bool:
         """Удаляет участника из карточки."""
@@ -252,13 +272,14 @@ class KaitenClient:
     
     # === ФАЙЛЫ ===
     
-    async def get_card_files(self, card_id: int) -> List[Dict[str, Any]]:
+    async def get_card_files(self, card_id: int) -> List[File]:
         """Получает файлы карточки."""
         endpoint = KaitenConfig.ENDPOINT_CARD_FILES.format(card_id=card_id)
         response = await self._request('GET', endpoint)
-        return response if isinstance(response, list) else response.get('items', [])
+        files_data = response if isinstance(response, list) else response.get('items', [])
+        return [File(self, file_data) for file_data in files_data]
     
-    async def upload_file(self, card_id: int, file_path: str, file_name: Optional[str] = None) -> Dict[str, Any]:
+    async def upload_file(self, card_id: int, file_path: str, file_name: Optional[str] = None) -> File:
         """
         Загружает файл к карточке.
         
@@ -292,7 +313,8 @@ class KaitenClient:
             if response.status >= 400:
                 error_data = await response.text()
                 raise KaitenApiError(f"File upload error {response.status}: {error_data}")
-            return await response.json()
+            result_data = await response.json()
+            return File(self, result_data)
 
     async def delete_file(self, card_id: int,
                           file_id: int) -> bool:
@@ -303,20 +325,22 @@ class KaitenClient:
     
     # === ТЕГИ ===
     
-    async def get_tags(self) -> List[Dict[str, Any]]:
+    async def get_tags(self) -> List[Tag]:
         """Получает список тегов в пространстве."""
         response = await self._request('GET', KaitenConfig.ENDPOINT_TAGS)
-        return response if isinstance(response, list) else response.get('items', [])
+        tags_data = response if isinstance(response, list) else response.get('items', [])
+        return [Tag(self, tag_data) for tag_data in tags_data]
     
-    async def get_tag(self, tag_id: int) -> Dict[str, Any]:
+    async def get_tag(self, tag_id: int) -> Tag:
         """Получает тег по ID."""
-        return await self._request('GET', f'{KaitenConfig.ENDPOINT_TAGS}/{tag_id}')
+        data = await self._request('GET', f'{KaitenConfig.ENDPOINT_TAGS}/{tag_id}')
+        return Tag(self, data)
     
     async def create_tag(
         self,
         name: str,
         color: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> Tag:
         """
         Создает новый тег.
         
@@ -332,7 +356,8 @@ class KaitenClient:
         if color:
             data['color'] = color
         
-        return await self._request('POST', KaitenConfig.ENDPOINT_TAGS, json=data)
+        tag_data = await self._request('POST', KaitenConfig.ENDPOINT_TAGS, json=data)
+        return Tag(self, tag_data)
     
     async def update_tag(
         self,
@@ -357,20 +382,22 @@ class KaitenClient:
     
     # === ПРОСТРАНСТВА ===
     
-    async def get_spaces(self) -> List[Dict[str, Any]]:
+    async def get_spaces(self) -> List[Space]:
         """Получает список пространств."""
         response = await self._request('GET', KaitenConfig.ENDPOINT_SPACES)
-        return response if isinstance(response, list) else response.get('items', [])
+        spaces_data = response if isinstance(response, list) else response.get('items', [])
+        return [Space(self, space_data) for space_data in spaces_data]
     
-    async def get_space(self, space_id: int) -> Dict[str, Any]:
+    async def get_space(self, space_id: int) -> Space:
         """Получает пространство по ID."""
-        return await self._request('GET', f'{KaitenConfig.ENDPOINT_SPACES}/{space_id}')
+        data = await self._request('GET', f'{KaitenConfig.ENDPOINT_SPACES}/{space_id}')
+        return Space(self, data)
     
     async def create_space(
         self,
         name: str,
         description: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> Space:
         """
         Создает новое пространство.
         
@@ -385,7 +412,8 @@ class KaitenClient:
         if description:
             data['description'] = description
         
-        return await self._request('POST', KaitenConfig.ENDPOINT_SPACES, json=data)
+        space_data = await self._request('POST', KaitenConfig.ENDPOINT_SPACES, json=data)
+        return Space(self, space_data)
     
     async def update_space(self, space_id: int, **fields) -> Dict[str, Any]:
         """Обновляет пространство."""
@@ -398,15 +426,17 @@ class KaitenClient:
     
     # === ДОСКИ ===
     
-    async def get_boards(self, space_id: int) -> List[Dict[str, Any]]:
+    async def get_boards(self, space_id: int) -> List[Board]:
         """Получает список досок в пространстве."""
         endpoint = KaitenConfig.ENDPOINT_BOARDS.format(space_id=space_id)
         response = await self._request('GET', endpoint)
-        return response if isinstance(response, list) else response.get('items', [])
+        boards_data = response if isinstance(response, list) else response.get('items', [])
+        return [Board(self, board_data) for board_data in boards_data]
     
-    async def get_board(self, board_id: int) -> Dict[str, Any]:
+    async def get_board(self, board_id: int) -> Board:
         """Получает доску по ID."""
-        return await self._request('GET', f'/boards/{board_id}')
+        data = await self._request('GET', f'/boards/{board_id}')
+        return Board(self, data)
     
     async def create_board(
         self,
@@ -414,7 +444,7 @@ class KaitenClient:
         space_id: int,
         description: Optional[str] = None,
         board_type: str = "kanban"
-    ) -> Dict[str, Any]:
+    ) -> Board:
         """
         Создает новую доску.
         
@@ -435,7 +465,8 @@ class KaitenClient:
             data['description'] = description
         
         endpoint = KaitenConfig.ENDPOINT_BOARDS.format(space_id=space_id)
-        return await self._request('POST', endpoint, json=data)
+        board_data = await self._request('POST', endpoint, json=data)
+        return Board(self, board_data)
     
     async def update_board(self, space_id: int, 
                            board_id: int, **fields) -> Dict[str, Any]:
@@ -452,26 +483,28 @@ class KaitenClient:
     
     # === КОЛОНКИ ===
     
-    async def get_columns(self, board_id: int) -> List[Dict[str, Any]]:
+    async def get_columns(self, board_id: int) -> List[Column]:
         """Получает колонки доски."""
         endpoint = KaitenConfig.ENDPOINT_COLUMNS.format(board_id=board_id)
         response = await self._request('GET', endpoint)
-        return response if isinstance(response, list) else response.get('items', [])
+        columns_data = response if isinstance(response, list) else response.get('items', [])
+        return [Column(self, column_data) for column_data in columns_data]
     
     async def get_column(self, board_id: int, 
-                         column_id: int) -> Dict[str, Any]:
+                         column_id: int) -> Column:
         """Получает колонку по ID.
            МОЖЕТ НЕ РАБОТАТЬ!
         """
         endpoint = KaitenConfig.ENDPOINT_COLUMNS.format(board_id=board_id)
-        return await self._request('GET', f'{endpoint}/{column_id}')
+        data = await self._request('GET', f'{endpoint}/{column_id}')
+        return Column(self, data)
     
     async def create_column(
         self,
         title: str,
         board_id: int,
         position: Optional[int] = None
-    ) -> Dict[str, Any]:
+    ) -> Column:
         """
         Создает новую колонку.
         
@@ -488,7 +521,8 @@ class KaitenClient:
             data['position'] = position
         
         endpoint = KaitenConfig.ENDPOINT_COLUMNS.format(board_id=board_id)
-        return await self._request('POST', endpoint, json=data)
+        column_data = await self._request('POST', endpoint, json=data)
+        return Column(self, column_data)
     
     async def update_column(self, board_id: int, 
                             column_id: int, **fields) -> Dict[str, Any]:
