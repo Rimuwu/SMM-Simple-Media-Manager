@@ -18,7 +18,7 @@ class KaitenConfig:
     API_VERSION = "latest"
 
     # Rate Limiting (согласно документации Kaiten)
-    LIMIT_PER_SEC = 5
+    LIMIT_PER_SEC = 3
 
     # API Endpoints
     # Основные ресурсы
