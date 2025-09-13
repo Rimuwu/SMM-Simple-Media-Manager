@@ -24,10 +24,10 @@ class KaitenClient:
     """
     Единый упрощенный клиент для Kaiten API.
     
-    Пример использования:
-    ```python
-    import asyncio
+    Поддерживает два способа использования:
     
+    1. С контекстным менеджером (рекомендуется):
+    ```python
     async def main():
         async with KaitenClient("your-token") as client:
             # Получение пространств
@@ -53,8 +53,9 @@ class KaitenClient:
             
             # Создание тега
             tag = await client.create_tag(name="Важный", color="#ff0000")
-    
-    asyncio.run(main())
+        finally:
+            # Обязательно закрываем сессию
+            await client.close()
     ```
     """
     
@@ -64,49 +65,76 @@ class KaitenClient:
         
         Args:
             token: API токен
-            base_url: Базовый URL API
+            domain: Домен менеджера
         """
         self.token = token
         self.domain = domain
         self.session: Optional[aiohttp.ClientSession] = None
         self._request_times: List[float] = []
+        self.config = KaitenCredentials(
+            domain=domain, token=token)
+        self._is_initialized = False
 
         logger.info("Kaiten client initialized")
 
     async def __aenter__(self):
         """Асинхронный контекстный менеджер - вход."""
-        self.session = aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=KaitenConfig.DEFAULT_TIMEOUT),
-            headers={
-                'Authorization': f'Bearer {self.token}',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-        )
+        await self.initialize()
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Асинхронный контекстный менеджер - выход."""
-        if self.session:
+        await self.close()
+    
+    async def initialize(self):
+        """
+        Инициализирует клиент и создает сессию.
+        Вызывается автоматически при использовании async with или вручную.
+        """
+        if not self._is_initialized:
+            self.session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=KaitenConfig.DEFAULT_TIMEOUT),
+                headers=self.config.get_headers()
+            )
+            self._is_initialized = True
+            logger.info("Kaiten client session initialized")
+    
+    async def close(self):
+        """
+        Закрывает сессию клиента.
+        Вызывается автоматически при выходе из async with или вручную.
+        """
+        if self.session and self._is_initialized:
             await self.session.close()
+            self.session = None
+            self._is_initialized = False
+            logger.info("Kaiten client session closed")
 
     async def _request(self, method: str, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         """Выполняет HTTP запрос к API с поддержкой повторов и лимитом запросов в секунду."""
+        # Автоматически инициализируем клиент если он не инициализирован
+        if not self._is_initialized:
+            await self.initialize()
+        
         if not self.session:
-            raise RuntimeError("Client not initialized. Use 'async with' context manager.")
+            raise RuntimeError("Client session not available. Call initialize() first or use 'async with' context manager.")
 
         # --- Лимит запросов в секунду ---
         now = asyncio.get_event_loop().time()
         # Удаляем устаревшие таймштампы
         self._request_times = [t for t in self._request_times if now - t < 1.0]
-        if len(self._request_times) >= KaitenConfig.LIMIT_PER_SEC:
-            sleep_time = 1.0 - (now - self._request_times[0])
+        
+        while len(self._request_times) >= KaitenConfig.LIMIT_PER_SEC:
+            oldest_request_time = min(self._request_times)
+            sleep_time = 1.0 - (now - oldest_request_time)
             if sleep_time > 0:
+                logger.debug(f"Rate limit reached, sleeping for {sleep_time:.3f} seconds")
                 await asyncio.sleep(sleep_time)
+
             now = asyncio.get_event_loop().time()
             self._request_times = [t for t in self._request_times if now - t < 1.0]
+
         self._request_times.append(now)
-        # --- Конец лимита ---
 
         url = KaitenConfig.get_base_url(self.domain) + endpoint
         retries = KaitenConfig.MAX_RETRIES
@@ -119,7 +147,26 @@ class KaitenClient:
         for attempt in range(1, retries + 1):
             try:
                 async with self.session.request(method, url, **kwargs) as response:
-                    if response.status == 404:
+                    if response.status == 429:
+                        # Специальная обработка для 429 ошибки
+                        retry_after = response.headers.get('Retry-After', '1')
+                        try:
+                            retry_delay = float(retry_after)
+                        except ValueError:
+                            retry_delay = 1.0
+                        
+                        logger.warning(f"Rate limit hit (429), waiting {retry_delay} seconds before retry {attempt}/{retries}")
+                        await asyncio.sleep(retry_delay)
+                        
+                        # Очищаем историю запросов после получения 429
+                        self._request_times = []
+                        
+                        if attempt < retries:
+                            continue
+                        else:
+                            raise KaitenApiError(f"Rate limit exceeded after {retries} retries")
+                    
+                    elif response.status == 404:
                         raise KaitenNotFoundError(f"Resource not found: {endpoint}")
                     elif response.status == 422:
                         error_data = await response.json()
@@ -132,14 +179,16 @@ class KaitenClient:
                         return None
 
                     return await response.json()
+
             except aiohttp.ClientError as e:
                 if attempt < retries:
                     logger.warning(f"HTTP client error: {e}. Retrying {attempt}/{retries} after {delay} seconds...")
                     await asyncio.sleep(delay)
                 else:
                     raise KaitenApiError(f"HTTP client error after {retries} retries: {e}")
+
     # === КАРТОЧКИ ===
-    
+
     async def get_cards(self, 
                         board_id: Optional[int] = None,
                         # Фильтры по датам (ISO 8601 формат)
@@ -335,9 +384,22 @@ class KaitenClient:
         cards_data = response if isinstance(response, list) else response.get('items', [])
         return [Card(self, card_data) for card_data in cards_data]
     
-    async def get_card(self, card_id: int) -> Card:
-        """Получает карточку по ID."""
-        data = await self._request('GET', f'{KaitenConfig.ENDPOINT_CARDS}/{card_id}')
+    async def get_card(self, card_id: int, additional_fields: Optional[str] = None) -> Card:
+        """
+        Получает карточку по ID.
+        
+        Args:
+            card_id: ID карточки
+            additional_fields: Дополнительные поля для включения (например, 'description,checklists')
+        
+        Returns:
+            Объект карточки
+        """
+        params = {}
+        if additional_fields:
+            params['additional_card_fields'] = additional_fields
+        
+        data = await self._request('GET', f'{KaitenConfig.ENDPOINT_CARDS}/{card_id}', params=params)
         return Card(self, data)
 
     async def create_card(
@@ -507,7 +569,7 @@ class KaitenClient:
         data.add_field('card_id', str(card_id))
         
         # Временно меняем заголовки для загрузки файлов
-        headers = {'Authorization': f'Bearer {self.token}'}
+        headers = self.config.get_upload_headers()
         url = f"{KaitenConfig.get_base_url(self.domain)}/{KaitenConfig.ENDPOINT_CARD_FILES.format(card_id=card_id)}"
         
         async with self.session.post(url, data=data, headers=headers) as response:
@@ -874,7 +936,7 @@ class KaitenClient:
             List[Property]: Список объектов Property
         """
         data = await self._request("GET", KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES)
-        return [Property(client=self, **item) for item in data]
+        return [Property(client=self, data=item) for item in data]
     
     async def get_custom_property(self, property_id: int) -> Property:
         """Получает пользовательское свойство по ID.
@@ -886,7 +948,7 @@ class KaitenClient:
             Property: Объект Property
         """
         data = await self._request("GET", f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
-        return Property(client=self, **data)
+        return Property(client=self, data=data)
     
     async def create_custom_property(
         self,
@@ -940,8 +1002,8 @@ class KaitenClient:
         # Удаляем None значения
         payload = {k: v for k, v in payload.items() if v is not None}
         
-        data = await self._request("POST", KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES, data=payload)
-        return Property(client=self, **data)
+        data = await self._request("POST", KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES, json=payload)
+        return Property(client=self, data=data)
     
     async def update_custom_property(
         self,
@@ -1001,8 +1063,8 @@ class KaitenClient:
         if fields_settings is not None:
             payload["fields_settings"] = fields_settings
         
-        data = await self._request("PATCH", f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}", data=payload)
-        return Property(client=self, **data)
+        data = await self._request("PATCH", f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}", json=payload)
+        return Property(client=self, data=data)
     
     async def delete_custom_property(self, property_id: int) -> bool:
         """Удаляет пользовательское свойство.
@@ -1016,11 +1078,93 @@ class KaitenClient:
         await self._request("DELETE", f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
         return True
 
+    # === КАСТОМНЫЕ СВОЙСТВА КАРТОЧЕК ===
+    
+    async def get_card_properties_values(self, card_id: int) -> Dict[str, Any]:
+        """
+        Получает значения кастомных свойств карточки.
+        
+        Args:
+            card_id: ID карточки
+        
+        Returns:
+            Dict с значениями кастомных свойств
+        """
+        # Используем карточку с дополнительными полями для получения кастомных свойств
+        params = {'additional_card_fields': 'properties'}
+        card_data = await self._request('GET', f'{KaitenConfig.ENDPOINT_CARDS}/{card_id}', params=params)
+        
+        # Возвращаем только кастомные свойства
+        return card_data.get('properties', {})
+    
+    async def set_card_property_value(
+        self, 
+        card_id: int, 
+        property_id: int, 
+        value: Any
+    ) -> Dict[str, Any]:
+        """
+        Устанавливает значение кастомного свойства карточки через обновление карточки.
+        
+        Args:
+            card_id: ID карточки
+            property_id: ID кастомного свойства
+            value: Значение для установки
+        
+        Returns:
+            Dict с результатом операции
+        """
+        # В Kaiten API кастомные свойства обновляются через обновление карточки
+        # с форматом id_{propertyId}:value
+        return await self.update_card(card_id, 
+                        properties={
+                            f"id_{property_id}": value}
+                        )
+    
+    async def update_card_property_value(
+        self, 
+        card_id: int, 
+        property_id: int, 
+        value: Any
+    ) -> Dict[str, Any]:
+        """
+        Обновляет значение кастомного свойства карточки.
+        Алиас для set_card_property_value.
+        
+        Args:
+            card_id: ID карточки
+            property_id: ID кастомного свойства
+            value: Новое значение
+        
+        Returns:
+            Dict с результатом операции
+        """
+        return await self.set_card_property_value(card_id, property_id, value)
+    
+    async def delete_card_property_value(self, card_id: int, property_id: int) -> bool:
+        """
+        Удаляет значение кастомного свойства карточки.
+        
+        Args:
+            card_id: ID карточки
+            property_id: ID кастомного свойства
+        
+        Returns:
+            True если удаление прошло успешно
+        """
+        # Удаление = установка значения в null
+        await self.set_card_property_value(card_id, 
+                                           property_id, None)
+        return True
+
     # === ЧЕКИСТЫ ===
     
     async def get_card_checklists(self, card_id: int) -> List[Checklist]:
         """
         Получает все чек-листы карточки.
+        
+        Поскольку в API Kaiten нет прямого эндпоинта для получения всех чек-листов карточки,
+        мы получаем карточку с дополнительными полями и извлекаем чек-листы из её данных.
         
         Args:
             card_id: ID карточки
@@ -1028,15 +1172,18 @@ class KaitenClient:
         Returns:
             Список чек-листов карточки
         """
-        endpoint = KaitenConfig.ENDPOINT_CARD_CHECKLISTS.format(card_id=card_id)
-        response = await self._request('GET', endpoint)
-        checklists_data = response if isinstance(response, list) else response.get('items', [])
+        # Получаем карточку с дополнительными полями, включая чек-листы
+        params = {'additional_card_fields': 'checklists'}
+        card_data = await self._request('GET', f'{KaitenConfig.ENDPOINT_CARDS}/{card_id}', params=params)
+        
+        # Извлекаем чек-листы из данных карточки
+        checklists_data = card_data.get('checklists', [])
         
         # Добавляем card_id к каждому чек-листу
         for checklist_data in checklists_data:
             checklist_data['card_id'] = card_id
         
-        return [Checklist(self, **checklist_data) for checklist_data in checklists_data]
+        return [Checklist(self, checklist_data) for checklist_data in checklists_data]
     
     async def get_checklist(self, card_id: int, checklist_id: int) -> Checklist:
         """
@@ -1052,7 +1199,7 @@ class KaitenClient:
         endpoint = KaitenConfig.ENDPOINT_CARD_CHECKLISTS.format(card_id=card_id)
         data = await self._request('GET', f'{endpoint}/{checklist_id}')
         data['card_id'] = card_id
-        return Checklist(self, **data)
+        return Checklist(self, data)
     
     async def create_checklist(
         self,
@@ -1091,7 +1238,7 @@ class KaitenClient:
         endpoint = KaitenConfig.ENDPOINT_CARD_CHECKLISTS.format(card_id=card_id)
         checklist_data = await self._request('POST', endpoint, json=data)
         checklist_data['card_id'] = card_id
-        return Checklist(self, **checklist_data)
+        return Checklist(self, checklist_data)
     
     async def update_checklist(
         self,
@@ -1125,7 +1272,7 @@ class KaitenClient:
         endpoint = KaitenConfig.ENDPOINT_CARD_CHECKLISTS.format(card_id=card_id)
         checklist_data = await self._request('PATCH', f'{endpoint}/{checklist_id}', json=data)
         checklist_data['card_id'] = move_to_card_id if move_to_card_id else card_id
-        return Checklist(self, **checklist_data)
+        return Checklist(self, checklist_data)
     
     async def delete_checklist(self, card_id: int, checklist_id: int) -> bool:
         """
@@ -1190,7 +1337,7 @@ class KaitenClient:
         item_data['card_id'] = card_id
         item_data['checklist_id'] = checklist_id
         
-        return ChecklistItem(self, **item_data)
+        return ChecklistItem(self, item_data)
     
     async def update_checklist_item(
         self,
@@ -1245,7 +1392,7 @@ class KaitenClient:
         item_data['card_id'] = card_id
         item_data['checklist_id'] = checklist_id_new if checklist_id_new else checklist_id
         
-        return ChecklistItem(self, **item_data)
+        return ChecklistItem(self, item_data)
     
     async def delete_checklist_item(
         self,
