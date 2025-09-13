@@ -72,23 +72,19 @@ class Column(KaitenObject):
     
     async def get_cards(self, **filters) -> List['Card']:
         """
-        Получить все карточки в колонке.
+        Получить все карточки в колонке с расширенными фильтрами.
         
         Args:
-            **filters: Дополнительные фильтры для карточек
+            **filters: Любые фильтры поддерживаемые API (created_before, created_after, 
+                      updated_before, updated_after, query, tag, states, archived и т.д.)
         
         Returns:
             Список объектов Card в этой колонке
         """
         from .card import Card
         
-        # Получаем карточки доски и фильтруем по колонке
-        all_cards_data = await self._client.get_cards(board_id=self.board_id, **filters)
-        column_cards_data = [
-            card_data for card_data in all_cards_data 
-            if card_data.get('column_id') == self.id
-        ]
-        return [Card(self._client, card_data) for card_data in column_cards_data]
+        # Используем фильтр column_id напрямую в API для более эффективного запроса
+        return await self._client.get_cards(board_id=self.board_id, column_id=self.id, **filters)
     
     async def create_card(
         self,
