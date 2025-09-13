@@ -2,11 +2,12 @@
 Модель для работы с досками Kaiten.
 """
 
-from typing import List, Optional, Dict, Any, TYPE_CHECKING
+from typing import List, Optional, Dict, Any, Union, TYPE_CHECKING
 from .base import KaitenObject
 
 if TYPE_CHECKING:
     from .column import Column
+    from .lane import Lane
     from .card import Card
 
 
@@ -27,6 +28,112 @@ class Board(KaitenObject):
         """Описание доски."""
         return self._data.get('description')
     
+    @property
+    def created(self) -> Optional[str]:
+        """Дата создания."""
+        return self._data.get('created')
+    
+    @property
+    def updated(self) -> Optional[str]:
+        """Дата последнего обновления (timestamp)."""
+        return self._data.get('updated')
+    
+    @property
+    def cell_wip_limits(self) -> Optional[List[Dict[str, Any]]]:
+        """JSON содержащий правила wip лимитов для ячеек."""
+        return self._data.get('cell_wip_limits')
+    
+    @property
+    def external_id(self) -> Optional[str]:
+        """Внешний идентификатор."""
+        return self._data.get('external_id')
+    
+    @property
+    def default_card_type_id(self) -> Optional[int]:
+        """Тип карточки по умолчанию для новых карточек на доске."""
+        return self._data.get('default_card_type_id')
+    
+    @property
+    def email_key(self) -> Optional[str]:
+        """Email ключ."""
+        return self._data.get('email_key')
+    
+    @property
+    def move_parents_to_done(self) -> Optional[bool]:
+        """Автоматически перемещать родительские карточки в выполненные, когда их дочерние карточки на этой доске выполнены."""
+        return self._data.get('move_parents_to_done')
+    
+    @property
+    def default_tags(self) -> Optional[str]:
+        """Теги по умолчанию."""
+        return self._data.get('default_tags')
+    
+    @property
+    def first_image_is_cover(self) -> Optional[bool]:
+        """Автоматически отмечать первое загруженное изображение карточки как обложку карточки."""
+        return self._data.get('first_image_is_cover')
+    
+    @property
+    def reset_lane_spent_time(self) -> Optional[bool]:
+        """Сбрасывать время, проведенное в дорожке, когда карточка изменила дорожку."""
+        return self._data.get('reset_lane_spent_time')
+    
+    @property
+    def backward_moves_enabled(self) -> Optional[bool]:
+        """Разрешить автоматическое обратное перемещение для сводных досок."""
+        return self._data.get('backward_moves_enabled')
+    
+    @property
+    def hide_done_policies(self) -> Optional[bool]:
+        """Скрывать выполненные политики чек-листа."""
+        return self._data.get('hide_done_policies')
+    
+    @property
+    def hide_done_policies_in_done_column(self) -> Optional[bool]:
+        """Скрывать выполненные политики чек-листа только в колонке выполненных."""
+        return self._data.get('hide_done_policies_in_done_column')
+    
+    @property
+    def automove_cards(self) -> Optional[bool]:
+        """Автоматически перемещать карточки в зависимости от состояния их дочерних элементов."""
+        return self._data.get('automove_cards')
+    
+    @property
+    def auto_assign_enabled(self) -> Optional[bool]:
+        """Автоматически назначать пользователя на карточку, когда он/она перемещает карточку, если пользователь не является участником карточки."""
+        return self._data.get('auto_assign_enabled')
+    
+    @property
+    def card_properties(self) -> Optional[List[Dict[str, Any]]]:
+        """Свойства карточек доски, предлагаемые для заполнения."""
+        return self._data.get('card_properties')
+    
+    @property
+    def columns(self) -> Optional[List[Dict[str, Any]]]:
+        """Колонки доски."""
+        return self._data.get('columns')
+    
+    @property
+    def lanes(self) -> Optional[List[Dict[str, Any]]]:
+        """Дорожки доски."""
+        return self._data.get('lanes')
+    
+    @property
+    def top(self) -> Optional[int]:
+        """Y координата доски в пространстве."""
+        return self._data.get('top')
+    
+    @property
+    def left(self) -> Optional[int]:
+        """X координата доски в пространстве."""
+        return self._data.get('left')
+    
+    @property
+    def sort_order(self) -> Optional[float]:
+        """Позиция."""
+        return self._data.get('sort_order')
+    
+    # Оставляем для обратной совместимости
     @property
     def board_type(self) -> Optional[str]:
         """Тип доски (kanban, scrum)."""
@@ -112,12 +219,58 @@ class Board(KaitenObject):
         )
         return Column(self._client, column_data)
     
-    async def get_cards(self, **filters) -> List['Card']:
+    async def get_lanes(self) -> List['Lane']:
         """
-        Получить карточки доски.
+        Получить все дорожки доски.
+        
+        Returns:
+            Список объектов Lane
+        """
+        from .lane import Lane
+        
+        lanes_data = await self._client.get_lanes(self.id)
+        return [Lane(self._client, lane_data) for lane_data in lanes_data]
+    
+    async def create_lane(
+        self,
+        title: str,
+        sort_order: Optional[float] = None,
+        row_count: Optional[int] = None,
+        wip_limit: Optional[int] = None,
+        **kwargs
+    ) -> 'Lane':
+        """
+        Создать новую дорожку в доске.
         
         Args:
-            **filters: Фильтры (assignee_id, state, priority и т.д.)
+            title: Название дорожки
+            sort_order: Позиция
+            row_count: Высота
+            wip_limit: Рекомендуемый лимит
+            **kwargs: Дополнительные поля
+        
+        Returns:
+            Созданная дорожка
+        """
+        from .lane import Lane
+        
+        lane_data = await self._client.create_lane(
+            title=title,
+            board_id=self.id,
+            sort_order=sort_order,
+            row_count=row_count,
+            wip_limit=wip_limit,
+            **kwargs
+        )
+        return Lane(self._client, lane_data)
+    
+    async def get_cards(self, **filters) -> List['Card']:
+        """
+        Получить карточки доски с расширенными фильтрами.
+        
+        Args:
+            **filters: Любые фильтры поддерживаемые API (created_before, created_after, 
+                      updated_before, updated_after, query, tag, states, archived и т.д.)
         
         Returns:
             Список объектов Card
@@ -125,7 +278,7 @@ class Board(KaitenObject):
         from .card import Card
         
         cards_data = await self._client.get_cards(board_id=self.id, **filters)
-        return [Card(self._client, card_data) for card_data in cards_data]
+        return cards_data
     
     async def create_card(
         self,
