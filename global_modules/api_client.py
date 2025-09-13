@@ -46,17 +46,19 @@ class APIClient:
         }
 
     async def get(self, endpoint: str, 
-                  params: dict = None):
+                  params: dict = None,
+                  use_cache: bool = False):
         # Генерируем ключ кеша для GET запроса
         cache_key = self._generate_cache_key('GET', endpoint, params=params)
-        
-        # Проверяем кеш
-        cached_response, cached_status = self._get_from_cache(cache_key)
-        if cached_response is not None:
-            if getenv("DEBUG", False) == 'true':
-                print(f"Returning cached response for GET {endpoint}")
-            return cached_response, cached_status
-        
+
+        if use_cache:
+            # Проверяем кеш
+            cached_response, cached_status = self._get_from_cache(cache_key)
+            if cached_response is not None:
+                if getenv("DEBUG", False) == 'true':
+                    print(f"Returning cached response for GET {endpoint}")
+                return cached_response, cached_status
+
         # Если в кеше нет, делаем запрос
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.base_url}{endpoint}", params=params) as response:
