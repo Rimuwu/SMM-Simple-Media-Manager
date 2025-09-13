@@ -6,6 +6,7 @@ from .base import KaitenObject
 from .space import Space
 from .board import Board
 from .column import Column
+from .lane import Lane
 from .card import Card
 from .tag import Tag
 from .comment import Comment
@@ -17,6 +18,7 @@ __all__ = [
     'Space',
     'Board',
     'Column',
+    'Lane',
     'Card',
     'Tag',
     'Comment',
