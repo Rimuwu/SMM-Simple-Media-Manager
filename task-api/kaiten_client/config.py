@@ -25,6 +25,7 @@ class KaitenConfig:
     ENDPOINT_SPACES: str = "/spaces"
     ENDPOINT_BOARDS: str = "/spaces/{space_id}/boards"
     ENDPOINT_COLUMNS: str = "/boards/{board_id}/columns"
+    ENDPOINT_LANES: str = "/boards/{board_id}/lanes"
     ENDPOINT_CARDS: str = "/cards"
     ENDPOINT_TAGS: str = "/tags"
     ENDPOINT_USERS: str = "/users"
