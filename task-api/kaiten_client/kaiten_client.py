@@ -4,14 +4,17 @@
 """
 
 import asyncio
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, TYPE_CHECKING
 import logging
 import aiohttp
 from datetime import datetime
 
 from .config import KaitenConfig, KaitenCredentials
 from .exceptions import KaitenApiError, KaitenNotFoundError, KaitenValidationError
-from .models import Space, Board, Column, Lane, Card, Tag, Comment, Member, File
+from .models import Space, Board, Column, Lane, Card, Tag, Comment, Member, File, Property
+
+if TYPE_CHECKING:
+    pass
 
 
 logger = logging.getLogger(__name__)
@@ -861,4 +864,154 @@ class KaitenClient:
         """
         endpoint = KaitenConfig.ENDPOINT_LANES.format(board_id=board_id)
         await self._request('DELETE', f'{endpoint}/{lane_id}')
+        return True
+
+    # Методы для работы с пользовательскими свойствами
+    async def get_custom_properties(self) -> List[Property]:
+        """Получает список всех пользовательских свойств.
+        
+        Returns:
+            List[Property]: Список объектов Property
+        """
+        data = await self._request("GET", self.config.ENDPOINT_CUSTOM_PROPERTIES)
+        return [Property(client=self, **item) for item in data]
+    
+    async def get_custom_property(self, property_id: int) -> Property:
+        """Получает пользовательское свойство по ID.
+        
+        Args:
+            property_id: ID свойства
+            
+        Returns:
+            Property: Объект Property
+        """
+        data = await self._request("GET", f"{self.config.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
+        return Property(client=self, **data)
+    
+    async def create_custom_property(
+        self,
+        name: str,
+        property_type: str,
+        show_on_facade: bool = False,
+        multiline: bool = False,
+        vote_variant: Optional[str] = None,
+        values_type: Optional[str] = None,
+        colorful: bool = False,
+        multi_select: bool = False,
+        data: Optional[Dict] = None,
+        formula: Optional[str] = None,
+        color: Optional[str] = None,
+        fields_settings: Optional[List[Dict]] = None
+    ) -> Property:
+        """Создаёт новое пользовательское свойство.
+        
+        Args:
+            name: Название свойства
+            property_type: Тип свойства
+            show_on_facade: Показывать на фасаде
+            multiline: Многострочное поле
+            vote_variant: Вариант голосования
+            values_type: Тип значений
+            colorful: Цветное свойство
+            multi_select: Множественный выбор
+            data: Дополнительные данные
+            formula: Формула для вычисляемых полей
+            color: Цвет свойства
+            fields_settings: Настройки полей
+            
+        Returns:
+            Property: Созданный объект Property
+        """
+        payload = {
+            "name": name,
+            "type": property_type,
+            "show_on_facade": show_on_facade,
+            "multiline": multiline,
+            "vote_variant": vote_variant,
+            "values_type": values_type,
+            "colorful": colorful,
+            "multi_select": multi_select,
+            "data": data,
+            "formula": formula,
+            "color": color,
+            "fields_settings": fields_settings
+        }
+        
+        # Удаляем None значения
+        payload = {k: v for k, v in payload.items() if v is not None}
+        
+        data = await self._request("POST", self.config.ENDPOINT_CUSTOM_PROPERTIES, data=payload)
+        return Property(client=self, **data)
+    
+    async def update_custom_property(
+        self,
+        property_id: int,
+        name: Optional[str] = None,
+        show_on_facade: Optional[bool] = None,
+        multiline: Optional[bool] = None,
+        vote_variant: Optional[str] = None,
+        values_type: Optional[str] = None,
+        colorful: Optional[bool] = None,
+        multi_select: Optional[bool] = None,
+        data: Optional[Dict] = None,
+        formula: Optional[str] = None,
+        color: Optional[str] = None,
+        fields_settings: Optional[List[Dict]] = None
+    ) -> Property:
+        """Обновляет пользовательское свойство.
+        
+        Args:
+            property_id: ID свойства
+            name: Название свойства
+            show_on_facade: Показывать на фасаде
+            multiline: Многострочное поле
+            vote_variant: Вариант голосования
+            values_type: Тип значений
+            colorful: Цветное свойство
+            multi_select: Множественный выбор
+            data: Дополнительные данные
+            formula: Формула для вычисляемых полей
+            color: Цвет свойства
+            fields_settings: Настройки полей
+            
+        Returns:
+            Property: Обновлённый объект Property
+        """
+        payload = {}
+        if name is not None:
+            payload["name"] = name
+        if show_on_facade is not None:
+            payload["show_on_facade"] = show_on_facade
+        if multiline is not None:
+            payload["multiline"] = multiline
+        if vote_variant is not None:
+            payload["vote_variant"] = vote_variant
+        if values_type is not None:
+            payload["values_type"] = values_type
+        if colorful is not None:
+            payload["colorful"] = colorful
+        if multi_select is not None:
+            payload["multi_select"] = multi_select
+        if data is not None:
+            payload["data"] = data
+        if formula is not None:
+            payload["formula"] = formula
+        if color is not None:
+            payload["color"] = color
+        if fields_settings is not None:
+            payload["fields_settings"] = fields_settings
+        
+        data = await self._request("PATCH", f"{self.config.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}", data=payload)
+        return Property(client=self, **data)
+    
+    async def delete_custom_property(self, property_id: int) -> bool:
+        """Удаляет пользовательское свойство.
+        
+        Args:
+            property_id: ID свойства
+            
+        Returns:
+            bool: True если удаление прошло успешно
+        """
+        await self._request("DELETE", f"{self.config.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
         return True

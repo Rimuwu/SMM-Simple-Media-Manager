@@ -48,6 +48,9 @@ class KaitenConfig:
     
     # Типы карточек
     ENDPOINT_CARD_TYPES: str = "/card-types"
+    
+    # Пользовательские свойства
+    ENDPOINT_CUSTOM_PROPERTIES: str = "/company/custom-properties"
 
     @staticmethod
     def get_base_url(domain: str) -> str:

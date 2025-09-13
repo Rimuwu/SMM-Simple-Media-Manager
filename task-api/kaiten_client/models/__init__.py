@@ -12,6 +12,7 @@ from .tag import Tag
 from .comment import Comment
 from .member import Member
 from .file import File
+from .property import Property
 
 __all__ = [
     'KaitenObject',
@@ -24,4 +25,5 @@ __all__ = [
     'Comment',
     'Member',
     'File',
+    'Property',
 ]
