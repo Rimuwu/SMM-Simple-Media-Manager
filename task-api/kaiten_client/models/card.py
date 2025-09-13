@@ -244,6 +244,108 @@ class Card(KaitenObject):
             source_share_id=source_share_id
         )
     
+    # === КАСТОМНЫЕ СВОЙСТВА ===
+    
+    async def get_properties_values(self) -> Dict[str, Any]:
+        """
+        Получить значения всех кастомных свойств карточки.
+        
+        Returns:
+            Словарь с значениями кастомных свойств
+        """
+        return await self._client.get_card_properties_values(self.id)
+    
+    async def set_property_value(self, property_id: int, value: Any) -> Dict[str, Any]:
+        """
+        Установить значение кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value: Значение для установки
+        
+        Returns:
+            Результат операции
+        """
+        # В Kaiten API кастомные свойства обновляются через обновление карточки
+        # с форматом id_{propertyId}:value
+
+        return await self._client.set_card_property_value(
+            self.id, property_id, value)
+    
+    async def set_property_value_by_name(self, property_name: str, value: Any) -> Dict[str, Any]:
+        """
+        Установить значение кастомного свойства по его названию.
+        
+        Args:
+            property_name: Название кастомного свойства
+            value: Значение для установки
+        
+        Returns:
+            Результат операции
+        """
+        # Получаем все кастомные свойства
+        properties = await self._client.get_custom_properties()
+        
+        # Ищем свойство по названию
+        target_property = None
+        for prop in properties:
+            if prop.name == property_name:
+                target_property = prop
+                break
+        
+        if not target_property:
+            raise ValueError(f"Кастомное свойство с названием '{property_name}' не найдено")
+        
+        return await self._client.set_card_property_value(
+            self.id, target_property.id, value)
+    
+    async def update_property_value(self, property_id: int, value: Any) -> Dict[str, Any]:
+        """
+        Обновить значение кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value: Новое значение
+        
+        Returns:
+            Результат операции
+        """
+        # Обновление и установка делаются одинаково через update_card
+        return await self._client.set_card_property_value(
+            self.id, property_id, value)
+    
+    async def delete_property_value(self, property_id: int) -> bool:
+        """
+        Удалить значение кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+        
+        Returns:
+            True если удаление прошло успешно
+        """
+        # Удаление значения = установка null
+        await self._client.set_card_property_value(self.id, property_id, None)
+        return True
+    
+    async def set_multiple_properties(self, properties: Dict[int, Any]) -> Dict[str, Any]:
+        """
+        Установить значения нескольких кастомных свойств одним запросом.
+        
+        Args:
+            properties: Словарь {property_id: value}
+        
+        Returns:
+            Результат операции
+        """
+        # Формируем данные в формате id_{propertyId}:value
+        update_data = {}
+        for property_id, value in properties.items():
+            update_data[f"id_{property_id}"] = value
+        
+        return await self._client.update_card(self.id, 
+                        properties=update_data)
+
     def __str__(self) -> str:
         """Строковое представление карточки."""
         return f"Card(id={self.id}, title='{self.title}')"
