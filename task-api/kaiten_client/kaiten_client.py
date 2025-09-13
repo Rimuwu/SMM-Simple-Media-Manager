@@ -11,7 +11,7 @@ from datetime import datetime
 
 from .config import KaitenConfig, KaitenCredentials
 from .exceptions import KaitenApiError, KaitenNotFoundError, KaitenValidationError
-from .models import Space, Board, Column, Card, Tag, Comment, Member, File
+from .models import Space, Board, Column, Lane, Card, Tag, Comment, Member, File
 
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ class KaitenClient:
         if self.session:
             await self.session.close()
 
-    async def _request(self, method: str, endpoint: str, **kwargs) -> Any:
+    async def _request(self, method: str, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         """Выполняет HTTP запрос к API с поддержкой повторов и лимитом запросов в секунду."""
         if not self.session:
             raise RuntimeError("Client not initialized. Use 'async with' context manager.")
@@ -108,6 +108,10 @@ class KaitenClient:
         url = KaitenConfig.get_base_url(self.domain) + endpoint
         retries = KaitenConfig.MAX_RETRIES
         delay = KaitenConfig.RETRY_DELAY
+        
+        if params:
+            for key, value in params.items():
+                url += f"{'&' if '?' in url else '?'}{key}={value}"
 
         for attempt in range(1, retries + 1):
             try:
@@ -134,23 +138,197 @@ class KaitenClient:
     # === КАРТОЧКИ ===
     
     async def get_cards(self, 
-                        board_id: Optional[int] = None, **filters) -> List[Card]:
+                        board_id: Optional[int] = None,
+                        # Фильтры по датам (ISO 8601 формат)
+                        created_before: Optional[str] = None,
+                        created_after: Optional[str] = None,
+                        updated_before: Optional[str] = None,
+                        updated_after: Optional[str] = None,
+                        first_moved_in_progress_after: Optional[str] = None,
+                        first_moved_in_progress_before: Optional[str] = None,
+                        last_moved_to_done_at_after: Optional[str] = None,
+                        last_moved_to_done_at_before: Optional[str] = None,
+                        due_date_after: Optional[str] = None,
+                        due_date_before: Optional[str] = None,
+                        # Фильтры по содержимому
+                        query: Optional[str] = None,
+                        tag: Optional[str] = None,
+                        tag_ids: Optional[str] = None,
+                        type_ids: Optional[str] = None,
+                        # Фильтры исключения
+                        exclude_board_ids: Optional[str] = None,
+                        exclude_lane_ids: Optional[str] = None,
+                        exclude_column_ids: Optional[str] = None,
+                        exclude_owner_ids: Optional[str] = None,
+                        exclude_card_ids: Optional[str] = None,
+                        # Фильтры включения по ID
+                        column_ids: Optional[str] = None,
+                        member_ids: Optional[str] = None,
+                        owner_ids: Optional[str] = None,
+                        responsible_ids: Optional[str] = None,
+                        organizations_ids: Optional[str] = None,
+                        # Фильтры по состоянию
+                        states: Optional[str] = None,  # 1-queued, 2-inProgress, 3-done
+                        external_id: Optional[str] = None,
+                        # Дополнительные параметры
+                        additional_card_fields: Optional[str] = None,  # например: 'description'
+                        search_fields: Optional[str] = None,
+                        # Основные фильтры
+                        space_id: Optional[int] = None,
+                        column_id: Optional[int] = None,
+                        lane_id: Optional[int] = None,
+                        condition: Optional[int] = None,  # 1 - on board, 2 - archived
+                        type_id: Optional[int] = None,
+                        responsible_id: Optional[int] = None,
+                        owner_id: Optional[int] = None,
+                        # Булевые фильтры
+                        archived: Optional[bool] = None,
+                        asap: Optional[bool] = None,
+                        overdue: Optional[bool] = None,
+                        done_on_time: Optional[bool] = None,
+                        with_due_date: Optional[bool] = None,
+                        is_request: Optional[bool] = None,
+                        # Пагинация и сортировка
+                        limit: Optional[int] = None,  # max 100
+                        offset: Optional[int] = None,
+                        order_space_id: Optional[int] = None,
+                        order_by: Optional[str] = None,
+                        order_direction: Optional[str] = None,  # 'asc' или 'desc'
+                        # Продвинутые фильтры
+                        filter_: Optional[str] = None,  # base64 encoded filter
+                        **extra_filters) -> List[Card]:
         """
-        Получает список карточек.
+        Получает список карточек с расширенной фильтрацией.
         
         Args:
             board_id: ID доски (если указан, ищет карточки в конкретной доске)
-            **filters: Фильтры (assignee_id, state, priority и т.д.)
+            # Фильтры по датам (ISO 8601 формат)
+            created_before: Создано до даты
+            created_after: Создано после даты
+            updated_before: Обновлено до даты
+            updated_after: Обновлено после даты
+            first_moved_in_progress_after: Первое перемещение в работу после даты
+            first_moved_in_progress_before: Первое перемещение в работу до даты
+            last_moved_to_done_at_after: Последнее перемещение в выполненные после даты
+            last_moved_to_done_at_before: Последнее перемещение в выполненные до даты
+            due_date_after: Срок выполнения после даты
+            due_date_before: Срок выполнения до даты
+            # Фильтры по содержимому
+            query: Текстовый поиск в карточках
+            tag: Поиск по тегу
+            tag_ids: Поиск по ID тегов (через запятую)
+            type_ids: Поиск по ID типов (через запятую)
+            # Фильтры исключения
+            exclude_board_ids: Исключить ID досок (через запятую)
+            exclude_lane_ids: Исключить ID дорожек (через запятую)
+            exclude_column_ids: Исключить ID колонок (через запятую)
+            exclude_owner_ids: Исключить ID владельцев (через запятую)
+            exclude_card_ids: Исключить ID карточек (через запятую)
+            # Фильтры включения по ID
+            column_ids: Поиск по ID колонок (через запятую)
+            member_ids: Поиск по ID участников (через запятую)
+            owner_ids: Поиск по ID владельцев (через запятую)
+            responsible_ids: Поиск по ID ответственных (через запятую)
+            organizations_ids: Поиск по ID организаций (через запятую)
+            # Фильтры по состоянию
+            states: Поиск по состояниям (через запятую): 1-queued, 2-inProgress, 3-done
+            external_id: Поиск по внешнему ID
+            # Дополнительные параметры
+            additional_card_fields: Дополнительные поля карточек (через запятую), например: 'description'
+            search_fields: Поля для поиска
+            # Основные фильтры
+            space_id: Фильтр по ID пространства
+            column_id: Фильтр по ID колонки
+            lane_id: Фильтр по ID дорожки
+            condition: Фильтр по состоянию: 1 - на доске, 2 - архивная
+            type_id: Фильтр по ID типа
+            responsible_id: Фильтр по ID ответственного
+            owner_id: Фильтр по ID владельца
+            # Булевые фильтры
+            archived: Фильтр архивных карточек
+            asap: Маркер ASAP
+            overdue: Фильтр по просроченным
+            done_on_time: Фильтр по выполненным вовремя
+            with_due_date: Фильтр по карточкам с установленным сроком
+            is_request: Поиск запросов
+            # Пагинация и сортировка
+            limit: Максимальное количество карточек в ответе (макс 100)
+            offset: Количество записей для пропуска
+            order_space_id: Сортировка по ID пространства
+            order_by: Поля для сортировки (через запятую)
+            order_direction: Направление сортировки 'asc' или 'desc' (через запятую)
+            # Продвинутые фильтры
+            filter_: Фильтр по условиям и/или в формате base64
+            **extra_filters: Дополнительные фильтры
         
         Returns:
             Список карточек
         """
-        if board_id:
-            endpoint = f'{KaitenConfig.ENDPOINT_CARDS}?board_id={board_id}'
-        else:
-            endpoint = KaitenConfig.ENDPOINT_CARDS
+        # Формируем параметры запроса
+        params = {}
         
-        response = await self._request('GET', endpoint, params=filters)
+        # Добавляем board_id в параметры если указан
+        if board_id:
+            params['board_id'] = board_id
+        
+        # Добавляем все остальные параметры если они не None
+        all_params = {
+            'created_before': created_before,
+            'created_after': created_after,
+            'updated_before': updated_before,
+            'updated_after': updated_after,
+            'first_moved_in_progress_after': first_moved_in_progress_after,
+            'first_moved_in_progress_before': first_moved_in_progress_before,
+            'last_moved_to_done_at_after': last_moved_to_done_at_after,
+            'last_moved_to_done_at_before': last_moved_to_done_at_before,
+            'due_date_after': due_date_after,
+            'due_date_before': due_date_before,
+            'query': query,
+            'tag': tag,
+            'tag_ids': tag_ids,
+            'type_ids': type_ids,
+            'exclude_board_ids': exclude_board_ids,
+            'exclude_lane_ids': exclude_lane_ids,
+            'exclude_column_ids': exclude_column_ids,
+            'exclude_owner_ids': exclude_owner_ids,
+            'exclude_card_ids': exclude_card_ids,
+            'column_ids': column_ids,
+            'member_ids': member_ids,
+            'owner_ids': owner_ids,
+            'responsible_ids': responsible_ids,
+            'organizations_ids': organizations_ids,
+            'states': states,
+            'external_id': external_id,
+            'additional_card_fields': additional_card_fields,
+            'search_fields': search_fields,
+            'space_id': space_id,
+            'column_id': column_id,
+            'lane_id': lane_id,
+            'condition': condition,
+            'type_id': type_id,
+            'responsible_id': responsible_id,
+            'owner_id': owner_id,
+            'archived': archived,
+            'asap': asap,
+            'overdue': overdue,
+            'done_on_time': done_on_time,
+            'with_due_date': with_due_date,
+            'is_request': is_request,
+            'limit': limit,
+            'offset': offset,
+            'order_space_id': order_space_id,
+            'order_by': order_by,
+            'order_direction': order_direction,
+            'filter': filter_,
+            **extra_filters
+        }
+        
+        # Добавляем только не-None параметры
+        for key, value in all_params.items():
+            if value is not None:
+                params[key] = value
+
+        response = await self._request('GET', KaitenConfig.ENDPOINT_CARDS, params=params)
         cards_data = response if isinstance(response, list) else response.get('items', [])
         return [Card(self, card_data) for card_data in cards_data]
     
@@ -555,4 +733,132 @@ class KaitenClient:
         """Удаляет колонку."""
         endpoint = KaitenConfig.ENDPOINT_COLUMNS.format(board_id=board_id)
         await self._request('DELETE', f'{endpoint}/{column_id}')
+        return True
+    
+    # === ДОРОЖКИ ===
+    
+    async def get_lanes(self, board_id: int) -> List[Lane]:
+        """
+        Получает список дорожек доски.
+        
+        Args:
+            board_id: ID доски
+        
+        Returns:
+            Список дорожек
+        """
+        endpoint = KaitenConfig.ENDPOINT_LANES.format(board_id=board_id)
+        response = await self._request('GET', endpoint)
+        lanes_data = response if isinstance(response, list) else response.get('items', [])
+        return [Lane(self, lane_data) for lane_data in lanes_data]
+    
+    async def get_lane(self, board_id: int, lane_id: int) -> Lane:
+        """
+        Получает дорожку по ID.
+        
+        Args:
+            board_id: ID доски
+            lane_id: ID дорожки
+        
+        Returns:
+            Дорожка
+        """
+        endpoint = KaitenConfig.ENDPOINT_LANES.format(board_id=board_id)
+        data = await self._request('GET', f'{endpoint}/{lane_id}')
+        return Lane(self, data)
+    
+    async def create_lane(
+        self,
+        title: str,
+        board_id: int,
+        sort_order: Optional[float] = None,
+        row_count: Optional[int] = None,
+        wip_limit: Optional[int] = None,
+        default_card_type_id: Optional[int] = None,
+        wip_limit_type: Optional[int] = None,
+        external_id: Optional[str] = None,
+        default_tags: Optional[str] = None,
+        last_moved_warning_after_days: Optional[int] = None,
+        last_moved_warning_after_hours: Optional[int] = None,
+        last_moved_warning_after_minutes: Optional[int] = None,
+        condition: Optional[int] = None,
+        **kwargs
+    ) -> Lane:
+        """
+        Создает новую дорожку в доске.
+        
+        Args:
+            title: Название дорожки
+            board_id: ID доски
+            sort_order: Позиция
+            row_count: Высота
+            wip_limit: Рекомендуемый лимит для колонки
+            default_card_type_id: Тип карточки по умолчанию
+            wip_limit_type: Тип WIP лимита (1 – количество карточек, 2 – размер карточек)
+            external_id: Внешний идентификатор
+            default_tags: Теги по умолчанию
+            last_moved_warning_after_days: Предупреждение на устаревших карточках (дни)
+            last_moved_warning_after_hours: Предупреждение на устаревших карточках (часы)
+            last_moved_warning_after_minutes: Предупреждение на устаревших карточках (минуты)
+            condition: Состояние (1 - активная, 2 - архивная, 3 - удаленная)
+            **kwargs: Дополнительные поля
+        
+        Returns:
+            Созданная дорожка
+        """
+        data = {
+            'title': title,
+            **kwargs
+        }
+        
+        # Добавляем опциональные поля
+        for field, value in {
+            'sort_order': sort_order,
+            'row_count': row_count,
+            'wip_limit': wip_limit,
+            'default_card_type_id': default_card_type_id,
+            'wip_limit_type': wip_limit_type,
+            'external_id': external_id,
+            'default_tags': default_tags,
+            'last_moved_warning_after_days': last_moved_warning_after_days,
+            'last_moved_warning_after_hours': last_moved_warning_after_hours,
+            'last_moved_warning_after_minutes': last_moved_warning_after_minutes,
+            'condition': condition
+        }.items():
+            if value is not None:
+                data[field] = value
+        
+        endpoint = KaitenConfig.ENDPOINT_LANES.format(board_id=board_id)
+        lane_data = await self._request('POST', endpoint, json=data)
+        return Lane(self, lane_data)
+    
+    async def update_lane(self, board_id: int, 
+                          lane_id: int, **fields) -> Dict[str, Any]:
+        """
+        Обновляет дорожку.
+        
+        Args:
+            board_id: ID доски
+            lane_id: ID дорожки
+            **fields: Поля для обновления
+        
+        Returns:
+            Обновленная дорожка
+        """
+        endpoint = KaitenConfig.ENDPOINT_LANES.format(board_id=board_id)
+        return await self._request('PATCH', f'{endpoint}/{lane_id}', json=fields)
+    
+    async def delete_lane(self, board_id: int, lane_id: int) -> bool:
+        """
+        Удаляет дорожку.
+        
+        Args:
+            board_id: ID доски
+            lane_id: ID дорожки
+        
+        Returns:
+            True если удаление прошло успешно
+        """
+        endpoint = KaitenConfig.ENDPOINT_LANES.format(board_id=board_id)
+        await self._request('DELETE', f'{endpoint}/{lane_id}')
         return True
