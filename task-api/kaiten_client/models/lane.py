@@ -163,9 +163,7 @@ class Lane(KaitenObject):
         Returns:
             Созданная карточка
         """
-        from .card import Card
-        
-        card_data = await self._client.create_card(
+        return await self._client.create_card(
             title=title,
             column_id=column_id,
             board_id=self.board_id,
@@ -179,7 +177,6 @@ class Lane(KaitenObject):
             parent_id=parent_id,
             **kwargs
         )
-        return Card(self._client, card_data)
     
     def __str__(self) -> str:
         """Строковое представление дорожки."""

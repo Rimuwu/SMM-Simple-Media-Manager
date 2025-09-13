@@ -129,10 +129,7 @@ class Card(KaitenObject):
         Returns:
             Список объектов Comment
         """
-        from .comment import Comment
-        
-        comments_data = await self._client.get_card_comments(self.id)
-        return [Comment(self._client, comment_data) for comment_data in comments_data]
+        return await self._client.get_card_comments(self.id)
     
     async def add_comment(self, text: str) -> 'Comment':
         """
@@ -144,10 +141,7 @@ class Card(KaitenObject):
         Returns:
             Созданный комментарий
         """
-        from .comment import Comment
-        
-        comment_data = await self._client.add_comment(self.id, text)
-        return Comment(self._client, comment_data)
+        return await self._client.add_comment(self.id, text)
     
     # === УЧАСТНИКИ ===
     
@@ -158,10 +152,7 @@ class Card(KaitenObject):
         Returns:
             Список объектов Member
         """
-        from .member import Member
-        
-        members_data = await self._client.get_card_members(self.id)
-        return [Member(self._client, member_data) for member_data in members_data]
+        return await self._client.get_card_members(self.id)
     
     async def add_member(self, user_id: int) -> 'Member':
         """
@@ -173,10 +164,7 @@ class Card(KaitenObject):
         Returns:
             Добавленный участник
         """
-        from .member import Member
-        
-        member_data = await self._client.add_card_member(self.id, user_id)
-        return Member(self._client, member_data)
+        return await self._client.add_card_member(self.id, user_id)
     
     async def remove_member(self, user_id: int) -> bool:
         """
@@ -199,10 +187,7 @@ class Card(KaitenObject):
         Returns:
             Список объектов File
         """
-        from .file import File
-        
-        files_data = await self._client.get_card_files(self.id)
-        return [File(self._client, file_data) for file_data in files_data]
+        return await self._client.get_card_files(self.id)
     
     async def upload_file(self, file_path: str, file_name: Optional[str] = None) -> 'File':
         """
@@ -215,10 +200,7 @@ class Card(KaitenObject):
         Returns:
             Информация о загруженном файле
         """
-        from .file import File
-        
-        file_data = await self._client.upload_file(self.id, file_path, file_name)
-        return File(self._client, file_data)
+        return await self._client.upload_file(self.id, file_path, file_name)
     
     def __str__(self) -> str:
         """Строковое представление карточки."""

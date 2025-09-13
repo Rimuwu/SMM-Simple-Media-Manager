@@ -190,10 +190,7 @@ class Board(KaitenObject):
         Returns:
             Список объектов Column
         """
-        from .column import Column
-        
-        columns_data = await self._client.get_columns(self.id)
-        return [Column(self._client, column_data) for column_data in columns_data]
+        return await self._client.get_columns(self.id)
     
     async def create_column(
         self,
@@ -210,14 +207,11 @@ class Board(KaitenObject):
         Returns:
             Созданная колонка
         """
-        from .column import Column
-        
-        column_data = await self._client.create_column(
+        return await self._client.create_column(
             title=title,
             board_id=self.id,
             position=position
         )
-        return Column(self._client, column_data)
     
     async def get_lanes(self) -> List['Lane']:
         """
@@ -226,10 +220,7 @@ class Board(KaitenObject):
         Returns:
             Список объектов Lane
         """
-        from .lane import Lane
-        
-        lanes_data = await self._client.get_lanes(self.id)
-        return [Lane(self._client, lane_data) for lane_data in lanes_data]
+        return await self._client.get_lanes(self.id)
     
     async def create_lane(
         self,
@@ -252,9 +243,7 @@ class Board(KaitenObject):
         Returns:
             Созданная дорожка
         """
-        from .lane import Lane
-        
-        lane_data = await self._client.create_lane(
+        return await self._client.create_lane(
             title=title,
             board_id=self.id,
             sort_order=sort_order,
@@ -262,7 +251,6 @@ class Board(KaitenObject):
             wip_limit=wip_limit,
             **kwargs
         )
-        return Lane(self._client, lane_data)
     
     async def get_cards(self, **filters) -> List['Card']:
         """
@@ -275,10 +263,7 @@ class Board(KaitenObject):
         Returns:
             Список объектов Card
         """
-        from .card import Card
-        
-        cards_data = await self._client.get_cards(board_id=self.id, **filters)
-        return cards_data
+        return await self._client.get_cards(board_id=self.id, **filters)
     
     async def create_card(
         self,
@@ -311,9 +296,7 @@ class Board(KaitenObject):
         Returns:
             Созданная карточка
         """
-        from .card import Card
-        
-        card_data = await self._client.create_card(
+        return await self._client.create_card(
             title=title,
             column_id=column_id,
             board_id=self.id,
@@ -326,7 +309,6 @@ class Board(KaitenObject):
             parent_id=parent_id,
             **kwargs
         )
-        return Card(self._client, card_data)
     
     def __str__(self) -> str:
         """Строковое представление доски."""

@@ -152,10 +152,7 @@ class Space(KaitenObject):
         Returns:
             Список объектов Board
         """
-        from .board import Board
-        
-        boards_data = await self._client.get_boards(self.id)
-        return [Board(self._client, board_data) for board_data in boards_data]
+        return await self._client.get_boards(self.id)
     
     async def create_board(
         self,
@@ -174,15 +171,12 @@ class Space(KaitenObject):
         Returns:
             Созданная доска
         """
-        from .board import Board
-        
-        board_data = await self._client.create_board(
+        return await self._client.create_board(
             title=title,
             space_id=self.id,
             description=description,
             board_type=board_type
         )
-        return Board(self._client, board_data)
     
     def __str__(self) -> str:
         """Строковое представление пространства."""
