@@ -19,13 +19,7 @@ class Checklist(KaitenObject):
     Чек-лист содержит упорядоченный список элементов (ChecklistItem),
     которые можно отмечать как выполненные, назначать ответственных и устанавливать сроки.
     """
-    
-    def __init__(self, client: 'KaitenClient', **data):
-        """Инициализация чек-листа."""
-        super().__init__(client, **data)
-    
-    # === СВОЙСТВА ЧЕКИСТА ===
-    
+
     @property
     def id(self) -> Optional[int]:
         """ID чек-листа."""
@@ -186,7 +180,7 @@ class Checklist(KaitenObject):
             # Добавляем контекстную информацию
             item_data['card_id'] = self.card_id
             item_data['checklist_id'] = self.id
-            result.append(ChecklistItem(self._client, **item_data))
+            result.append(ChecklistItem(self._client, item_data))
         
         return result
     
