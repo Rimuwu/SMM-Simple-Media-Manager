@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .comment import Comment
     from .member import Member
     from .file import File
+    from .checklist import Checklist
 
 
 class Card(KaitenObject):
@@ -201,6 +202,47 @@ class Card(KaitenObject):
             Информация о загруженном файле
         """
         return await self._client.upload_file(self.id, file_path, file_name)
+    
+    # === ЧЕКИСТЫ ===
+    
+    async def get_checklists(self) -> List['Checklist']:
+        """
+        Получить все чек-листы карточки.
+        
+        Returns:
+            Список чек-листов
+        """
+        return await self._client.get_card_checklists(self.id)
+    
+    async def create_checklist(
+        self,
+        name: str,
+        sort_order: Optional[float] = None,
+        items_source_checklist_id: Optional[int] = None,
+        exclude_item_ids: Optional[List[int]] = None,
+        source_share_id: Optional[int] = None
+    ) -> 'Checklist':
+        """
+        Создать новый чек-лист в карточке.
+        
+        Args:
+            name: Название чек-листа
+            sort_order: Позиция чек-листа
+            items_source_checklist_id: ID чек-листа для копирования элементов
+            exclude_item_ids: ID элементов для исключения при копировании
+            source_share_id: ID шаблона чек-листа
+        
+        Returns:
+            Созданный чек-лист
+        """
+        return await self._client.create_checklist(
+            card_id=self.id,
+            name=name,
+            sort_order=sort_order,
+            items_source_checklist_id=items_source_checklist_id,
+            exclude_item_ids=exclude_item_ids,
+            source_share_id=source_share_id
+        )
     
     def __str__(self) -> str:
         """Строковое представление карточки."""

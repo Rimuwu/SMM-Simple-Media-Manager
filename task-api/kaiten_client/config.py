@@ -41,7 +41,7 @@ class KaitenConfig:
     
     # Чеклисты
     ENDPOINT_CHECKLISTS: str = "/checklists"
-    ENDPOINT_CHECKLIST_ITEMS: str = "/checklists/{checklist_id}/items"
+    ENDPOINT_CHECKLIST_ITEMS: str = "/cards/{card_id}/checklists/{checklist_id}/items"
     
     # Файлы
     ENDPOINT_FILES: str = "/files"

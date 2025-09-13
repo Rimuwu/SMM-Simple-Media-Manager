@@ -13,6 +13,8 @@ from .comment import Comment
 from .member import Member
 from .file import File
 from .property import Property
+from .checklist import Checklist
+from .checklist_item import ChecklistItem
 
 __all__ = [
     'KaitenObject',
@@ -26,4 +28,6 @@ __all__ = [
     'Member',
     'File',
     'Property',
+    'Checklist',
+    'ChecklistItem',
 ]

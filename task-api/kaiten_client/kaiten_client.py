@@ -11,7 +11,7 @@ from datetime import datetime
 
 from .config import KaitenConfig, KaitenCredentials
 from .exceptions import KaitenApiError, KaitenNotFoundError, KaitenValidationError
-from .models import Space, Board, Column, Lane, Card, Tag, Comment, Member, File, Property
+from .models import Space, Board, Column, Lane, Card, Tag, Comment, Member, File, Property, Checklist, ChecklistItem
 
 if TYPE_CHECKING:
     pass
@@ -873,7 +873,7 @@ class KaitenClient:
         Returns:
             List[Property]: Список объектов Property
         """
-        data = await self._request("GET", self.config.ENDPOINT_CUSTOM_PROPERTIES)
+        data = await self._request("GET", KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES)
         return [Property(client=self, **item) for item in data]
     
     async def get_custom_property(self, property_id: int) -> Property:
@@ -885,7 +885,7 @@ class KaitenClient:
         Returns:
             Property: Объект Property
         """
-        data = await self._request("GET", f"{self.config.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
+        data = await self._request("GET", f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
         return Property(client=self, **data)
     
     async def create_custom_property(
@@ -940,7 +940,7 @@ class KaitenClient:
         # Удаляем None значения
         payload = {k: v for k, v in payload.items() if v is not None}
         
-        data = await self._request("POST", self.config.ENDPOINT_CUSTOM_PROPERTIES, data=payload)
+        data = await self._request("POST", KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES, data=payload)
         return Property(client=self, **data)
     
     async def update_custom_property(
@@ -1001,7 +1001,7 @@ class KaitenClient:
         if fields_settings is not None:
             payload["fields_settings"] = fields_settings
         
-        data = await self._request("PATCH", f"{self.config.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}", data=payload)
+        data = await self._request("PATCH", f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}", data=payload)
         return Property(client=self, **data)
     
     async def delete_custom_property(self, property_id: int) -> bool:
@@ -1013,5 +1013,260 @@ class KaitenClient:
         Returns:
             bool: True если удаление прошло успешно
         """
-        await self._request("DELETE", f"{self.config.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
+        await self._request("DELETE", f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
+        return True
+
+    # === ЧЕКИСТЫ ===
+    
+    async def get_card_checklists(self, card_id: int) -> List[Checklist]:
+        """
+        Получает все чек-листы карточки.
+        
+        Args:
+            card_id: ID карточки
+        
+        Returns:
+            Список чек-листов карточки
+        """
+        endpoint = KaitenConfig.ENDPOINT_CARD_CHECKLISTS.format(card_id=card_id)
+        response = await self._request('GET', endpoint)
+        checklists_data = response if isinstance(response, list) else response.get('items', [])
+        
+        # Добавляем card_id к каждому чек-листу
+        for checklist_data in checklists_data:
+            checklist_data['card_id'] = card_id
+        
+        return [Checklist(self, **checklist_data) for checklist_data in checklists_data]
+    
+    async def get_checklist(self, card_id: int, checklist_id: int) -> Checklist:
+        """
+        Получает чек-лист по ID.
+        
+        Args:
+            card_id: ID карточки
+            checklist_id: ID чек-листа
+        
+        Returns:
+            Объект чек-листа
+        """
+        endpoint = KaitenConfig.ENDPOINT_CARD_CHECKLISTS.format(card_id=card_id)
+        data = await self._request('GET', f'{endpoint}/{checklist_id}')
+        data['card_id'] = card_id
+        return Checklist(self, **data)
+    
+    async def create_checklist(
+        self,
+        card_id: int,
+        name: str,
+        sort_order: Optional[float] = None,
+        items_source_checklist_id: Optional[int] = None,
+        exclude_item_ids: Optional[List[int]] = None,
+        source_share_id: Optional[int] = None
+    ) -> Checklist:
+        """
+        Создает новый чек-лист в карточке.
+        
+        Args:
+            card_id: ID карточки
+            name: Название чек-листа
+            sort_order: Позиция чек-листа
+            items_source_checklist_id: ID чек-листа для копирования элементов
+            exclude_item_ids: ID элементов для исключения при копировании
+            source_share_id: ID шаблона чек-листа
+        
+        Returns:
+            Созданный чек-лист
+        """
+        data = {'name': name}
+        
+        if sort_order is not None:
+            data['sort_order'] = sort_order
+        if items_source_checklist_id is not None:
+            data['items_source_checklist_id'] = items_source_checklist_id
+        if exclude_item_ids is not None:
+            data['exclude_item_ids'] = exclude_item_ids
+        if source_share_id is not None:
+            data['source_share_id'] = source_share_id
+        
+        endpoint = KaitenConfig.ENDPOINT_CARD_CHECKLISTS.format(card_id=card_id)
+        checklist_data = await self._request('POST', endpoint, json=data)
+        checklist_data['card_id'] = card_id
+        return Checklist(self, **checklist_data)
+    
+    async def update_checklist(
+        self,
+        card_id: int,
+        checklist_id: int,
+        name: Optional[str] = None,
+        sort_order: Optional[float] = None,
+        move_to_card_id: Optional[int] = None
+    ) -> Checklist:
+        """
+        Обновляет чек-лист.
+        
+        Args:
+            card_id: ID карточки
+            checklist_id: ID чек-листа
+            name: Новое название
+            sort_order: Новая позиция
+            move_to_card_id: ID карточки для перемещения чек-листа
+        
+        Returns:
+            Обновленный чек-лист
+        """
+        data = {}
+        if name is not None:
+            data['name'] = name
+        if sort_order is not None:
+            data['sort_order'] = sort_order
+        if move_to_card_id is not None:
+            data['card_id'] = move_to_card_id
+        
+        endpoint = KaitenConfig.ENDPOINT_CARD_CHECKLISTS.format(card_id=card_id)
+        checklist_data = await self._request('PATCH', f'{endpoint}/{checklist_id}', json=data)
+        checklist_data['card_id'] = move_to_card_id if move_to_card_id else card_id
+        return Checklist(self, **checklist_data)
+    
+    async def delete_checklist(self, card_id: int, checklist_id: int) -> bool:
+        """
+        Удаляет чек-лист из карточки.
+        
+        Args:
+            card_id: ID карточки
+            checklist_id: ID чек-листа
+        
+        Returns:
+            True если удаление прошло успешно
+        """
+        endpoint = KaitenConfig.ENDPOINT_CARD_CHECKLISTS.format(card_id=card_id)
+        await self._request('DELETE', f'{endpoint}/{checklist_id}')
+        return True
+    
+    # === ЭЛЕМЕНТЫ ЧЕКИСТОВ ===
+    
+    async def add_checklist_item(
+        self,
+        card_id: int,
+        checklist_id: int,
+        text: str,
+        sort_order: Optional[float] = None,
+        checked: Optional[bool] = None,
+        due_date: Optional[str] = None,
+        responsible_id: Optional[int] = None
+    ) -> ChecklistItem:
+        """
+        Добавляет элемент в чек-лист.
+        
+        Args:
+            card_id: ID карточки
+            checklist_id: ID чек-листа
+            text: Текст элемента
+            sort_order: Позиция элемента
+            checked: Состояние элемента (отмечен/не отмечен)
+            due_date: Срок выполнения в формате YYYY-MM-DD
+            responsible_id: ID ответственного пользователя
+        
+        Returns:
+            Созданный элемент чек-листа
+        """
+        data = {'text': text}
+        
+        if sort_order is not None:
+            data['sort_order'] = sort_order
+        if checked is not None:
+            data['checked'] = checked
+        if due_date is not None:
+            data['due_date'] = due_date
+        if responsible_id is not None:
+            data['responsible_id'] = responsible_id
+        
+        endpoint = KaitenConfig.ENDPOINT_CHECKLIST_ITEMS.format(
+            card_id=card_id, 
+            checklist_id=checklist_id
+        )
+        item_data = await self._request('POST', endpoint, json=data)
+        
+        # Добавляем контекстную информацию
+        item_data['card_id'] = card_id
+        item_data['checklist_id'] = checklist_id
+        
+        return ChecklistItem(self, **item_data)
+    
+    async def update_checklist_item(
+        self,
+        card_id: int,
+        checklist_id: int,
+        item_id: int,
+        text: Optional[str] = None,
+        sort_order: Optional[float] = None,
+        checklist_id_new: Optional[int] = None,
+        checked: Optional[bool] = None,
+        due_date: Optional[str] = None,
+        responsible_id: Optional[int] = None
+    ) -> ChecklistItem:
+        """
+        Обновляет элемент чек-листа.
+        
+        Args:
+            card_id: ID карточки
+            checklist_id: ID чек-листа
+            item_id: ID элемента
+            text: Новый текст элемента
+            sort_order: Новая позиция элемента
+            checklist_id_new: ID нового чек-листа для перемещения
+            checked: Новое состояние элемента
+            due_date: Новый срок выполнения
+            responsible_id: ID нового ответственного (None для удаления)
+        
+        Returns:
+            Обновленный элемент чек-листа
+        """
+        data = {}
+        if text is not None:
+            data['text'] = text
+        if sort_order is not None:
+            data['sort_order'] = sort_order
+        if checklist_id_new is not None:
+            data['checklist_id'] = checklist_id_new
+        if checked is not None:
+            data['checked'] = checked
+        if due_date is not None:
+            data['due_date'] = due_date
+        if responsible_id is not None:
+            data['responsible_id'] = responsible_id
+        
+        endpoint = KaitenConfig.ENDPOINT_CHECKLIST_ITEMS.format(
+            card_id=card_id, 
+            checklist_id=checklist_id
+        )
+        item_data = await self._request('PATCH', f'{endpoint}/{item_id}', json=data)
+        
+        # Добавляем контекстную информацию
+        item_data['card_id'] = card_id
+        item_data['checklist_id'] = checklist_id_new if checklist_id_new else checklist_id
+        
+        return ChecklistItem(self, **item_data)
+    
+    async def delete_checklist_item(
+        self,
+        card_id: int,
+        checklist_id: int,
+        item_id: int
+    ) -> bool:
+        """
+        Удаляет элемент из чек-листа.
+        
+        Args:
+            card_id: ID карточки
+            checklist_id: ID чек-листа
+            item_id: ID элемента
+        
+        Returns:
+            True если удаление прошло успешно
+        """
+        endpoint = KaitenConfig.ENDPOINT_CHECKLIST_ITEMS.format(
+            card_id=card_id, 
+            checklist_id=checklist_id
+        )
+        await self._request('DELETE', f'{endpoint}/{item_id}')
         return True
