@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY brain-api/ ./
 COPY global_modules/ ./global_modules/
 COPY middlewares/ ./middlewares/
+COPY kaiten_client/ ./kaiten_client/
 
 EXPOSE 8000
 
