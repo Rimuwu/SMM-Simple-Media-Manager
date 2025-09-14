@@ -34,26 +34,15 @@ class TelegramPyrogramExecutor(BaseExecutor):
                 api_hash=self.api_hash,
                 phone_number=self.phone_number,
                 workdir=self.workdir,
-                password=self.password
+                password=self.password,
+                no_updates=True,
+                sleep_threshold=33
             )
             # Проверяем наличие сессии при инициализации
             session_file = os.path.join(self.workdir, f"{self.session_name}.session")
             if not os.path.exists(session_file):
                 logger.warning(f"Session file not found: {session_file}")
                 logger.warning("Telegram Pyrogram executor will be marked as not available")
-
-    def setup_handlers(self):
-        """Настройка обработчиков сообщений"""
-        if not self.client: 
-            logger.warning("Client not initialized when setting up handlers")
-            return
-        # Импортируем хендлеры после того, как клиент готов
-        try:
-            # import tp.handlers.test
-            logger.info("Handlers for Telegram Pyrogram set up")
-        except Exception as e:
-            logger.error(f"Error importing handlers: {e}")
-            logger.exception("Full traceback:")
 
     async def send_message(self, chat_id: str, text: str, **kwargs) -> dict:
         """Отправить сообщение"""
@@ -238,7 +227,7 @@ class TelegramPyrogramExecutor(BaseExecutor):
                     break
 
                 # Настраиваем хендлеры после запуска клиента
-                self.setup_handlers()
+                # self.setup_handlers()
 
                 # Получаем информацию о текущем пользователе
                 me = await self.client.get_me()
