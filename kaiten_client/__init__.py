@@ -33,8 +33,7 @@ from .config import KaitenConfig
 from .exceptions import KaitenApiError, KaitenNotFoundError, KaitenValidationError
 
 __version__ = "2.0.0"
-__author__ = "SMM Team"
-__email__ = "support@smm.ru"
+__author__ = "Rimuwu"
 
 __all__ = [
     "KaitenClient",
