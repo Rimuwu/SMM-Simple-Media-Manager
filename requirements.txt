@@ -10,6 +10,7 @@ slowapi==0.1.9
 sqlalchemy==2.0.42
 psycopg2-binary==2.9.10
 asyncpg==0.30.0
+uvicorn==0.37.0
 
 # Calendar API зависимости
 google-api-python-client==2.181.0
