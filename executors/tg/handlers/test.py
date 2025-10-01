@@ -19,10 +19,19 @@ bot: Bot = client_executor.bot
 @dp.message(Command("test"))
 async def cmd_test(message: Message):
     print("TEST")
-    
-    sc = scene_manager.create_scene(
-        message.from_user.id,
-        TaskScene,
-        bot
-    )
-    await sc.start()
+
+    try:
+        sc = scene_manager.create_scene(
+            message.from_user.id,
+            TaskScene,
+            bot
+        )
+        await sc.start()
+    except ValueError as e:
+        scene_manager.remove_scene(message.from_user.id)
+        sc = scene_manager.create_scene(
+            message.from_user.id,
+            TaskScene,
+            bot
+        )
+        await sc.start()
