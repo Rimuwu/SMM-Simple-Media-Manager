@@ -3,8 +3,10 @@
 logs/*
 .idea/*
 executors/json/clients.json
-sessions/*
+sessions
 
-.vscode/*
+.vscode
 __pycache__
 .env
+
+json/
