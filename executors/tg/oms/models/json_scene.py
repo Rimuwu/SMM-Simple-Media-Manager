@@ -46,7 +46,7 @@ class ScenePage:
             buttons_worker = FunctionWorker(**data['buttons-worker'])
 
         return cls(
-            image=data['image'],
+            image=data.get('image', None),
             content=data['content'],
             to_pages=data.get('to_pages', {}),
             content_worker=content_worker,
@@ -134,7 +134,7 @@ class SceneLoader:
         self.load_from_file(file_path)
 
 scenes_loader = SceneLoader()
-scenes_loader.load_from_file('oms/json/scenes.json')
+scenes_loader.load_from_file('json/scenes.json')
 print(
     "[SceneLoader] Loaded scenes: ", len(scenes_loader.scenes)
 )
