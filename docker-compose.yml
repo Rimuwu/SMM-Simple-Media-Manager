@@ -52,20 +52,6 @@ services:
     networks:
       - smm_network
 
-  kaiten_webhook:
-    build: 
-      context: .
-      dockerfile: kaitenWebhook/Dockerfile.kaiten
-    ports:
-      - "8888:8888"
-    depends_on:
-      - brain
-    restart: always
-    volumes:
-      - ./logs:/logs:rw
-    networks:
-      - smm_network
-
   executors:
     build: 
       context: .
