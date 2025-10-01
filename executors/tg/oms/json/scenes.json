@@ -1,0 +1,34 @@
+{
+
+    "user-task": {
+        "settings": {
+            "parse_mode": "Markdown",
+            "delete_after_send": true // Удалять сообщение пользователя после отправки
+        },
+        "pages": {
+            "main-page": { // Название страницы
+                "image": "",
+                "content": "Описание задачи и тд...",
+                "to_pages": { // Кнопки для перехода на другие страницы
+                    "channels-settings": "Каналы для отправки", // id страницы: Название кнопки
+                    "content-setter": "Настройка контента"
+                }
+            },
+            "channels-settings": {
+                "image": "images/1.png",
+                "content": "Выберите каналы для отправки: {channels}",
+                "to_pages": {
+                    "main-page": "На главную"
+                }
+            },
+            "content-setter": { // Тут подразумевается, что мы ожидаем текст от юзера
+                "image": "images/2.png",
+                "content": "Описание поста и тд...",
+                "to_pages": {
+                    "main-page": "На главную"
+                }
+            }
+        }
+    }
+
+}
