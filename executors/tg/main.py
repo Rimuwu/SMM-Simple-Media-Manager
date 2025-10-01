@@ -17,6 +17,9 @@ class TelegramExecutor(BaseExecutor):
     def setup_handlers(self):
         """Настройка обработчиков"""
         import tg.handlers
+        from .oms import register_handlers
+
+        register_handlers(self.dp)
 
     async def send_message(self, chat_id: str, text: str) -> dict:
         """Отправить сообщение"""
