@@ -8,7 +8,7 @@ WORKDIR /
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY executors/ ./
+COPY KaitenWebhook/ ./
 COPY global_modules/ ./global_modules/
 
 CMD ["python", "main.py"]
