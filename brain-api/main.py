@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from database.core import create_superuser, create_tables
 from global_modules.limiter import limiter
-from middlewares.logs_mid import RequestLoggingMiddleware
+from global_modules.middlewares.logs_mid import RequestLoggingMiddleware
 
 from routers.db_health import router as db_health_router
 from routers.user import router as user_router
