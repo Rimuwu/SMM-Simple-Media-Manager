@@ -31,6 +31,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
+      - ./json:/json:rw
     networks:
       - smm_network
 
