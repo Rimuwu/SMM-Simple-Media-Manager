@@ -671,7 +671,7 @@ class KaitenClient:
         Returns:
             Созданное пространство
         """
-        data = {'name': name}
+        data = {'title': name}
         if description:
             data['description'] = description
         
@@ -706,7 +706,8 @@ class KaitenClient:
         title: str,
         space_id: int,
         description: Optional[str] = None,
-        board_type: str = "kanban"
+        columns: Optional[List[Dict[str, Any]]] = None,
+        lanes: Optional[List[Dict[str, Any]]] = None
     ) -> Board:
         """
         Создает новую доску.
@@ -716,13 +717,15 @@ class KaitenClient:
             space_id: ID пространства
             description: Описание доски
             board_type: Тип доски (kanban, scrum)
+            columns: Список колонок для создания доски (title, type - required)
         
         Returns:
             Созданная доска
         """
         data = {
             'title': title,
-            'board_type': board_type
+            'columns': columns or [],
+            'lanes': lanes or []
         }
         if description:
             data['description'] = description
@@ -1077,6 +1080,158 @@ class KaitenClient:
         """
         await self._request("DELETE", f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
         return True
+
+    # === ЗНАЧЕНИЯ ВЫБОРА КАСТОМНЫХ СВОЙСТВ ===
+    
+    async def get_property_select_values(
+        self,
+        property_id: int,
+        v2_select_search: Optional[bool] = None,
+        query: Optional[str] = None,
+        order_by: Optional[str] = None,
+        ids: Optional[List[int]] = None,
+        conditions: Optional[List[str]] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Получает список значений выбора для кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            v2_select_search: Включает дополнительную фильтрацию
+            query: Фильтр по значению выбора (работает только если v2_select_search=True)
+            order_by: Поле для сортировки (работает только если v2_select_search=True)
+            ids: Массив ID для фильтрации (работает только если v2_select_search=True)
+            conditions: Массив условий для фильтрации (работает только если v2_select_search=True)
+            offset: Количество записей для пропуска (работает только если v2_select_search=True)
+            limit: Максимальное количество значений в ответе (работает только если v2_select_search=True)
+        
+        Returns:
+            Список значений выбора
+        """
+        params = {}
+        
+        if v2_select_search is not None:
+            params['v2_select_search'] = v2_select_search
+        if query is not None:
+            params['query'] = query
+        if order_by is not None:
+            params['order_by'] = order_by
+        if ids is not None:
+            params['ids'] = ','.join(map(str, ids))
+        if conditions is not None:
+            params['conditions'] = ','.join(conditions)
+        if offset is not None:
+            params['offset'] = offset
+        if limit is not None:
+            params['limit'] = limit
+        
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values"
+        response = await self._request('GET', endpoint, params=params)
+        return response if isinstance(response, list) else response.get('items', [])
+    
+    async def get_property_select_value(
+        self,
+        property_id: int,
+        value_id: int
+    ) -> Dict[str, Any]:
+        """
+        Получает значение выбора кастомного свойства по ID.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value_id: ID значения выбора
+        
+        Returns:
+            Значение выбора
+        """
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values/{value_id}"
+        return await self._request('GET', endpoint)
+    
+    async def create_property_select_value(
+        self,
+        property_id: int,
+        value: str,
+        color: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Создаёт новое значение выбора для кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value: Значение выбора (от 1 до 128 символов)
+            color: Цвет значения выбора (None для значения без цвета)
+        
+        Returns:
+            Созданное значение выбора
+        """
+        data = {'value': value}
+        
+        if color is not None:
+            data['color'] = color
+        
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values"
+        return await self._request('POST', endpoint, json=data)
+    
+    async def update_property_select_value(
+        self,
+        property_id: int,
+        value_id: int,
+        value: Optional[str] = None,
+        color: Optional[int] = None,
+        condition: Optional[str] = None,
+        sort_order: Optional[float] = None,
+        deleted: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        Обновляет значение выбора кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value_id: ID значения выбора
+            value: Новое значение (от 1 до 128 символов)
+            color: Новый цвет (None для удаления цвета)
+            condition: Условие значения выбора ('active' или 'inactive')
+            sort_order: Позиция (минимум 0)
+            deleted: Условие удаления значения выбора
+        
+        Returns:
+            Обновлённое значение выбора
+        """
+        data = {}
+        
+        if value is not None:
+            data['value'] = value
+        if color is not None:
+            data['color'] = color
+        if condition is not None:
+            data['condition'] = condition
+        if sort_order is not None:
+            data['sort_order'] = sort_order
+        if deleted is not None:
+            data['deleted'] = deleted
+        
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values/{value_id}"
+        return await self._request('PATCH', endpoint, json=data)
+    
+    async def delete_property_select_value(
+        self,
+        property_id: int,
+        value_id: int
+    ) -> Dict[str, Any]:
+        """
+        Удаляет значение выбора кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value_id: ID значения выбора
+        
+        Returns:
+            Удалённое значение выбора
+        """
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values/{value_id}"
+        return await self._request('DELETE', endpoint)
 
     # === КАСТОМНЫЕ СВОЙСТВА КАРТОЧЕК ===
     
