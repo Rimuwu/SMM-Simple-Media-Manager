@@ -1,3 +1,4 @@
+from pprint import pprint
 from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 
@@ -6,12 +7,37 @@ from global_modules.limiter import limiter
 from global_modules.middlewares.logs_mid import RequestLoggingMiddleware
 
 from routers.db_health import router as db_health_router
-from routers.user import router as user_router
+# from routers.user import router as user_router
 from routers.card import router as card_router
 
 from global_modules.api_configurate import get_fastapi_app
 
 from modules.logs import brain_logger
+from modules.kaiten import kaiten
+from modules.config_kaiten import sync_kaiten_settings
+
+async def kaiten_check():
+
+    async with kaiten as client:
+        boards = await client.get_boards(656548)
+        pprint(boards)
+        
+        columns = await client.get_columns(1490862)
+        pprint(columns)
+        
+        # properties = await client.get_custom_properties()
+
+        # pprint(properties)
+
+        # card = await client.get_card(55795059)
+        # pprint(card)
+        
+        # pr_v = await client.get_property_select_values(496988)
+
+        # pprint(pr_v)
+        
+        # pp = await client.get_custom_properties()
+        # pprint(pp)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,7 +46,11 @@ async def lifespan(app: FastAPI):
     brain_logger.info("Creating missing tables on startup...")
     await create_tables()
     await create_superuser()
-
+    
+    # await kaiten_check()
+    
+    await sync_kaiten_settings()
+    
     yield
 
     # Shutdown
@@ -34,7 +64,7 @@ app = get_fastapi_app(
     limiter=True,
     middlewares=[],
     routers=[
-        db_health_router, user_router, card_router
+        db_health_router, card_router
     ],
     api_logger=brain_logger
 )
