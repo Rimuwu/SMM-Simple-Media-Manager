@@ -30,30 +30,20 @@ class ScenePage:
     content: str
     image: Optional[str] = None
     to_pages: Dict[str, str] = field(default_factory=dict)
-    content_worker: Optional[FunctionWorker] = None
-    buttons_worker: Optional[FunctionWorker] = None
-    text_waiter: Optional[str] = None
+    type: Optional[str] = None
+    json_data: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ScenePage':
         """Создание объекта из словаря"""
-        content_worker = None
-        if 'content-worker' in data:
-            content_worker = FunctionWorker(**data['content-worker'])
-
-        buttons_worker = None
-        if 'buttons-worker' in data:
-            buttons_worker = FunctionWorker(**data['buttons-worker'])
 
         return cls(
             image=data.get('image', None),
             content=data['content'],
             to_pages=data.get('to_pages', {}),
-            content_worker=content_worker,
-            buttons_worker=buttons_worker,
-            text_waiter=data.get('text-waiter')
+            type=data.get('type', None),
+            json_data={k: v for k, v in data.items() if k not in cls.__dataclass_fields__}
         )
-
 
 @dataclass
 class SceneModel:
