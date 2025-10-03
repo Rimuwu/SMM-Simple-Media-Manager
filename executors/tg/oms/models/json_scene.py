@@ -31,7 +31,7 @@ class ScenePage:
     image: Optional[str] = None
     to_pages: Dict[str, str] = field(default_factory=dict)
     type: Optional[str] = None
-    json_data: Optional[Dict[str, Any]] = None
+    json_data: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ScenePage':

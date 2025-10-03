@@ -7,8 +7,6 @@ from ..utils import parse_text
 from .json_scene import ScenePage, SceneModel
 from aiogram.types import Message, CallbackQuery
 
-import string
-
 if TYPE_CHECKING:
     from .scene import Scene
 
@@ -32,6 +30,7 @@ class Page:
         if page_name and not self.__page_name__: 
             self.__page_name__ = page_name
 
+        self.json_args = self.__json_args__
         self.__scene__: SceneModel = scene
         self.__page__: ScenePage = scene.pages.get(
             self.__page_name__) # type: ignore
@@ -41,10 +40,8 @@ class Page:
         # Добавляем все данные из json страницы в атрибуты страницы
 
         for key, value in self.__page__.json_data.items():
-            if key in self.__json_args__:
+            if key in self.json_args:
                 setattr(self, key, value)
-            else:
-                raise ValueError(f"Аргумент {key} не разрешен для переопределения в странице {self.__page_name__}")
 
         self.__callback_handlers__ = {}
         self.__text_handlers__ = {}
