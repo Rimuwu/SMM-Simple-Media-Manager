@@ -35,14 +35,14 @@ class Scene:
     def __init__(self, user_id: int, bot_instance: Bot):
         self.user_id = user_id
         self.message_id: int = 0
-        self.data: dict = {
-            'scene': {}
-        }
-
         self.__bot__ = bot_instance
 
         self.scene: SceneModel = scenes_loader.get_scene(
             self.__scene_name__) # type: ignore
+
+        self.data: dict = {
+            'scene': self.scene.standart_data
+        }
 
         if not self.scene:
             print(scenes_loader.scenes)
@@ -78,7 +78,10 @@ class Scene:
             if page.__page_name__ not in self.data:
                 self.data[
                     page.__page_name__
-                ] = {}
+                ] = {
+                    'last_button': '',
+                    'last_message': ''
+                }
 
         for page in self.scene.pages.keys():
             if page not in self.data:
@@ -94,7 +97,10 @@ class Scene:
 
     @property
     def start_page(self) -> str:
-        return list(self.scene.pages.keys())[0]
+        if self.scene.settings.start_page:
+            return self.scene.settings.start_page
+        else:
+            return list(self.scene.pages.keys())[0]
 
     @property
     def current_page(self) -> Page:
@@ -105,11 +111,17 @@ class Scene:
         if page_name not in self.scene.pages:
             raise ValueError(f"Страница {page_name} не найдена в сцене {self.__scene_name__}")
 
-        self.update_key('scene', 'last_page', self.page)
-        self.page = page_name
+        page_model: Page = self.pages[page_name]
+        if page_model.page_blocked():
 
-        await self.save_to_db()
-        await self.update_message()
+            self.update_key('scene', 'last_page', self.page)
+            self.page = page_name
+
+            await self.save_to_db()
+            await self.update_message()
+
+        else:
+            print(f'Страница {page_name} заблокирована для перехода')
 
     def get_page(self, page_name: str):
         if page_name not in self.pages:
@@ -317,11 +329,17 @@ class Scene:
                 self.user_id, message.message_id
             )
 
+        self.update_key(page.__page_name__, 'last_message', message.text)
+        await page.post_handle('text')
+
     async def callback_handler(self, 
                 callback: CallbackQuery, args: list) -> None:
         """Обработчик колбэков"""
         page = self.current_page
         await page.callback_handler(callback, args)
+
+        self.update_key(page.__page_name__, 'last_button', callback.data)
+        await page.post_handle('button')
 
 
     # ===== Работа с данными сцены и страниц =====

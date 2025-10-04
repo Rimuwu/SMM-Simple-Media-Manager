@@ -42,6 +42,13 @@ class TextTypeScene(Page):
             text
         )
 
+        # Сохраняем текст в страницу
+        self.scene.update_key(
+            self.__page_name__,
+            self.scene_key, 
+            text
+        )
+
         # Переходим к следующей странице
         if self.next_page:
             await self.scene.update_page(

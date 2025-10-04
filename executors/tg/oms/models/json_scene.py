@@ -13,6 +13,7 @@ class SceneSettings:
     """Настройки сцены"""
     parse_mode: Optional[str] = None
     delete_after_send: bool = False
+    start_page: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SceneSettings':
@@ -20,9 +21,9 @@ class SceneSettings:
 
         return cls(
             parse_mode=data.get('parse_mode', None),
-            delete_after_send=data.get('delete_after_send', False)
+            delete_after_send=data.get('delete_after_send', False),
+            start_page=data.get('start_page', None)
         )
-
 
 @dataclass
 class ScenePage:
@@ -51,6 +52,7 @@ class SceneModel:
     name: str
     settings: SceneSettings
     pages: Dict[str, ScenePage]
+    standart_data: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, name: str, data: Dict[str, Any]) -> 'SceneModel':
@@ -64,6 +66,7 @@ class SceneModel:
         return cls(
             name=name,
             settings=settings,
+            standart_data=data.get('standart_data', {}),
             pages=pages
         )
 
