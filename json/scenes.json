@@ -1,0 +1,221 @@
+{   
+
+    "create-task": {
+        "settings": {
+            "parse_mode": null,
+            "delete_after_send": true,
+            "start_page": "name"
+        },
+        "pages": {
+            "main": {
+                "content": "Создание новой задачи. Выберите действие:",
+                "to_pages": {
+                    "name": "Ввести название",
+                    "type": "Выбрать тип",
+                    "description": "Ввести описание",
+                    "user": "Указать пользователя",
+                    "channels": "Выбрать каналы",
+                    "publish-date": "Установить дату публикации",
+                    "tags": "Ввести теги",
+                    "image": "Загрузить изображение",
+                    "settings": "Настройки задачи"
+                },
+                "row_width": 2
+            },
+            "name": {
+                "content": "Введите название задачи (макс длинна {max_length} символов) >",
+                "to_pages": {
+                    "main": "На главную"
+                },
+                "type": "text",
+
+                "max_length": 50,
+                "min_length": 1,
+                "scene_key": "name",
+                "next_page": "type"
+            },
+            "type": {
+                "content": "Выберите тип задачи >",
+                "to_pages": {
+                    "name": "Назад",
+                    "main": "На главную"
+                },
+
+                "type": "radio",
+                "scene_key": "type",
+                "default_value": "public",
+                "options": {
+                    "private": "Личное задание",
+                    "public": "Свободное задание"
+                },
+                "next_page": "description"
+            },
+            "description": {
+                "content": "Введите описание задачи >",
+                "to_pages": {
+                    "type": "Назад",
+                    "main": "На главную"
+                },
+                "type": "text",
+
+                "max_length": 256,
+                "min_length": 1,
+                "scene_key": "task-description",
+                "next_page": "user"
+            },
+            "user": {
+                "content": "Укажите пользователя >",
+                "to_pages": {
+                    "description": "Назад",
+                    "main": "На главную"
+                }
+            },
+            "channels": {
+                "content": "Выберите каналы >",
+                "to_pages": {
+                    "user": "Назад",
+                    "main": "На главную"
+                }
+            },
+            "publish-date": {
+                "content": "Установите дату публикации в формате ДД.ММ.ГГГГ ЧЧ:ММ >",
+                "to_pages": {
+                    "channels": "Назад",
+                    "main": "На главную"
+                }
+            },
+            "tags": {
+                "content": "Введите теги через запятую >",
+                "to_pages": {
+                    "publish-date": "Назад",
+                    "main": "На главную"
+                }
+            },
+            "image": {
+                "content": "Введите ТЗ для картинки >",
+                "to_pages": {
+                    "tags": "Назад",
+                    "main": "На главную"
+                },
+                "type": "text",
+
+                "max_length": 1024,
+                "min_length": 1,
+                "scene_key": "image",
+                "next_page": "user"
+            },
+            "settings": {
+                "content": "Настройки задачи >",
+                "to_pages": {
+                    "image": "Назад",
+                    "main": "На главную"
+                }
+            }
+        }
+    },
+
+    "user-task": {
+        "settings": {
+            "parse_mode": "Markdown",
+            "delete_after_send": true
+        },
+        "pages": {
+            "main-page": {
+                "content": "**{name}**\n_{description}_\n\nКаналы для публикации: {channels}\nДата публикации: {publish_date}\nСрок сдачи: {deadline}\nПроверка редакторов: {editors_check}\nСтатус выполнения: {status}\nТеги: {tags}\n\nВыберите действие:",
+                "to_pages": {
+                    "channels-settings": "Каналы публикации", // Установить каналы
+                    "content-setter": "Контент поста", // Просмотр итогового поста, установка текста
+                    "publish-date-setter": "Дата публикации", // Установка даты публикации
+                    "image-setter": "Изображение", // Установка изображения, запрос картинки у дизайна
+                    "status-setter": "Статус задачи", // Установка статуса задачи
+                    "tags-setter": "Теги", // Установка тегов
+                    "automation-settings": "Автоматизации" // Настройки автоматизации
+
+                }
+            },
+            "channels-settings": {
+                "content": "Каналы для отправки в данный момент: {channels}",
+                "to_pages": {
+                    "main-page": "На главную"
+                }
+            },
+            "content-setter": {
+                "content": "Просмотр и редактирование контента поста. Не забывайте, что теги устанавливаются отдельно.",
+                "to_pages": {
+                    "main-page": "На главную"
+                }
+            },
+            "publish-date-setter": {
+                "content": "Текущая дата публикации: {publish_date}\n\nЧтобы изменить дату, отправьте новое значение в формате `ДД.ММ.ГГГГ ЧЧ:ММ` или выберите один из вариантов ниже.",
+                "to_pages": {
+                    "main-page": "На главную"
+                }
+            },
+            "image-setter": {
+                "content": "Текущее изображение: {image_status}\n\nВыберите действие:",
+                "to_pages": {
+                    "main-page": "На главную"
+                }
+            },
+            "status-setter": {
+                "content": "Текущий статус: {status}\n\nВыберите действие:",
+                "to_pages": {
+                    "status-complete": "Завершить редактирование",
+                    "status-reject": "Отказаться от задания",
+                    "main-page": "На главную"
+                }
+            },
+            "status-complete": {
+                "content": "Подтвердите отправку задачи **{name}** на форум редакторов.",
+                "to_pages": {
+                    "status-setter": "Назад",
+                    "main-page": "На главную"
+                }
+            },
+            "status-reject": {
+                "content": "Напишите причину отказа, чтобы отправить сообщение в форум топик.",
+                "to_pages": {
+                    "status-setter": "Назад",
+                    "main-page": "На главную"
+                }
+            },
+            "tags-setter": {
+                "content": "Текущие теги: {tags}\n\nОтправьте список тегов через запятую или вернитесь назад.",
+                "to_pages": {
+                    "main-page": "На главную"
+                }
+            },
+            "automation-settings": {
+                "content": "Настройте автоматизации для поста:",
+                "to_pages": {
+                    "automation-auto-repost": "Авто-репост",
+                    "automation-auto-pin": "Авто-закреп",
+                    "automation-stream-trigger": "Реакция на событие",
+                    "main-page": "На главную"
+                }
+            },
+            "automation-auto-repost": {
+                "content": "Укажите каналы и таймаут для авто-репоста после отправки поста.",
+                "to_pages": {
+                    "automation-settings": "Назад",
+                    "main-page": "На главную"
+                }
+            },
+            "automation-auto-pin": {
+                "content": "Задайте правила авто-закрепа: какой канал и на сколько времени закреплять пост.",
+                "to_pages": {
+                    "automation-settings": "Назад",
+                    "main-page": "На главную"
+                }
+            },
+            "automation-stream-trigger": {
+                "content": "Настройте отправку поста в момент запуска стрима. Укажите канал события и действие.",
+                "to_pages": {
+                    "automation-settings": "Назад",
+                    "main-page": "На главную"
+                }
+            }
+        }
+    }
+
+}

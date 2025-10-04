@@ -9,4 +9,4 @@ sessions
 __pycache__
 .env
 
-json/
+clients.json
