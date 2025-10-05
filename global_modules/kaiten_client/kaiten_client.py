@@ -687,6 +687,121 @@ class KaitenClient:
         await self._request('DELETE', f'{KaitenConfig.ENDPOINT_SPACES}/{space_id}')
         return True
     
+    # === ПОЛЬЗОВАТЕЛИ ПРОСТРАНСТВА ===
+    
+    async def get_space_users(
+        self,
+        space_id: int,
+        include_inherited_access: Optional[bool] = None,
+        inactive: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Получает список пользователей пространства.
+        
+        Args:
+            space_id: ID пространства
+            include_inherited_access: Включить пользователей с унаследованным доступом
+            inactive: Включить только неактивных пользователей компании
+        
+        Returns:
+            Список пользователей
+        """
+        params = {}
+        
+        if include_inherited_access is not None:
+            params['include_inherited_access'] = include_inherited_access
+        if inactive is not None:
+            params['inactive'] = inactive
+        
+        endpoint = f'{KaitenConfig.ENDPOINT_SPACES}/{space_id}/users'
+        response = await self._request('GET', endpoint, params=params)
+        return response if isinstance(response, list) else response.get('items', [])
+    
+    # === ПОЛЬЗОВАТЕЛИ КОМПАНИИ ===
+    
+    async def get_company_users(
+        self,
+        invites_only: Optional[bool] = None,
+        with_transfer_access_status: Optional[bool] = None,
+        for_members_section: Optional[bool] = None,
+        owner_only: Optional[bool] = None,
+        only_paid: Optional[bool] = None,
+        only_records_count: Optional[bool] = None,
+        only_virtual: Optional[bool] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+        query: Optional[str] = None,
+        access_type_permissions: Optional[str] = None,
+        sd_access_type: Optional[str] = None,
+        take_licence: Optional[str] = None,
+        temporarily_inactive_status: Optional[str] = None,
+        group_ids: Optional[List[int]] = None,
+        permissions: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Получает список пользователей компании с фильтрацией.
+        Для использования этого метода требуется доступ к административному разделу "Members".
+        
+        Args:
+            invites_only: Фильтр для возврата только приглашений
+            with_transfer_access_status: Добавить данные о процессе передачи прав пользователя
+            for_members_section: Возвращает пользователей для административного раздела "Members" с постраничным выводом
+            owner_only: Возвращает только владельца компании
+            only_paid: Возвращает только пользователей с платным доступом
+            only_records_count: Возвращает только количество пользователей (работает только с for_members_section или only_virtual)
+            only_virtual: Возвращает только виртуальных пользователей с постраничным выводом
+            offset: Количество записей для пропуска (работает только с for_members_section или only_virtual)
+            limit: Максимальное количество пользователей в ответе (по умолчанию 100, работает только с for_members_section или only_virtual)
+            query: Фильтр по email и full_name (работает только с for_members_section)
+            access_type_permissions: Фильтр по доступу к Kaiten (работает только с for_members_section)
+            sd_access_type: Фильтр по доступу к Service Desk (работает только с for_members_section)
+            take_licence: Фильтр по пользователям, потребляющим лицензию (работает только с for_members_section)
+            temporarily_inactive_status: Фильтр по временно неактивным пользователям (работает только с for_members_section)
+            group_ids: Фильтр по ID групп (работает только с for_members_section)
+            permissions: Фильтр по правам доступа, предоставленным пользователям (работает только с for_members_section)
+        
+        Returns:
+            Список пользователей компании
+        """
+        params = {}
+        
+        if invites_only is not None:
+            params['invitesOnly'] = invites_only
+        if with_transfer_access_status is not None:
+            params['withTransferAccessStatus'] = with_transfer_access_status
+        if for_members_section is not None:
+            params['for_members_section'] = for_members_section
+        if owner_only is not None:
+            params['owner_only'] = owner_only
+        if only_paid is not None:
+            params['only_paid'] = only_paid
+        if only_records_count is not None:
+            params['only_records_count'] = only_records_count
+        if only_virtual is not None:
+            params['only_virtual'] = only_virtual
+        if offset is not None:
+            params['offset'] = offset
+        if limit is not None:
+            params['limit'] = limit
+        if query is not None:
+            params['query'] = query
+        if access_type_permissions is not None:
+            params['access_type_permissions'] = access_type_permissions
+        if sd_access_type is not None:
+            params['sd_access_type'] = sd_access_type
+        if take_licence is not None:
+            params['take_licence'] = take_licence
+        if temporarily_inactive_status is not None:
+            params['temporarily_inactive_status'] = temporarily_inactive_status
+        if group_ids is not None:
+            params['group_ids'] = ','.join(map(str, group_ids))
+        if permissions is not None:
+            params['permissions'] = ','.join(permissions)
+        
+        endpoint = '/company/users'
+        response = await self._request('GET', endpoint, params=params)
+        return response if isinstance(response, list) else response.get('items', [])
+    
     # === ДОСКИ ===
     
     async def get_boards(self, space_id: int) -> List[Board]:
