@@ -28,7 +28,7 @@
             "values": {
                 "tg_main": {
                     "id": 16234560,
-                    "name": "Киберкужок"
+                    "name": "Киберкужочек"
                 },
                 "vk_main": {
                     "id": 16231059,
@@ -45,7 +45,7 @@
             }
         },
         "editor_check": {
-            "id": 500386,
+            "id": 501052,
             "name": "Проверка редактором",
             "type": "checkbox",
             "show_on_facade": false
@@ -105,5 +105,8 @@
             }
         }
     },
-    "card-types": []
+    "card-types": {
+        "public": 534097,
+        "private": 534098
+    }
 }

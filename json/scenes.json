@@ -2,113 +2,116 @@
 
     "create-task": {
         "settings": {
-            "parse_mode": null,
+            "parse_mode": "Markdown",
             "delete_after_send": true,
-            "start_page": "name"
+            "start_page": "main"
+        },
+        "standart_data": {
+            "name": null,
+            "type": "public",
+            "description": null,
+            "user": null,
+            "channels": [],
+            "publish_date": null,
+            "tags": [],
+            "image": null
         },
         "pages": {
             "main": {
-                "content": "Создание новой задачи. Выберите действие:",
+                "content": "📝 **Создание новой задачи**\n\n📌 Название: *{name}*\n🎯 Тип: {type}\n📄 Описание: {description}\n👤 Исполнитель: {user}\n📢 Каналы: {channels}\n📅 Дата публикации: {publish_date}\n🏷 Теги: {tags}\n🖼 ТЗ Изображения: {image}\n\nВыберите параметр для настройки:",
                 "to_pages": {
-                    "name": "Ввести название",
-                    "type": "Выбрать тип",
-                    "description": "Ввести описание",
-                    "user": "Указать пользователя",
-                    "channels": "Выбрать каналы",
-                    "publish-date": "Установить дату публикации",
-                    "tags": "Ввести теги",
-                    "image": "Загрузить изображение",
-                    "settings": "Настройки задачи"
+                    "name": "📌 Название",
+                    "type": "🎯 Тип",
+                    "description": "📄 Описание",
+                    "user": "👤 Исполнитель",
+                    "channels": "📢 Каналы",
+                    "publish-date": "📅 Дата",
+                    "tags": "🏷 Теги",
+                    "image": "🖼 Изображение",
+                    "finish": "✅ Завершить"
                 },
                 "row_width": 2
             },
             "name": {
-                "content": "Введите название задачи (макс длинна {max_length} символов) >",
+                "content": "📌 **Название задачи**\n\nНазвание сейчас: `{name}`\n\nВведите название (до {max_length} символов):",
                 "to_pages": {
-                    "main": "На главную"
+                    "main": "⬅️ Назад"
                 },
                 "type": "text",
-
                 "max_length": 50,
                 "min_length": 1,
                 "scene_key": "name",
-                "next_page": "type"
+                "next_page": "main"
             },
             "type": {
-                "content": "Выберите тип задачи >",
+                "content": "🎯 **Тип задачи**\n\nТип сейчас: *{type}*\n\nВыберите тип:",
                 "to_pages": {
-                    "name": "Назад",
-                    "main": "На главную"
+                    "main": "⬅️ Назад"
                 },
-
                 "type": "radio",
                 "scene_key": "type",
                 "default_value": "public",
                 "options": {
-                    "private": "Личное задание",
-                    "public": "Свободное задание"
+                    "private": "🔒 Личное",
+                    "public": "🌐 Свободное"
                 },
-                "next_page": "description"
+                "next_page": "main",
+                "row_width": 2
             },
             "description": {
-                "content": "Введите описание задачи >",
+                "content": "📄 **Описание задачи**\n\nОписание сейчас: *{description}*\n\nВведите описание (до {max_length} символов):",
                 "to_pages": {
-                    "type": "Назад",
-                    "main": "На главную"
+                    "main": "⬅️ Назад"
                 },
                 "type": "text",
-
                 "max_length": 256,
                 "min_length": 1,
-                "scene_key": "task-description",
-                "next_page": "user"
+                "scene_key": "description",
+                "next_page": "main"
             },
             "user": {
-                "content": "Укажите пользователя >",
+                "content": "👤 **Исполнитель**\n\nИсполнитель сейчас: *{user}*\n\nУкажите пользователя для выполнения задачи:",
                 "to_pages": {
-                    "description": "Назад",
-                    "main": "На главную"
+                    "main": "⬅️ Назад"
                 }
             },
             "channels": {
-                "content": "Выберите каналы >",
+                "content": "📢 **Каналы публикации**\n\nКаналы сейчас: *{channels}*",
                 "to_pages": {
-                    "user": "Назад",
-                    "main": "На главную"
-                }
+                    "main": "⬅️ Назад"
+                },
+                "type": "option",
+                "scene_key": "channels"
             },
             "publish-date": {
-                "content": "Установите дату публикации в формате ДД.ММ.ГГГГ ЧЧ:ММ >",
+                "content": "📅 **Дата публикации**\n\nДата сейчас: *{publish_date}*\n\nВведите дату в формате:\n`ЧЧ:ММ ДД.ММ.ГГГГ` / `ЧЧ:ММ` / `ЧЧ:ММ ДД.ММ`",
                 "to_pages": {
-                    "channels": "Назад",
-                    "main": "На главную"
+                    "main": "⬅️ Назад"
                 }
             },
             "tags": {
-                "content": "Введите теги через запятую >",
+                "content": "🏷 **Теги**\n\nТеги сейчас: *{tags}*",
                 "to_pages": {
-                    "publish-date": "Назад",
-                    "main": "На главную"
-                }
+                    "main": "⬅️ Назад"
+                },
+                "type": "option",
+                "scene_key": "tags"
             },
             "image": {
-                "content": "Введите ТЗ для картинки >",
+                "content": "🖼 **Изображение**\n\nТЗ изображения сейчас: *{image}*\n\nВведите техническое задание для создания картинки (до {max_length} символов):",
                 "to_pages": {
-                    "tags": "Назад",
-                    "main": "На главную"
+                    "main": "⬅️ Назад"
                 },
                 "type": "text",
-
                 "max_length": 1024,
                 "min_length": 1,
                 "scene_key": "image",
-                "next_page": "user"
+                "next_page": "main"
             },
-            "settings": {
-                "content": "Настройки задачи >",
+            "finish": {
+                "content": "✅ **Завершение создания**\n\nПроверьте все данные задачи перед созданием:\n\n📌 Название: _{name}_\n🎯 Тип: {type}\n📄 Описание: {description}\n👤 Исполнитель: {user}\n📢 Каналы: {channels}\n📅 Дата: {publish_date}\n🏷 Теги: {tags}\n🖼 Изображение: {image}",
                 "to_pages": {
-                    "image": "Назад",
-                    "main": "На главную"
+                    "main": "⬅️ Назад"
                 }
             }
         }
