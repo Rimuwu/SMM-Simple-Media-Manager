@@ -114,7 +114,7 @@ class Scene:
         page_model: Page = self.pages[page_name]
         if page_model.page_blocked():
 
-            self.update_key('scene', 'last_page', self.page)
+            await self.update_key('scene', 'last_page', self.page)
             self.page = page_name
 
             await self.save_to_db()
@@ -329,7 +329,7 @@ class Scene:
                 self.user_id, message.message_id
             )
 
-        self.update_key(page.__page_name__, 'last_message', message.text)
+        await self.update_key(page.__page_name__, 'last_message', message.text)
         await page.post_handle('text')
 
     async def callback_handler(self, 
@@ -338,7 +338,7 @@ class Scene:
         page = self.current_page
         await page.callback_handler(callback, args)
 
-        self.update_key(page.__page_name__, 'last_button', callback.data)
+        await self.update_key(page.__page_name__, 'last_button', callback.data)
         await page.post_handle('button')
 
 
@@ -353,27 +353,29 @@ class Scene:
         if element in self.data: return self.data[element]
         return None
 
-    def set_data(self, element: str, value: dict) -> bool:
+    async def set_data(self, element: str, value: dict) -> bool:
         """ Установка данных элемента (полная перезапись)
         """
 
         if element in self.data:
             self.data[element] = value
-            asyncio.create_task(self.save_to_db())
+            await self.save_to_db()
             return True
         return False
 
-    def update_key(self, element: str, key: str, value) -> bool:
+    async def update_key(self, element: str, key: str, 
+                         value) -> bool:
         """ Обновление ключа в данных элемента
             Если ключа нет, он будет создан
             Аккуратно, value должен быть сериализуемым в JSON
         """
+        print(f"UPDATE KEY: {element} -> {key} = {value}")
         if element in self.data:
             if key in self.data[element]:
                 self.data[element][key] = value
             else:
                 self.data[element][key] = value
-            asyncio.create_task(self.save_to_db())
+            await self.save_to_db()
             return True
         return False
 

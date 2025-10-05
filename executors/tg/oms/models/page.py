@@ -30,24 +30,25 @@ class Page:
         if page_name and not self.__page_name__: 
             self.__page_name__ = page_name
 
-        self.json_args = self.__json_args__ + ['row_width', 'enable_topages']
+        self.json_args = self.__json_args__ + [
+            'row_width', 'enable_topages'
+            ]
         self.__scene__: SceneModel = scene
         self.__page__: ScenePage = scene.pages.get(
             self.__page_name__) # type: ignore
 
         self.__after_init__()
 
-        # Добавляем все данные из json страницы в атрибуты страницы
+        self.row_width: int = 3 # Ширина ряда кнопок по умолчанию
+        self.enable_topages: bool = True # Включены ли кнопки перехода по страницам
 
+        # Добавляем все данные из json страницы в атрибуты страницы
         for key, value in self.__page__.json_data.items():
             if key in self.json_args:
                 setattr(self, key, value)
 
         self.__callback_handlers__ = {}
         self.__text_handlers__ = {}
-
-        self.row_width: int = 3 # Ширина ряда кнопок по умолчанию
-        self.enable_topages: bool = True # Включены ли кнопки перехода по страницам
 
         # Собираем обработчики из методов класса
         for attr_name in dir(self.__class__):
@@ -114,10 +115,10 @@ class Page:
         """
         return self.scene.set_data(self.__page_name__, data)
 
-    def update_data(self, key: str, value) -> bool:
+    async def update_data(self, key: str, value) -> bool:
         """ Обновление данных страницы по ключу
         """
-        return self.scene.update_key(self.__page_name__, key, value)
+        return await self.scene.update_key(self.__page_name__, key, value)
 
 
 
