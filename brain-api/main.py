@@ -19,19 +19,25 @@ from modules.config_kaiten import sync_kaiten_settings
 async def kaiten_check():
 
     async with kaiten as client:
-        boards = await client.get_boards(656548)
-        pprint(boards)
+        # boards = await client.get_boards(656548)
+        # pprint(boards)
         
-        columns = await client.get_columns(1490862)
-        pprint(columns)
+        # columns = await client.get_columns(1490862)
+        # pprint(columns)
         
         # properties = await client.get_custom_properties()
 
         # pprint(properties)
 
-        # card = await client.get_card(55795059)
+        # card = await client.get_card(56247840)
         # pprint(card)
         
+        # card2 = await client.get_card(56248185)
+        # pprint(card2)
+        
+        us = await client.get_company_users(only_virtual=True)
+        print(us)
+
         # pr_v = await client.get_property_select_values(496988)
 
         # pprint(pr_v)
@@ -47,7 +53,7 @@ async def lifespan(app: FastAPI):
     await create_tables()
     await create_superuser()
     
-    # await kaiten_check()
+    await kaiten_check()
     
     await sync_kaiten_settings()
     
