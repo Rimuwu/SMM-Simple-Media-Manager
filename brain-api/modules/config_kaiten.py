@@ -306,7 +306,8 @@ async def sync_properties(settings: Dict[str, Any], results: Dict[str, Any]):
                     if prop_type == 'select':
                         create_params['multi_select'] = prop_config.get('multi_select', False)
                         create_params['colorful'] = prop_config.get('colorful', False)
-                        create_params['values_creatable_by_users'] = prop_config.get('values_creatable_by_users', False)
+                        if 'values_creatable_by_users' in prop_config:
+                            create_params['values_creatable_by_users'] = prop_config.get('values_creatable_by_users', False)
                     
                     # Дополнительные данные
                     if 'data' in prop_config:
