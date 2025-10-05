@@ -1,9 +1,17 @@
 from tg.oms import Scene
-# from .all_text_pages import Name
+from .channels_page import ChannelsPage
+from .date_page import DatePage
+from .main_page import MainPage
+from .finish_page import FinishPage
+from .tags_page import TagsPage
 
 class CreateTaskScene(Scene):
 
     __scene_name__ = 'create-task'
-    # __pages__ = [
-    #     # Name
-    # ]
+    __pages__ = [
+        MainPage,
+        ChannelsPage,
+        DatePage,
+        FinishPage,
+        TagsPage
+    ]

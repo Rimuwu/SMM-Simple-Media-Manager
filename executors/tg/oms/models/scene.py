@@ -149,13 +149,16 @@ class Scene:
 
         if page.enable_topages:
             to_pages: dict[str, str] = page.to_pages
-            for page_name, title in to_pages.items():
+
+            for i, (page_name, title) in enumerate(
+                to_pages.items()):
                 buttons.append({
                     'text': title,
                     'callback_data': callback_generator(
-                        self.__scene_name__, 
-                        'to_page', page_name
-                        )
+                    self.__scene_name__, 
+                    'to_page', page_name
+                    ),
+                    'next_line': len(buttons) > 0 and i == 0
                 })
 
         inl_markup = list_to_inline(buttons, page.row_width)
