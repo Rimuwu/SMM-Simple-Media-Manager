@@ -1,7 +1,7 @@
 from typing import Union
 from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
-from modules.apiclient import get_user_role
+from modules.api_client import get_user_role
 
 class RoleFilter(BaseFilter):
     def __init__(self, need_role: str) -> None:

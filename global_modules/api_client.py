@@ -64,7 +64,7 @@ class APIClient:
             async with session.get(f"{self.base_url}{endpoint}", params=params) as response:
                 response_data = await response.json()
                 status_code = response.status
-                
+
                 # Кешируем только успешные ответы (статус 200-299)
                 if 200 <= status_code < 300:
                     self._save_to_cache(cache_key, response_data, status_code)
