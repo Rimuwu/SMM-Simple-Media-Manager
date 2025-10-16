@@ -2,11 +2,10 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from os import getenv
 
-
 engine = create_async_engine(
-    getenv("DATABASE_URL"), 
+    getenv("DATABASE_URL", ''), 
     future=True, 
-    echo=getenv("DEBUG", False) == 'true',
+    echo=getenv("DEBUG", 'False').lower() == 'true',
     #  pool_size=5, 
     #  max_overflow=10
     )

@@ -26,3 +26,5 @@ tgcrypto==1.2.5
 # Task API зависимости
 aiohttp>=3.8.0
 asyncio-throttle>=1.0.0
+
+g4f==0.6.4.0
