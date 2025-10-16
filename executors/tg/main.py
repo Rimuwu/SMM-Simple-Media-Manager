@@ -21,10 +21,16 @@ class TelegramExecutor(BaseExecutor):
 
         register_handlers(self.dp)
 
-    async def send_message(self, chat_id: str, text: str) -> dict:
+    async def send_message(self, 
+                chat_id: str, 
+                text: str, 
+                reply_to_message_id: int = None
+                           ) -> dict:
         """Отправить сообщение"""
         try:
-            result = await self.bot.send_message(chat_id, text)
+            result = await self.bot.send_message(chat_id, text,
+                    reply_to_message_id=reply_to_message_id
+                                                 )
             return {"success": True, "message_id": result.message_id}
         except Exception as e:
             return {"success": False, "error": str(e)}
