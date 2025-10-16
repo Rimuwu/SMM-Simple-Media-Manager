@@ -1,15 +1,15 @@
+
 from pprint import pprint
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
 from database.core import create_superuser, create_tables
-from global_modules.limiter import limiter
 from global_modules.middlewares.logs_mid import RequestLoggingMiddleware
 
 from routers.standart import router as standart_router
-# from routers.user import router as user_router
 from routers.card import router as card_router
 from routers.ai import router as ai_router
+from routers.kaiten import router as kaiten_router
 
 from global_modules.api_configurate import get_fastapi_app
 
@@ -30,6 +30,8 @@ async def lifespan(app: FastAPI):
     
     # await sync_kaiten_settings()
     
+    # await test_db()
+    
     yield
 
     # Shutdown
@@ -43,7 +45,8 @@ app = get_fastapi_app(
     limiter=True,
     middlewares=[],
     routers=[
-        standart_router, card_router, ai_router
+        standart_router, card_router, ai_router,
+        kaiten_router
     ],
     api_logger=brain_logger
 )
@@ -78,7 +81,27 @@ async def kaiten_check():
         # pp = await client.get_custom_properties()
         # pprint(pp)
 
-# async def test_db():
+async def test_db():
+    from models.Card import Card
+    
+    # Ищем карточку только по безопасным полям
+
+        # Если не найдена, создаем новую
+    card = await Card.create(
+        name="Test Card",
+        description="This is a test card",
+        task_id=1,
+        clients=["123sdd", "433fdf"],
+        tags=["tag1", "tag2"],
+        deadline=None,
+    )
+
+    card = await Card.get_by_id(card.card_id)
+    if card:
+        pprint(card.to_dict())
+    
+    
+    
 #     from models.User import User
 #     from models.Card import Card
 #     from models.Automation import Automation, Preset

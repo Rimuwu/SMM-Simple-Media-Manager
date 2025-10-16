@@ -20,7 +20,7 @@ createAT = Annotated[datetime, mapped_column(DateTime,
 # Стандартный тип для создания поля с временем обновления (UTC)
 updateAT = Annotated[datetime, mapped_column(DateTime,
     server_default=text("TIMEZONE('utc', now())"),
-    onupdate=datetime.utcnow)
+    onupdate=text("TIMEZONE('utc', now())"))
                    ]
 
 # Стандартный тип для создания автоинкрементных полей числа
