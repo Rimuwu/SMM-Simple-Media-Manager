@@ -1,10 +1,11 @@
-# Импортируем необходимые модули FastAPI
-from typing import Any, Optional
+from datetime import datetime
+from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 from modules.kaiten import kaiten
 from modules.properties import multi_properties
 from modules.json_get import open_settings
+from models.Card import Card, CardStatus
 
 # Создаём роутер
 router = APIRouter(prefix='/card')
@@ -19,6 +20,9 @@ class CardCreate(BaseModel):
     description: str
     deadline: Optional[str]  # ISO 8601 format (due_date)
 
+    executor_id: Optional[int]  # ID исполнителя в Kaiten
+    customer_id: Optional[int]
+
     # properties
     channels: Optional[list[str]]  # Список каналов для публикации
     editor_check: bool  # Нужно ли проверять перед публикацией
@@ -30,48 +34,66 @@ class CardCreate(BaseModel):
 @router.post("/create", response_model=CardCreate)
 async def create_card(card_data: CardCreate):
 
-    # Преобразовываем текстомвые ключи в id свойств
-    channels = []
-    if card_data.channels:
-        for channel in card_data.channels:
-            if channel.isdigit():
-                channels.append(int(channel))
-            else:
-                channels.append(
-                    settings['properties']['channels']['values'][channel]['id']
-            )
-
-    tags = []
-    if card_data.tags:
-        for tag in card_data.tags:
-            if tag.isdigit():
-                tags.append(int(tag))
-            else:
-                tags.append(
-                    settings['properties']['tags']['values'][tag]['id']
+    try:
+        # Преобразовываем текстомвые ключи в id свойств
+        channels = []
+        if card_data.channels:
+            for channel in card_data.channels:
+                if channel.isdigit():
+                    channels.append(int(channel))
+                else:
+                    channels.append(
+                        settings['properties']['channels']['values'][channel]['id']
                 )
 
-    card_type = settings['card-types'][card_data.type_id]
+        tags = []
+        if card_data.tags:
+            for tag in card_data.tags:
+                if tag.isdigit():
+                    tags.append(int(tag))
+                else:
+                    tags.append(
+                        settings['properties']['tags']['values'][tag]['id']
+                    )
 
-    properties = multi_properties(
-        channels=channels,
-        editor_check=card_data.editor_check,
-        image_prompt=card_data.image_prompt,
-        tags=tags
-    )
+        card_type = settings['card-types'][card_data.type_id]
 
-    async with kaiten as client:
-
-        res = await client.create_card(
-            card_data.title,
-            COLUMN_ID,
-            card_data.description,
-            BOARD_ID,
-            due_date=card_data.deadline,
-            due_date_time_present=True,
-            properties=properties,
-            type_id=card_type,
-            position=1
+        properties = multi_properties(
+            channels=channels,
+            editor_check=card_data.editor_check,
+            image_prompt=card_data.image_prompt,
+            tags=tags
         )
 
-    return res
+        async with kaiten as client:
+
+            res = await client.create_card(
+                card_data.title,
+                COLUMN_ID,
+                card_data.description,
+                BOARD_ID,
+                due_date=card_data.deadline,
+                due_date_time_present=True,
+                properties=properties,
+                type_id=card_type,
+                position=1,
+                executor_id=card_data.executor_id,
+            )
+
+            card_id = res.id
+
+        await Card.create(
+            name=card_data.title,
+            description=card_data.description,
+            task_id=card_id,
+            clients=card_data.channels,
+            tags=card_data.tags,
+            deadline=datetime.fromisoformat(card_data.deadline) if card_data.deadline else None,
+            image_prompt=card_data.image_prompt,
+            customer_id=card_data.customer_id,
+            executor_id=card_data.executor_id,
+        )
+
+        return res, True
+    except Exception as e:
+        return {"error": str(e)}, False
