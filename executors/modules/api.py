@@ -1,6 +1,6 @@
 from global_modules.api_configurate import get_fastapi_app
 from modules.logs import executors_logger
-from middlewares.logs_mid import RequestLoggingMiddleware
+from global_modules.middlewares.logs_mid import RequestLoggingMiddleware
 
 from routers.test import router as test_router
 from routers.info import router as info_router

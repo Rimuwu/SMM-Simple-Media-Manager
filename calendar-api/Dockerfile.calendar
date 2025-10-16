@@ -11,6 +11,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем код приложения
 COPY calendar-api/ ./
 COPY global_modules/ ./global_modules/
-COPY middlewares/ ./middlewares/
 
 CMD ["python", "main.py"]

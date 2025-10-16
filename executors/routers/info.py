@@ -25,6 +25,5 @@ async def executors_status(request: Request):
     return {"status": status}
 
 @router.get("/clients")
-@limiter.limit("2/second")
-async def clients_info(request: Request):
+async def clients_info():
     return CLIENTS

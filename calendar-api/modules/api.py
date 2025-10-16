@@ -1,7 +1,7 @@
 from global_modules.api_configurate import get_fastapi_app
 from routers.calendar import router as calendar_router
 from modules.logs import calendar_logger
-from middlewares.logs_mid import RequestLoggingMiddleware
+from global_modules.middlewares.logs_mid import RequestLoggingMiddleware
 
 app = get_fastapi_app(
     title="Calendar API",

@@ -1,0 +1,112 @@
+{
+    "properties": {
+        "tags": {
+            "id": 496994,
+            "name": "Теги",
+            "type": "select",
+            "multi_select": true,
+            "values_creatable_by_users": false,
+            "show_on_facade": true,
+            "values": {
+                "content": {
+                    "id": 16231060,
+                    "name": "Content"
+                },
+                "news": {
+                    "id": 16231061,
+                    "name": "News"
+                }
+            }
+        },
+        "channels": {
+            "id": 496988,
+            "name": "Каналы для отправки",
+            "type": "select",
+            "multi_select": true,
+            "values_creatable_by_users": false,
+            "show_on_facade": true,
+            "values": {
+                "tg_main": {
+                    "id": 16234560,
+                    "name": "Киберкужочек"
+                },
+                "vk_main": {
+                    "id": 16231059,
+                    "name": "ВК Сообщество"
+                },
+                "tg_comps": {
+                    "id": 16231057,
+                    "name": "Что по компам?"
+                },
+                "tg_tablegames": {
+                    "id": 16231058,
+                    "name": "ТГ Настолки"
+                }
+            }
+        },
+        "editor_check": {
+            "id": 501052,
+            "name": "Проверка редактором",
+            "type": "checkbox",
+            "show_on_facade": false
+        },
+        "image_prompt": {
+            "id": 500387,
+            "name": "Описание картинки",
+            "type": "string",
+            "data": {
+                "restrictions": {
+                    "maxLength": 1024
+                }
+            },
+            "multiline": true
+        }
+    },
+    "space": {
+        "id": 667420,
+        "title": "Копирайт",
+        "boards": {
+            "queue": {
+                "id": 1514980,
+                "title": "Очередь",
+                "columns": [
+                    {
+                        "id": 5251675,
+                        "title": "Создание карточки",
+                        "type": 1
+                    },
+                    {
+                        "id": 5251682,
+                        "title": "Форум",
+                        "type": 1
+                    }
+                ]
+            },
+            "in_progress": {
+                "id": 1514984,
+                "title": "В работе",
+                "columns": [
+                    {
+                        "id": 5251677,
+                        "title": "Начато",
+                        "type": 1
+                    },
+                    {
+                        "id": 5251678,
+                        "title": "На проверке",
+                        "type": 2
+                    },
+                    {
+                        "id": 5251679,
+                        "title": "Готово",
+                        "type": 3
+                    }
+                ]
+            }
+        }
+    },
+    "card-types": {
+        "public": 534097,
+        "private": 534098
+    }
+}

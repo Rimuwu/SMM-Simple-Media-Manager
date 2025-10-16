@@ -1,7 +1,7 @@
 # Общие зависимости для всех сервисов
 pip==25.2
 fastapi==0.116.1
-uvicorn==0.35.0
+uvicorn==0.37.0
 pydantic==2.11.7
 pydantic-settings==2.10.1
 
@@ -26,3 +26,5 @@ tgcrypto==1.2.5
 # Task API зависимости
 aiohttp>=3.8.0
 asyncio-throttle>=1.0.0
+
+g4f==0.6.4.0

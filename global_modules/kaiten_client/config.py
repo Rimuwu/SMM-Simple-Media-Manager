@@ -15,7 +15,7 @@ class KaitenConfig:
     MAX_RETRIES = 3
     RETRY_DELAY = 1.0  # seconds
     DEFAULT_TIMEOUT = 30  # seconds
-    API_VERSION = "latest"
+    API_VERSION = "v1"
 
     # Rate Limiting (согласно документации Kaiten)
     LIMIT_PER_SEC = 3

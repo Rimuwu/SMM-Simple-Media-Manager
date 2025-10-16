@@ -1,10 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sqlalchemy import text
 from database.connection import engine
+from global_modules.limiter import limiter
 
-router = APIRouter(prefix="/db", tags=["db"])
+router = APIRouter()
 
-@router.get("/health")
+@router.get("/db/health")
 async def db_health():
     """Проверка доступности и версии БД."""
 
@@ -15,3 +16,8 @@ async def db_health():
             return {"ok": True, "result": row._asdict() if row else None}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+@router.get("/")
+@limiter.limit("2/second")
+async def root(request: Request):
+    return {"message": f"{request.app.description} is running! v{request.app.version}"}

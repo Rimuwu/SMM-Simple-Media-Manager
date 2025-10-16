@@ -6,18 +6,21 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID as _UUID
 from database.connection import Base
-from database.annotated_types import uuidPK, createAT
+from database.crud_mixins import AsyncCRUDMixin
+from database.annotated_types import uuidPK, createAT, updateAT
 from global_modules.classes.enums import CardStatus
 
 
-class Card(Base):
+class Card(Base, AsyncCRUDMixin):
     __tablename__ = "cards"
 
     card_id: Mapped[uuidPK]
     status: Mapped[CardStatus] = mapped_column(nullable=False, default=CardStatus.pass_)
 
+    task_id: Mapped[int] = mapped_column(nullable=False)
+
     name: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Связь с пользователем (заказчиком)
     customer_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
@@ -27,19 +30,23 @@ class Card(Base):
     executor_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
     executor: Mapped[Optional["User"]] = relationship("User", back_populates="executed_cards", foreign_keys=[executor_id])
 
-    # JSON поля
-    task_id: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    clients: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    need_check: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Временные метки
+    created_at: Mapped[createAT]
+    updated_at: Mapped[updateAT] 
 
+    # Контент и метаданные
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    tags: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    clients: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    need_check: Mapped[bool] = mapped_column(Boolean, default=True)
+    tags: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
 
-    # Временные поля
-    time_send: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Дополнительные поля для управления карточками
     deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    create_at: Mapped[createAT]
 
-    # Связи
-    messages: Mapped[list["Message"]] = relationship("Message", back_populates="card")
-    automations: Mapped[list["Automation"]] = relationship("Automation", back_populates="card")
+    image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Связи с автоматизациями
+    # automations: Mapped[list["Automation"]] = relationship("Automation", back_populates="card")
+    
+    def __repr__(self) -> str:
+        return f"<Card(id={self.card_id}, name='{self.name}', status='{self.status}')>"

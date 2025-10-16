@@ -10,6 +10,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY executors/ ./
 COPY global_modules/ ./global_modules/
-COPY middlewares/ ./middlewares/
+COPY json/ ./json/
 
 CMD ["python", "main.py"]

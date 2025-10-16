@@ -2,11 +2,12 @@ from sqlalchemy import String, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
 from database.connection import Base
+from database.crud_mixins import AsyncCRUDMixin
 from database.annotated_types import uuidPK
 from global_modules.classes.enums import UserRole
 
 
-class User(Base):
+class User(Base, AsyncCRUDMixin):
     __tablename__ = "users"
 
     user_id: Mapped[uuidPK]

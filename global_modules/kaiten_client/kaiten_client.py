@@ -671,7 +671,7 @@ class KaitenClient:
         Returns:
             Созданное пространство
         """
-        data = {'name': name}
+        data = {'title': name}
         if description:
             data['description'] = description
         
@@ -686,6 +686,121 @@ class KaitenClient:
         """Удаляет пространство."""
         await self._request('DELETE', f'{KaitenConfig.ENDPOINT_SPACES}/{space_id}')
         return True
+    
+    # === ПОЛЬЗОВАТЕЛИ ПРОСТРАНСТВА ===
+    
+    async def get_space_users(
+        self,
+        space_id: int,
+        include_inherited_access: Optional[bool] = None,
+        inactive: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Получает список пользователей пространства.
+        
+        Args:
+            space_id: ID пространства
+            include_inherited_access: Включить пользователей с унаследованным доступом
+            inactive: Включить только неактивных пользователей компании
+        
+        Returns:
+            Список пользователей
+        """
+        params = {}
+        
+        if include_inherited_access is not None:
+            params['include_inherited_access'] = include_inherited_access
+        if inactive is not None:
+            params['inactive'] = inactive
+        
+        endpoint = f'{KaitenConfig.ENDPOINT_SPACES}/{space_id}/users'
+        response = await self._request('GET', endpoint, params=params)
+        return response if isinstance(response, list) else response.get('items', [])
+    
+    # === ПОЛЬЗОВАТЕЛИ КОМПАНИИ ===
+    
+    async def get_company_users(
+        self,
+        invites_only: Optional[bool] = None,
+        with_transfer_access_status: Optional[bool] = None,
+        for_members_section: Optional[bool] = None,
+        owner_only: Optional[bool] = None,
+        only_paid: Optional[bool] = None,
+        only_records_count: Optional[bool] = None,
+        only_virtual: Optional[bool] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
+        query: Optional[str] = None,
+        access_type_permissions: Optional[str] = None,
+        sd_access_type: Optional[str] = None,
+        take_licence: Optional[str] = None,
+        temporarily_inactive_status: Optional[str] = None,
+        group_ids: Optional[List[int]] = None,
+        permissions: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Получает список пользователей компании с фильтрацией.
+        Для использования этого метода требуется доступ к административному разделу "Members".
+        
+        Args:
+            invites_only: Фильтр для возврата только приглашений
+            with_transfer_access_status: Добавить данные о процессе передачи прав пользователя
+            for_members_section: Возвращает пользователей для административного раздела "Members" с постраничным выводом
+            owner_only: Возвращает только владельца компании
+            only_paid: Возвращает только пользователей с платным доступом
+            only_records_count: Возвращает только количество пользователей (работает только с for_members_section или only_virtual)
+            only_virtual: Возвращает только виртуальных пользователей с постраничным выводом
+            offset: Количество записей для пропуска (работает только с for_members_section или only_virtual)
+            limit: Максимальное количество пользователей в ответе (по умолчанию 100, работает только с for_members_section или only_virtual)
+            query: Фильтр по email и full_name (работает только с for_members_section)
+            access_type_permissions: Фильтр по доступу к Kaiten (работает только с for_members_section)
+            sd_access_type: Фильтр по доступу к Service Desk (работает только с for_members_section)
+            take_licence: Фильтр по пользователям, потребляющим лицензию (работает только с for_members_section)
+            temporarily_inactive_status: Фильтр по временно неактивным пользователям (работает только с for_members_section)
+            group_ids: Фильтр по ID групп (работает только с for_members_section)
+            permissions: Фильтр по правам доступа, предоставленным пользователям (работает только с for_members_section)
+        
+        Returns:
+            Список пользователей компании
+        """
+        params = {}
+        
+        if invites_only is not None:
+            params['invitesOnly'] = invites_only
+        if with_transfer_access_status is not None:
+            params['withTransferAccessStatus'] = with_transfer_access_status
+        if for_members_section is not None:
+            params['for_members_section'] = for_members_section
+        if owner_only is not None:
+            params['owner_only'] = owner_only
+        if only_paid is not None:
+            params['only_paid'] = only_paid
+        if only_records_count is not None:
+            params['only_records_count'] = only_records_count
+        if only_virtual is not None:
+            params['only_virtual'] = only_virtual
+        if offset is not None:
+            params['offset'] = offset
+        if limit is not None:
+            params['limit'] = limit
+        if query is not None:
+            params['query'] = query
+        if access_type_permissions is not None:
+            params['access_type_permissions'] = access_type_permissions
+        if sd_access_type is not None:
+            params['sd_access_type'] = sd_access_type
+        if take_licence is not None:
+            params['take_licence'] = take_licence
+        if temporarily_inactive_status is not None:
+            params['temporarily_inactive_status'] = temporarily_inactive_status
+        if group_ids is not None:
+            params['group_ids'] = ','.join(map(str, group_ids))
+        if permissions is not None:
+            params['permissions'] = ','.join(permissions)
+        
+        endpoint = '/company/users'
+        response = await self._request('GET', endpoint, params=params)
+        return response if isinstance(response, list) else response.get('items', [])
     
     # === ДОСКИ ===
     
@@ -706,7 +821,8 @@ class KaitenClient:
         title: str,
         space_id: int,
         description: Optional[str] = None,
-        board_type: str = "kanban"
+        columns: Optional[List[Dict[str, Any]]] = None,
+        lanes: Optional[List[Dict[str, Any]]] = None
     ) -> Board:
         """
         Создает новую доску.
@@ -716,13 +832,15 @@ class KaitenClient:
             space_id: ID пространства
             description: Описание доски
             board_type: Тип доски (kanban, scrum)
+            columns: Список колонок для создания доски (title, type - required)
         
         Returns:
             Созданная доска
         """
         data = {
             'title': title,
-            'board_type': board_type
+            'columns': columns or [],
+            'lanes': lanes or []
         }
         if description:
             data['description'] = description
@@ -1077,6 +1195,158 @@ class KaitenClient:
         """
         await self._request("DELETE", f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}")
         return True
+
+    # === ЗНАЧЕНИЯ ВЫБОРА КАСТОМНЫХ СВОЙСТВ ===
+    
+    async def get_property_select_values(
+        self,
+        property_id: int,
+        v2_select_search: Optional[bool] = None,
+        query: Optional[str] = None,
+        order_by: Optional[str] = None,
+        ids: Optional[List[int]] = None,
+        conditions: Optional[List[str]] = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Получает список значений выбора для кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            v2_select_search: Включает дополнительную фильтрацию
+            query: Фильтр по значению выбора (работает только если v2_select_search=True)
+            order_by: Поле для сортировки (работает только если v2_select_search=True)
+            ids: Массив ID для фильтрации (работает только если v2_select_search=True)
+            conditions: Массив условий для фильтрации (работает только если v2_select_search=True)
+            offset: Количество записей для пропуска (работает только если v2_select_search=True)
+            limit: Максимальное количество значений в ответе (работает только если v2_select_search=True)
+        
+        Returns:
+            Список значений выбора
+        """
+        params = {}
+        
+        if v2_select_search is not None:
+            params['v2_select_search'] = v2_select_search
+        if query is not None:
+            params['query'] = query
+        if order_by is not None:
+            params['order_by'] = order_by
+        if ids is not None:
+            params['ids'] = ','.join(map(str, ids))
+        if conditions is not None:
+            params['conditions'] = ','.join(conditions)
+        if offset is not None:
+            params['offset'] = offset
+        if limit is not None:
+            params['limit'] = limit
+        
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values"
+        response = await self._request('GET', endpoint, params=params)
+        return response if isinstance(response, list) else response.get('items', [])
+    
+    async def get_property_select_value(
+        self,
+        property_id: int,
+        value_id: int
+    ) -> Dict[str, Any]:
+        """
+        Получает значение выбора кастомного свойства по ID.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value_id: ID значения выбора
+        
+        Returns:
+            Значение выбора
+        """
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values/{value_id}"
+        return await self._request('GET', endpoint)
+    
+    async def create_property_select_value(
+        self,
+        property_id: int,
+        value: str,
+        color: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Создаёт новое значение выбора для кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value: Значение выбора (от 1 до 128 символов)
+            color: Цвет значения выбора (None для значения без цвета)
+        
+        Returns:
+            Созданное значение выбора
+        """
+        data = {'value': value}
+        
+        if color is not None:
+            data['color'] = color
+        
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values"
+        return await self._request('POST', endpoint, json=data)
+    
+    async def update_property_select_value(
+        self,
+        property_id: int,
+        value_id: int,
+        value: Optional[str] = None,
+        color: Optional[int] = None,
+        condition: Optional[str] = None,
+        sort_order: Optional[float] = None,
+        deleted: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        Обновляет значение выбора кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value_id: ID значения выбора
+            value: Новое значение (от 1 до 128 символов)
+            color: Новый цвет (None для удаления цвета)
+            condition: Условие значения выбора ('active' или 'inactive')
+            sort_order: Позиция (минимум 0)
+            deleted: Условие удаления значения выбора
+        
+        Returns:
+            Обновлённое значение выбора
+        """
+        data = {}
+        
+        if value is not None:
+            data['value'] = value
+        if color is not None:
+            data['color'] = color
+        if condition is not None:
+            data['condition'] = condition
+        if sort_order is not None:
+            data['sort_order'] = sort_order
+        if deleted is not None:
+            data['deleted'] = deleted
+        
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values/{value_id}"
+        return await self._request('PATCH', endpoint, json=data)
+    
+    async def delete_property_select_value(
+        self,
+        property_id: int,
+        value_id: int
+    ) -> Dict[str, Any]:
+        """
+        Удаляет значение выбора кастомного свойства.
+        
+        Args:
+            property_id: ID кастомного свойства
+            value_id: ID значения выбора
+        
+        Returns:
+            Удалённое значение выбора
+        """
+        endpoint = f"{KaitenConfig.ENDPOINT_CUSTOM_PROPERTIES}/{property_id}/select-values/{value_id}"
+        return await self._request('DELETE', endpoint)
 
     # === КАСТОМНЫЕ СВОЙСТВА КАРТОЧЕК ===
     

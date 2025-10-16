@@ -5,11 +5,13 @@ from concurrent.futures import ThreadPoolExecutor
 # Константы
 CLIENTS: dict[str, Any]
 EXECUTORS: dict[str, Any]
+SETTINGS: dict[str, Any]
 
 # Пути к JSON файлам
 files = {
     'CLIENTS': 'json/clients.json',
     'EXECUTORS': 'json/executors.json',
+    'SETTINGS': 'json/settings.json',
 }
 
 def load_json(filepath):

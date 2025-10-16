@@ -1,8 +1,11 @@
 import asyncio
 import uvicorn
+import logging
+
 
 from modules.executors_manager import executors_start
 from modules.api import app
+
 
 async def api_start():
     config = uvicorn.Config(app, 
@@ -14,6 +17,8 @@ async def api_start():
     await server.serve()
 
 async def main():
+    logging.basicConfig(level=logging.INFO)
+
     tasks = await executors_start() # Запускаем всех исполнителей
 
     tasks.append(
