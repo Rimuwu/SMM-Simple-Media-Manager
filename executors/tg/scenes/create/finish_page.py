@@ -45,6 +45,37 @@ class FinishPage(Page):
         await callback.answer('Завершено!')
         data = self.scene.data['scene']
 
+        customer_id, status = await brain_api.get(
+            '/user/get',
+            params={'telegram_id': self.scene.user_id}
+        )
+
+        if status and status == 200:
+            if isinstance(customer_id, list) and len(customer_id) > 0:
+                customer_id = customer_id[0]['user_id']
+            else:
+                customer_id = None
+
+        else:
+            customer_id = None
+
+        executor_id = None
+        if self.scene.data['scene'].get('user', None):
+            executor_id, status = await brain_api.get(
+                '/user/get',
+                params={'tasker_id': self.scene.data['scene'].get(
+                    'user', None)}
+            )
+
+            if status and status == 200:
+                if isinstance(executor_id, list) and len(executor_id) > 0:
+                    executor_id = executor_id[0]['user_id']
+                else:
+                    executor_id = None
+
+            else:
+                executor_id = None
+
         res, status = await brain_api.post(
             '/card/create',
             data={
@@ -55,13 +86,27 @@ class FinishPage(Page):
                 'editor_check': True,
                 'image_prompt': data['image'],
                 'tags': data['tags'],
-                'type_id': data['type']
+                'type_id': data['type'],
+                'executor_id': executor_id,
+                'customer_id': customer_id
             }
         )
 
-        if status:
-            await self.scene.end()
+        if status and status == 200:
+            if 'card_id' in res:
+                await self.scene.end()
+
+                await self.scene.__bot__.send_message(
+                    self.scene.user_id,
+                    f'Задача успешно создана c ID: {res["card_id"]}'
+                )
+            else:
+                await self.scene.__bot__.send_message(
+                    self.scene.user_id,
+                    f'Произошла ошибка при создании задачи: {res.get("error", "Неизвестная ошибка")}'
+                )
+        else:
             await self.scene.__bot__.send_message(
                 self.scene.user_id,
-                f'Задача успешно создана c ID: {res["id"]}'
+                f'Произошла ошибка при создании задачи: {res.get("error", "Неизвестная ошибка") if res else "Ошибка сервера"}'
             )

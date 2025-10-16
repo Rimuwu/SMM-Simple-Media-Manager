@@ -4,6 +4,7 @@ from modules.executors_manager import manager
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from modules.constants import SETTINGS
+from modules.api_client import brain_api
 
 router = APIRouter(prefix="/forum")
 
@@ -21,9 +22,15 @@ async def send_message_to_forum(message: ForumMessage):
     if not executor:
         return {"error": "Telegram executor not found"}
 
-    await executor.send_message(
+    data = await executor.send_message(
         reply_to_message_id=forum_topic,
         chat_id=group_forum,
         text=message.title + "\n" + message.deadline + "\n" + message.description
     )
-    return {"message": "Message sent to forum"}
+    status = data.get("success", False)
+    if not status:
+        return {"error": data.get("error", "Unknown error"), 
+                "success": False}
+
+    message_id = data.get("message_id", None)
+    return {"success": True, "message_id": message_id}

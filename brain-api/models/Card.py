@@ -45,8 +45,10 @@ class Card(Base, AsyncCRUDMixin):
 
     image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+
     # Связи с автоматизациями
     # automations: Mapped[list["Automation"]] = relationship("Automation", back_populates="card")
-    
+
     def __repr__(self) -> str:
         return f"<Card(id={self.card_id}, name='{self.name}', status='{self.status}')>"
