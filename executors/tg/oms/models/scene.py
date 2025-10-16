@@ -1,4 +1,3 @@
-import asyncio
 from typing import Callable, Optional, Type
 
 from aiogram import Bot
@@ -9,6 +8,7 @@ from ..utils import list_to_inline, callback_generator, func_to_str, prepare_ima
 from ..manager import scene_manager
 from .json_scene import scenes_loader, SceneModel
 from .page import Page
+import copy
 
 class Scene:
 
@@ -41,7 +41,7 @@ class Scene:
             self.__scene_name__) # type: ignore
 
         self.data: dict = {
-            'scene': self.scene.standart_data
+            'scene': copy.deepcopy(self.scene.standart_data)
         }
 
         if not self.scene:
@@ -112,7 +112,8 @@ class Scene:
             raise ValueError(f"Страница {page_name} не найдена в сцене {self.__scene_name__}")
 
         page_model: Page = self.pages[page_name]
-        if page_model.page_blocked():
+        status, answer = page_model.page_blocked()
+        if status:
 
             await self.update_key('scene', 'last_page', self.page)
             self.page = page_name
@@ -122,6 +123,8 @@ class Scene:
 
         else:
             print(f'Страница {page_name} заблокирована для перехода')
+
+        return status, answer
 
     def get_page(self, page_name: str):
         if page_name not in self.pages:
@@ -137,13 +140,18 @@ class Scene:
     # ===== Работа с сообщениями =====
 
     async def preparate_message_data(self,
-                        only_buttons: bool = False):
+                        only_buttons: bool = False, 
+                        raw_buttons: bool = False
+                        ):
         page = self.current_page
         await page.data_preparate()
 
         if not only_buttons:
             text: str = await page.content_worker()
         else: text = page.__page__.content
+        
+        if self.scene.settings.parse_mode == "Markdown":
+            text = self.clear_message_for_markdown(text)
 
         buttons: list[dict] = await page.buttons_worker()
 
@@ -161,7 +169,11 @@ class Scene:
                     'next_line': len(buttons) > 0 and i == 0
                 })
 
-        inl_markup = list_to_inline(buttons, page.row_width)
+        if not raw_buttons:
+            inl_markup = list_to_inline(buttons, page.row_width)
+        else:
+            inl_markup = buttons
+
         return text, inl_markup
 
     async def send_message(self):
@@ -198,6 +210,17 @@ class Scene:
         self.message_id = message.message_id
         await self.save_to_db()
 
+    def clear_message_for_markdown(self, content: str) -> str:
+        symbols = ['*', '_', '`', '~']
+        for sym in symbols:
+            count = content.count(sym)
+            if count % 2 == 1:
+                # Находим последний (непарный) символ и заменяем только его
+                last_index = content.rfind(sym)
+                if last_index != -1:
+                    content = content[:last_index] + '#' + content[last_index + 1:]
+        return content
+
     async def update_message(self):
         content, markup = await self.preparate_message_data()
         page = self.current_page
@@ -214,7 +237,9 @@ class Scene:
         # Если раньше было фото, а теперь нет, удаляем сообщение и отправляем новое
         if last_have_photo and not has_new_photo:
             print("OMS: Раньше было фото, а теперь нет, пересоздаем сообщение")
-            await self.__bot__.delete_message(self.user_id, self.message_id)
+            try:
+                await self.__bot__.delete_message(self.user_id, self.message_id)
+            except Exception as e: pass
             await self.send_message()
             return
 
@@ -251,12 +276,20 @@ class Scene:
                     parse_mode=self.scene.settings.parse_mode,
                     reply_markup=markup
                 )
+
         except Exception as e:
+            if "message is not modified" in str(e):
+                print("OMS: Сообщение не изменилось, пропускаем обновление")
+                return
+
             print(f"OMS: Ошибка при обновлении сообщения: {e}")
             # Если не удалось обновить, пересоздаем сообщение
             try:
                 print("OMS: Пересоздаем сообщение")
-                await self.__bot__.delete_message(self.user_id, self.message_id)
+                try:
+                    await self.__bot__.delete_message(self.user_id, self.message_id)
+                except Exception as e: pass
+
                 await self.send_message()
             except Exception as delete_error:
                 print(f"OMS: Ошибка при пересоздании сообщения: {delete_error}")
@@ -289,7 +322,7 @@ class Scene:
     def update_from_data(self, data: dict) -> None:
         self.page = data.get('page', self.start_page)
         self.message_id = data.get('message_id', 0)
-        self.data = data.get('data', {'scene': {}})
+        self.data = copy.deepcopy(data.get('data', {'scene': {}}))
         self.scene: SceneModel = scenes_loader.get_scene(
             self.__scene_name__) # type: ignore
 
@@ -328,9 +361,11 @@ class Scene:
 
         if self.scene.settings.delete_after_send:
             print("Delete message after send")
-            await self.__bot__.delete_message(
-                self.user_id, message.message_id
-            )
+            try:
+                await self.__bot__.delete_message(
+                    self.user_id, message.message_id
+                )
+            except Exception as e: pass
 
         await self.update_key(page.__page_name__, 'last_message', message.text)
         await page.post_handle('text')
@@ -372,7 +407,6 @@ class Scene:
             Если ключа нет, он будет создан
             Аккуратно, value должен быть сериализуемым в JSON
         """
-        print(f"UPDATE KEY: {element} -> {key} = {value}")
         if element in self.data:
             if key in self.data[element]:
                 self.data[element][key] = value
@@ -393,9 +427,12 @@ class Scene:
     # ==== Конец сцены ====
 
     async def end(self):
-        await self.__bot__.delete_message(
-            self.user_id, self.message_id
-        )
+        try:
+            await self.__bot__.delete_message(
+                self.user_id, self.message_id
+            ) 
+        except Exception as e: pass
+
         scene_manager.remove_scene(self.user_id)
         if self.__delete_function__:
             await self.__delete_function__(self.user_id)
