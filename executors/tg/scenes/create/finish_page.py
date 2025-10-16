@@ -6,10 +6,21 @@ from modules.constants import SETTINGS
 class FinishPage(Page):
 
     __page_name__ = 'finish'
-    
+
+
+    def min_values(self):
+        data = self.scene.data['scene']
+        keys = ['name', 'description', 'publish_date']
+
+        for key in keys:
+            if data.get(key, None) in [None, '']:
+                return False
+        return True
+
     async def buttons_worker(self) -> list[dict]:
         buttons = []
-        if all(key in self.scene.data for key in ['name', 'description', 'publish_date']):
+
+        if self.min_values():
             buttons.append({
                 'text': '❤ Создать',
                 'callback_data': callback_generator(
@@ -21,18 +32,20 @@ class FinishPage(Page):
         return buttons
     
     async def content_worker(self) -> str:
+        self.clear_content()
         content = await super().content_worker()
 
-        if not all(key in self.scene.data for key in ['name', 'description', 'publish_date']):
+        if not self.min_values():
             content += '\n\n❗️ Не все обязательные поля заполнены. Пожалуйста, вернитесь и заполните их.'
-            return content
+
+        return content
 
     @Page.on_callback('end')
     async def on_end(self, callback, args):
         await callback.answer('Завершено!')
         data = self.scene.data['scene']
 
-        res = await brain_api.post(
+        res, status = await brain_api.post(
             '/card/create',
             data={
                 'title': data['name'],
@@ -45,4 +58,10 @@ class FinishPage(Page):
                 'type_id': data['type']
             }
         )
-        print(res)
+
+        if status:
+            await self.scene.end()
+            await self.scene.__bot__.send_message(
+                self.scene.user_id,
+                f'Задача успешно создана c ID: {res["id"]}'
+            )

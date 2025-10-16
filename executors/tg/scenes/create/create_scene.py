@@ -1,3 +1,4 @@
+from tg.scenes.create.user_page import UserPage
 from tg.oms import Scene
 from .channels_page import ChannelsPage
 from .date_page import DatePage
@@ -13,5 +14,6 @@ class CreateTaskScene(Scene):
         ChannelsPage,
         DatePage,
         FinishPage,
-        TagsPage
+        TagsPage,
+        UserPage
     ]
