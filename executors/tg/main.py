@@ -1,6 +1,7 @@
 import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
+from tg.oms.utils import list_to_inline
 from modules.executor import BaseExecutor
 from modules.logs import executors_logger as logger
 
@@ -24,12 +25,17 @@ class TelegramExecutor(BaseExecutor):
     async def send_message(self, 
                 chat_id: str, 
                 text: str, 
-                reply_to_message_id: int = None
+                reply_to_message_id: int = None,
+                list_markup: list = None,
+                row_width: int = 3
                            ) -> dict:
         """Отправить сообщение"""
+        markup = list_to_inline(list_markup, row_width=row_width)
+
         try:
             result = await self.bot.send_message(chat_id, text,
-                    reply_to_message_id=reply_to_message_id
+                    reply_to_message_id=reply_to_message_id,
+                    reply_markup=markup
                                                  )
             return {"success": True, "message_id": result.message_id}
         except Exception as e:

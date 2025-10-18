@@ -41,10 +41,18 @@ class AsyncCRUDMixin:
                 merged_obj = await sess.merge(self)
                 if not session:  # Коммитим только если сессия наша
                     await sess.commit()
+                    # После коммита обновляем объект из БД
+                    await sess.refresh(merged_obj)
                 
                 # Обновляем текущий объект значениями из merged_obj
                 for column in self.__table__.columns:  # type: ignore
-                    setattr(self, column.name, getattr(merged_obj, column.name))
+                    # Безопасно получаем значение атрибута
+                    try:
+                        value = getattr(merged_obj, column.name)
+                        setattr(self, column.name, value)
+                    except Exception:
+                        # Если не удается получить значение, пропускаем
+                        pass
                 
                 return self
             else:

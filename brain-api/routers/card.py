@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from modules.kaiten import kaiten
 from modules.properties import multi_properties
@@ -21,14 +21,14 @@ class CardCreate(BaseModel):
     description: str
     deadline: Optional[str]  # ISO 8601 format (due_date)
 
-    executor_id: Optional[str]  # ID исполнителя в базе данных
-    customer_id: Optional[str]  # ID заказчика в базе данных
+    executor_id: Optional[str] = None # ID исполнителя в базе данных
+    customer_id: Optional[str] = None # ID заказчика в базе данных
 
     # properties
-    channels: Optional[list[str]]  # Список каналов для публикации
+    channels: Optional[list[str]] = None  # Список каналов для публикации
     editor_check: bool  # Нужно ли проверять перед публикацией
-    image_prompt: Optional[str]  # Промпт задачи для картинки
-    tags: Optional[list[str]]  # Теги для карты
+    image_prompt: Optional[str] = None  # Промпт задачи для картинки
+    tags: Optional[list[str]] = None  # Теги для карты
     type_id: str  # Тип задания
 
 
@@ -95,19 +95,67 @@ async def create_card(card_data: CardCreate):
         executor_id=card_data.executor_id,
     )
 
-    forum_res, status = await executors_api.post(
-        "/forum/send-message-to-forum",
-            data={
-                "title": card_data.title,
-                "deadline": card_data.deadline or None,
-                "description": card_data.description or ""
-            }
-    )
-    if not status:
-        return {"error": res.get("error", "Unknown error"), "success": False}
+    if card_data.type_id == 'public':
 
-    message_id = forum_res.get("message_id", None)
-    await card.update(forum_message_id=message_id)
+        forum_res, status = await executors_api.post(
+            "/forum/send-message-to-forum",
+                data={"card_id": card.card_id}
+        )
 
-    print(card.card_id, type(card.card_id))
-    return {"card_id": card.card_id}
+        message_id = forum_res.get("message_id", None)
+        if message_id:
+            await card.update(forum_message_id=message_id)
+
+    return {"card_id": str(card.card_id)}
+
+@router.get("/get")
+async def get(task_id: Optional[str] = None, 
+              card_id: Optional[str] = None, 
+              status: Optional[CardStatus] = None,
+              customer_id: Optional[str] = None,
+              executor_id: Optional[str] = None,
+              need_check: Optional[bool] = None,
+              forum_message_id: Optional[int] = None
+              ):
+    query = {
+        "task_id": task_id,
+        "card_id": card_id,
+        "status": status,
+        "customer_id": customer_id,
+        "executor_id": executor_id,
+        "need_check": need_check,
+        "forum_message_id": forum_message_id
+    }
+    # Убираем None значения из запроса
+    query = {k: v for k, v in query.items() if v is not None}
+
+    cards = await Card.filter_by(**query)
+    if not cards:
+        raise HTTPException(
+            status_code=404, detail="Card not found")
+
+    return [card.to_dict() for card in cards]
+
+class CardUpdate(BaseModel):
+    card_id: str
+    status: Optional[CardStatus] = None
+    executor_id: Optional[str] = None
+    customer_id: Optional[str] = None
+    need_check: Optional[bool] = None
+    forum_message_id: Optional[int] = None
+
+@router.post("/update")
+async def update_card(card_data: CardUpdate):
+    query = {
+        "card_id": card_data.card_id
+    }
+
+    # Убираем None значения из запроса
+    query = {k: v for k, v in query.items() if v is not None}
+
+    card = await Card.get_by_key('card_id', card_data.card_id)
+    if not card:
+        raise HTTPException(
+            status_code=404, detail="Card not found")
+
+    return card.to_dict()
