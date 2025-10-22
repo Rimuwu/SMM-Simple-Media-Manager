@@ -13,6 +13,9 @@ executor: TelegramExecutor = manager.get(
 async def forum_message(card_id: str):
     """Отправить сообщение в форум о новой карточке и обновить карточку с ID сообщения"""
     
+    if executor is None:
+        return {"error": "Executor not found", "success": False}
+
     cards = await get_cards(card_id=card_id)
     if not cards:
         return {"error": "Card not found", "success": False}

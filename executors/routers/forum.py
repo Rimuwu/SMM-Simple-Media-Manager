@@ -17,8 +17,9 @@ class ForumMessage(BaseModel):
 
 @router.post("/send-message-to-forum")
 async def send_message_to_forum(message: ForumMessage):
-    
+
     data = await forum_message(message.card_id)
 
     return {"success": data.get("success", False),
-            "message_id": data.get("message_id", None)}
+            "message_id": data.get("message_id", None),
+            "error": data.get("error", None)}

@@ -26,7 +26,7 @@ class CardCreate(BaseModel):
 
     # properties
     channels: Optional[list[str]] = None  # Список каналов для публикации
-    editor_check: bool  # Нужно ли проверять перед публикацией
+    editor_check: bool = True # Нужно ли проверять перед публикацией
     image_prompt: Optional[str] = None  # Промпт задачи для картинки
     tags: Optional[list[str]] = None  # Теги для карты
     type_id: str  # Тип задания
@@ -34,7 +34,6 @@ class CardCreate(BaseModel):
 
 @router.post("/create")
 async def create_card(card_data: CardCreate):
-
 
     # Преобразовываем текстомвые ключи в id свойств
     channels = []
@@ -66,22 +65,26 @@ async def create_card(card_data: CardCreate):
         tags=tags
     )
 
-    async with kaiten as client:
+    try:
+        async with kaiten as client:
 
-        res = await client.create_card(
-            card_data.title,
-            COLUMN_ID,
-            card_data.description,
-            BOARD_ID,
-            due_date=card_data.deadline,
-            due_date_time_present=True,
-            properties=properties,
-            type_id=card_type,
-            position=1,
-            executor_id=card_data.executor_id,
-        )
+            res = await client.create_card(
+                card_data.title,
+                COLUMN_ID,
+                card_data.description,
+                BOARD_ID,
+                due_date=card_data.deadline,
+                due_date_time_present=True,
+                properties=properties,
+                type_id=card_type,
+                position=1,
+                executor_id=card_data.executor_id,
+            )
 
-        card_id = res.id
+            card_id = res.id
+    except Exception as e:
+        print(f"Error in kaiten create card: {e}")
+        card_id = 0
 
     card = await Card.create(
         name=card_data.title,
@@ -99,8 +102,12 @@ async def create_card(card_data: CardCreate):
 
         forum_res, status = await executors_api.post(
             "/forum/send-message-to-forum",
-                data={"card_id": card.card_id}
+                data={"card_id": str(card.card_id)}
         )
+        
+        error = forum_res.get('error')
+        if error:
+            print(f"Error in forum send: {error}")
 
         message_id = forum_res.get("message_id", None)
         if message_id:
