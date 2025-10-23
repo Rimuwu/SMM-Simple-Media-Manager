@@ -153,16 +153,21 @@ class CardUpdate(BaseModel):
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
-    query = {
-        "card_id": card_data.card_id
-    }
-
-    # Убираем None значения из запроса
-    query = {k: v for k, v in query.items() if v is not None}
 
     card = await Card.get_by_key('card_id', card_data.card_id)
     if not card:
         raise HTTPException(
             status_code=404, detail="Card not found")
 
+    data = {
+        "status": card_data.status,
+        "executor_id": card_data.executor_id,
+        "customer_id": card_data.customer_id,
+        "need_check": card_data.need_check,
+        "forum_message_id": card_data.forum_message_id
+    }
+
+    data = {k: v for k, v in data.items() if v is not None}
+
+    await card.update(**data)
     return card.to_dict()

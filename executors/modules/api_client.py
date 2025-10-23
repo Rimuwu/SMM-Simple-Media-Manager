@@ -66,3 +66,23 @@ async def update_card(card_id: str,
         return None
 
     return card
+
+
+async def get_users(telegram_id: Optional[int] = None,
+                   tasker_id: Optional[int] = None,
+                   role: Optional[str] = None):
+    """Получить пользователей по различным параметрам"""
+    params = {
+        "telegram_id": telegram_id,
+        "tasker_id": tasker_id,
+        "role": role
+    }
+    users, res_status = await brain_api.get(
+        "/user/get",
+        params=params
+    )
+
+    if res_status != 200:
+        return []
+
+    return users

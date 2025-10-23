@@ -19,7 +19,7 @@ async def create_tables():
         # Создаём заново
         await conn.run_sync(Base.metadata.create_all)
 
-    engine.echo = getenv("DEBUG", False) == "true"
+    engine.echo = False #getenv("DEBUG", False) == "true"
 
 async def create_superuser():
     """Создать суперпользователя, если его нет в базе."""

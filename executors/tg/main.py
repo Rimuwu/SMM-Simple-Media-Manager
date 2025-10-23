@@ -11,9 +11,9 @@ class TelegramExecutor(BaseExecutor):
     def __init__(self, config: dict, executor_name: str = "telegram"):
         super().__init__(config, executor_name)
         self.token = config.get("token")
-        self.bot = Bot(
-            token=self.token) if self.token else None
-        self.dp = Dispatcher()
+        self.bot: Bot = Bot(
+            token=self.token) if self.token else None # type: ignore
+        self.dp: Dispatcher = Dispatcher()
 
     def setup_handlers(self):
         """Настройка обработчиков"""
@@ -38,6 +38,23 @@ class TelegramExecutor(BaseExecutor):
                     reply_markup=markup
                                                  )
             return {"success": True, "message_id": result.message_id}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def update_markup(self, 
+                            chat_id: str, 
+                            message_id: int, 
+                            list_markup: list, 
+                            row_width: int = 3
+                            ) -> dict:
+        markup = list_to_inline(list_markup, row_width=row_width)
+        
+        try:
+            await self.bot.edit_message_reply_markup(
+                chat_id=chat_id, message_id=message_id, 
+                reply_markup=markup
+                )
+            return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

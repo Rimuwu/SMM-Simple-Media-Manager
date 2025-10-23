@@ -44,6 +44,7 @@ class Card(Base, AsyncCRUDMixin):
     deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    prompt_sended: Mapped[bool] = mapped_column(Boolean, default=False)
 
     forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
 
