@@ -10,6 +10,7 @@ from routers.standart import router as standart_router
 from routers.card import router as card_router
 from routers.ai import router as ai_router
 from routers.kaiten import router as kaiten_router
+from routers.user import router as user_router
 
 from global_modules.api_configurate import get_fastapi_app
 
@@ -46,7 +47,7 @@ app = get_fastapi_app(
     middlewares=[],
     routers=[
         standart_router, card_router, ai_router,
-        kaiten_router
+        kaiten_router, user_router
     ],
     api_logger=brain_logger
 )

@@ -41,10 +41,18 @@ class AsyncCRUDMixin:
                 merged_obj = await sess.merge(self)
                 if not session:  # Коммитим только если сессия наша
                     await sess.commit()
+                    # После коммита обновляем объект из БД
+                    await sess.refresh(merged_obj)
                 
                 # Обновляем текущий объект значениями из merged_obj
                 for column in self.__table__.columns:  # type: ignore
-                    setattr(self, column.name, getattr(merged_obj, column.name))
+                    # Безопасно получаем значение атрибута
+                    try:
+                        value = getattr(merged_obj, column.name)
+                        setattr(self, column.name, value)
+                    except Exception:
+                        # Если не удается получить значение, пропускаем
+                        pass
                 
                 return self
             else:
@@ -122,6 +130,17 @@ class AsyncCRUDMixin:
                 return result.scalar_one_or_none()
             return None
 
+    @classmethod
+    async def get_by_key(cls, key: str, value: Any, session: Optional[AsyncSession] = None):
+        """Получает объект по указанному полю"""
+        async with cls._get_session_static(session) as sess:
+            if hasattr(cls, key):
+                result = await sess.execute(
+                    select(cls).where(getattr(cls, key) == value)
+                )
+                return result.scalar_one_or_none()
+            return None
+
     async def delete(self, session: Optional[AsyncSession] = None) -> None:
         """Удаляет объект из БД"""
         async with self._get_session(session) as sess:
@@ -188,3 +207,8 @@ class AsyncCRUDMixin:
                     create_kwargs.update(defaults)
                 obj = await cls.create(session=sess, **create_kwargs)
                 return obj, True
+
+    @classmethod
+    async def all(cls, session: Optional[AsyncSession] = None):
+        """Получает все объекты (алиас для get_all)"""
+        return await cls.get_all(session=session)

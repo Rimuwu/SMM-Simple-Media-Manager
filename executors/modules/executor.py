@@ -9,7 +9,7 @@ class BaseExecutor(ABC):
         self.executor_name = executor_name
 
     @abstractmethod
-    async def send_message(self, chat_id: str, text: str) -> dict:
+    async def send_message(self, chat_id: str, text: str, **kwargs) -> dict:
         """Отправить сообщение"""
         pass
 

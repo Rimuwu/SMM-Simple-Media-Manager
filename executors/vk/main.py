@@ -12,7 +12,7 @@ class VKExecutor(BaseExecutor):
     def __init__(self, config: dict, executor_name: str = "vk"):
         super().__init__(config, executor_name)
         self.token = config.get("access_token")
-        self.group_id = int(config.get("group_id"))
+        self.group_id = int(config.get("group_id") or 0)
 
         if self.token:
             self.vk_session = vk_api.VkApi(token=self.token)

@@ -49,7 +49,10 @@ async def cmd_create(message: Message):
         )
         await sc.start()
     except ValueError as e:
-        scene_manager.remove_scene(message.from_user.id)
+        n_s = scene_manager.get_scene(message.from_user.id)
+        if n_s:
+            await n_s.end()
+
         sc = scene_manager.create_scene(
             message.from_user.id,
             CreateTaskScene,

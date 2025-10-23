@@ -12,6 +12,7 @@ class APIClient:
     def __init__(self, base_url: str):
         self.base_url = base_url
         self._cache = {}  # Внутренний кеш для хранения ответов
+        self.CACHE_TIMEOUT = CACHE_TIMEOUT
 
     def _generate_cache_key(self, method: str, endpoint: str, 
                             params: dict = None, data: dict = None) -> str:
@@ -48,8 +49,15 @@ class APIClient:
     async def get(self, endpoint: str, 
                   params: dict = None,
                   use_cache: bool = False):
+        # Фильтруем None значения из params
+        if params:
+            params = {k: v for k, v in params.items() if v is not None}
+        
         # Генерируем ключ кеша для GET запроса
         cache_key = self._generate_cache_key('GET', endpoint, params=params)
+
+        if params:
+            params = json.loads(json.dumps(params))  # Преобразуем параметры в стандартный формат
 
         if use_cache:
             # Проверяем кеш
@@ -75,6 +83,13 @@ class APIClient:
         if getenv("DEBUG", False) == 'true': 
             print(data)
 
+        # Фильтруем None значения из data
+        if data:
+            data = {k: v for k, v in data.items() if v is not None}
+
+        if data:
+            data = json.loads(json.dumps(data))  # Преобразуем данные в стандартный формат
+
         # Генерируем ключ кеша для POST запроса
         cache_key = self._generate_cache_key('POST', endpoint, data=data)
         
@@ -94,7 +109,7 @@ class APIClient:
                 # Кешируем только успешные ответы (статус 200-299)
                 if 200 <= status_code < 300:
                     self._save_to_cache(cache_key, response_data, status_code)
-                
+
                 return response_data, status_code
 
 

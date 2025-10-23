@@ -1,4 +1,6 @@
+from datetime import datetime
 from tg.oms import Page
+from tg.oms.utils import callback_generator
 
 class MainPage(Page):
     __page_name__ = 'main'
@@ -26,3 +28,39 @@ class MainPage(Page):
         self.content = self.content.replace('None', '➖')
 
         return self.content
+
+    async def buttons_worker(self) -> list[dict]:
+        result = await super().buttons_worker()
+        
+        result.append(
+            {
+                'text': 'Тестовые данные',
+                'callback_data': callback_generator(
+                    self.scene.__scene_name__,
+                    'test_data'
+                )
+            }
+        )
+
+        return result
+    
+    @Page.on_callback('test_data')
+    async def test_data_handler(self, callback, args):
+        await self.scene.update_key(
+            'scene', 
+            'name',
+            'Тестовое задание'
+        )
+        
+        await self.scene.update_key(
+            'scene', 
+            'description',
+            'Тестовое описание задания'
+        )
+        
+        await self.scene.update_key(
+            'scene', 
+            'publish_date',
+            datetime.today().isoformat()
+        )
+        await self.scene.update_message()

@@ -8,6 +8,7 @@ from aiogram import F
 from aiogram.filters import Command
 
 from modules.api_client import brain_api as api
+from modules.api_client import get_user_role
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
@@ -28,11 +29,14 @@ async def create_user(message: Message):
     if args_count >= 1: telegram_id = int(args[0])
     if args_count >= 2: role = args[1]
     if args_count >= 3: tasker_id = args[2]
+    
+    if not telegram_id:
+        await message.answer("Telegram ID обязателен.")
+        return
 
-    existing_user, status_code = await api.get(
-        f"/user/telegram/{telegram_id}")
+    role = await get_user_role(telegram_id)
 
-    if status_code == 200:
+    if role is not None:
         await message.answer("Пользователь с таким Telegram ID уже существует.")
         return
 
@@ -46,6 +50,6 @@ async def create_user(message: Message):
         "/user/create", data=data)
 
     if status_code == 201:
-        await message.answer(f"Пользователь создан!\nID: {user.user_id}\nTelegram ID: {user.telegram_id}\nРоль: {user.role}")
+        await message.answer(f"Пользователь создан!\nID: {user['user_id']}\nTelegram ID: {user['telegram_id']}\nРоль: {user['role']}")
     else:
         await message.answer("Ошибка при создании пользователя.")

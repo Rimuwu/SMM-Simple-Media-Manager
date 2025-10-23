@@ -1,4 +1,4 @@
-{   
+{
 
     "create-task": {
         "settings": {
@@ -221,6 +221,53 @@
                     "automation-settings": "Назад",
                     "main-page": "На главную"
                 }
+            }
+        }
+    },
+
+    "view-tasks": {
+        "settings": {
+            "parse_mode": "Markdown",
+            "delete_after_send": true,
+            "start_page": "main"
+        },
+        "standart_data": {
+            "user_role": null,
+            "selected_filter": null,
+            "tasks": [],
+            "current_page": 0,
+            "selected_task": null
+        },
+        "pages": {
+            "main": {
+                "content": "📋 **Просмотр задач**\n\n👤 Ваша роль: *{user_role}*\n🔍 Текущий фильтр: *{selected_filter}*\n📊 Найдено задач: *{tasks_count}*\n\nВыберите фильтр для просмотра задач:",
+                "to_pages": {
+                    "filter-selection": "🔍 Выбрать фильтр"
+                },
+                "row_width": 1
+            },
+            "filter-selection": {
+                "content": "🔍 **Выбор фильтра задач**\n\n👤 Ваша роль: *{user_role}*\n\nВыберите категорию задач для просмотра:",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+                "row_width": 2
+            },
+            "task-list": {
+                "content": "📋 **Список задач** ({selected_filter})\n\n📊 Показано: {current_range} из {total_tasks}\n\nВыберите задачу для просмотра:",
+                "to_pages": {
+                    "filter-selection": "🔍 Изменить фильтр",
+                    "main": "⬅️ На главную"
+                },
+                "row_width": 1
+            },
+            "task-detail": {
+                "content": "📝 **{task_name}**\n\n📄 *{task_description}*\n\n **Статус:** {status}\n\n� Выберите действие с задачей:",
+                "to_pages": {
+                    "task-list": "⬅️ К списку задач",
+                    "main": "🏠 На главную"
+                },
+                "row_width": 2
             }
         }
     }
