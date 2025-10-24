@@ -1,7 +1,7 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.api_client import get_cards, brain_api
-from global_modules.classes.enums import CardStatus
+from global_modules.classes.enums import CardStatus, UserRole
 
 class TaskDetailPage(Page):
     __page_name__ = 'task-detail'
@@ -30,8 +30,8 @@ class TaskDetailPage(Page):
         
         # Форматируем статус
         status_names = {
-            CardStatus.pass_: "⏳ Назначена",
-            CardStatus.edited: "✏️ Отредактирована",
+            CardStatus.pass_: "⏳ Создано",
+            CardStatus.edited: "✏️ В работе",
             CardStatus.review: "🔍 На проверке", 
             CardStatus.ready: "✅ Готова"
         }
@@ -50,16 +50,30 @@ class TaskDetailPage(Page):
 
     async def buttons_worker(self) -> list[dict]:
         result = await super().buttons_worker()
-        
+
         # Простые кнопки-заглушки для взаимодействия с задачей
         action_buttons = [
-            ('edit_task', '✏️ Редактировать'),
-            ('change_status', '🔄 Изменить статус'),
-            ('assign_executor', '� Назначить исполнителя'),
-            ('add_comment', '💬 Добавить комментарий'),
-            ('view_history', '📋 История изменений')
         ]
-        
+
+        role = self.scene.data['scene'].get('user_role')
+        is_admin = role == UserRole.admin
+        if role == UserRole.admin or is_admin:
+            action_buttons.extend([
+                ('assign_executor', '👷 Исполнитель'),
+                ('delete', '🗑️ Удалить задачу'),
+                ('change_deadline', '⏰ Изменить дедлайн')
+            ])
+
+        if role == UserRole.copywriter or is_admin:
+            action_buttons.extend([
+                ('open_task', '📂 Открыть задачу')
+            ])
+
+        if role == UserRole.editor or is_admin:
+            action_buttons.extend([
+                ('start_check', '🔎 Начать проверку')
+            ])
+
         # Добавляем кнопки действий
         for action_key, action_name in action_buttons:
             result.append({
@@ -75,18 +89,10 @@ class TaskDetailPage(Page):
 
     @Page.on_callback('task_action')
     async def task_action_handler(self, callback, args):
-        action = args[0]
+        action = args[1]
+        print(f"Выполняется действие: {action}")
         
-        # Заглушки для действий с задачами
-        action_messages = {
-            'edit_task': '✏️ Редактирование задачи (в разработке)',
-            'change_status': '� Изменение статуса (в разработке)',
-            'assign_executor': '👤 Назначение исполнителя (в разработке)',
-            'add_comment': '💬 Добавление комментария (в разработке)',
-            'view_history': '📋 История изменений (в разработке)'
-        }
-        
-        message = action_messages.get(action, 'Функция в разработке')
+        message = 'Функция в разработке'
         
         # Показываем уведомление с информацией о заглушке
         await callback.answer(message, show_alert=True)

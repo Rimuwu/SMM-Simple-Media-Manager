@@ -66,10 +66,10 @@ async def create_event(event_data: EventCreate):
             location=event_data.location,
             color_id=event_data.color_id
         )
-        
+
         if not created_event:
             raise HTTPException(status_code=500, detail="Не удалось создать событие")
-        
+
         return {
             "success": True,
             "data": created_event,

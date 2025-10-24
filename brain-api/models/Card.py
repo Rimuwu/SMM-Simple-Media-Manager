@@ -48,6 +48,8 @@ class Card(Base, AsyncCRUDMixin):
 
     forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
 
+    calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     # Связи с автоматизациями
     # automations: Mapped[list["Automation"]] = relationship("Automation", back_populates="card")
 

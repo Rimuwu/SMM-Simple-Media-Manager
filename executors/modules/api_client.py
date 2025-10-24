@@ -86,3 +86,23 @@ async def get_users(telegram_id: Optional[int] = None,
         return []
 
     return users
+
+async def update_user(telegram_id: int,
+                      role: Optional[str] = None,
+                      tasker_id: Optional[int] = None
+                      ):
+    """Обновить пользователя"""
+    data = {
+        "telegram_id": telegram_id,
+        "role": role,
+        "tasker_id": tasker_id
+    }
+    user, res_status = await brain_api.post(
+        f"/user/update",
+        data=data
+    )
+
+    if res_status != 200:
+        return None
+
+    return user
