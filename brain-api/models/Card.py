@@ -42,6 +42,7 @@ class Card(Base, AsyncCRUDMixin):
 
     # Дополнительные поля для управления карточками
     deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    send_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     prompt_sended: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -1,4 +1,5 @@
 from datetime import datetime
+from pprint import pprint
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -7,6 +8,7 @@ from modules.properties import multi_properties
 from modules.json_get import open_settings
 from models.Card import Card, CardStatus
 from modules.api_client import executors_api
+from modules.calendar import create_calendar_event, delete_calendar_event
 
 # Создаём роутер
 router = APIRouter(prefix='/card')
@@ -104,7 +106,7 @@ async def create_card(card_data: CardCreate):
             "/forum/send-message-to-forum",
                 data={"card_id": str(card.card_id)}
         )
-        
+
         error = forum_res.get('error')
         if error:
             print(f"Error in forum send: {error}")
@@ -112,6 +114,26 @@ async def create_card(card_data: CardCreate):
         message_id = forum_res.get("message_id", None)
         if message_id:
             await card.update(forum_message_id=message_id)
+
+    try:
+        deadline_datetime = datetime.fromisoformat(card_data.deadline) if card_data.deadline else None
+
+        data = await create_calendar_event(
+            card_data.title,
+            card_data.description,
+            deadline_datetime,
+            all_day=True,
+            color_id='7'
+        )
+
+        data = data.get('response', {}).get('data', {})
+        calendar_id = data.get('id')
+        if calendar_id:
+            await card.refresh()
+            await card.update(calendar_id=calendar_id)
+
+    except Exception as e:
+        print(f"Error creating calendar event: {e}")
 
     return {"card_id": str(card.card_id)}
 
@@ -150,6 +172,13 @@ class CardUpdate(BaseModel):
     customer_id: Optional[str] = None
     need_check: Optional[bool] = None
     forum_message_id: Optional[int] = None
+    content: Optional[str] = None
+    clients: Optional[list[str]] = None
+    tags: Optional[list[str]] = None
+    deadline: Optional[str] = None  # ISO 8601 format
+    image_prompt: Optional[str] = None
+    prompt_sended: Optional[bool] = None
+    calendar_id: Optional[str] = None
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
@@ -159,15 +188,39 @@ async def update_card(card_data: CardUpdate):
         raise HTTPException(
             status_code=404, detail="Card not found")
 
-    data = {
-        "status": card_data.status,
-        "executor_id": card_data.executor_id,
-        "customer_id": card_data.customer_id,
-        "need_check": card_data.need_check,
-        "forum_message_id": card_data.forum_message_id
-    }
-
+    data = card_data.model_dump(exclude={'card_id'})
     data = {k: v for k, v in data.items() if v is not None}
 
     await card.update(**data)
     return card.to_dict()
+
+@router.delete("/delete/{card_id}")
+async def delete_card(card_id: str):
+    card = await Card.get_by_key('card_id', card_id)
+    if not card:
+        raise HTTPException(
+            status_code=404, detail="Card not found")
+
+    await card.delete()
+
+    async with kaiten as client:
+        try:
+            await client.delete_card(card.task_id)
+        except Exception as e:
+            return {"detail": f"Card deleted from DB, but failed to delete from Kaiten: {e}"}
+
+    try:
+        if card.calendar_id:
+            await delete_calendar_event(card.calendar_id)
+    except Exception as e:
+        return {"detail": f"Card deleted from DB, but failed to delete from Calendar: {e}"}
+
+    if card.forum_message_id:
+        forum_res, status = await executors_api.post(
+                f"/forum/delete-forum-message/{card_id}"
+            )
+
+        if not forum_res.get('success', False):
+            return {"detail": "Card deleted from DB, but failed to delete forum message"}
+
+    return {"detail": "Card deleted successfully"}

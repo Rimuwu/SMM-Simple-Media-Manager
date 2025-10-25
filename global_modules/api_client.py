@@ -112,6 +112,36 @@ class APIClient:
 
                 return response_data, status_code
 
+    async def put(self, endpoint: str, data: dict = None):
+        """Выполняет PUT запрос"""
+        if getenv("DEBUG", False) == 'true': 
+            print(data)
+
+        # Фильтруем None значения из data
+        if data:
+            data = {k: v for k, v in data.items() if v is not None}
+
+        if data:
+            data = json.loads(json.dumps(data))  # Преобразуем данные в стандартный формат
+
+        async with aiohttp.ClientSession() as session:
+            async with session.put(f"{self.base_url}{endpoint}", json=data) as response:
+                response_data = await response.json()
+                status_code = response.status
+                return response_data, status_code
+
+    async def delete(self, endpoint: str):
+        """Выполняет DELETE запрос"""
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(f"{self.base_url}{endpoint}") as response:
+                try:
+                    response_data = await response.json()
+                except:
+                    # DELETE запросы могут возвращать пустой ответ
+                    response_data = {}
+                status_code = response.status
+                return response_data, status_code
+
 
 
     def clear_cache(self):

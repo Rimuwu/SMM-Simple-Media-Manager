@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from tg.oms.utils import list_to_inline
@@ -25,12 +26,12 @@ class TelegramExecutor(BaseExecutor):
     async def send_message(self, 
                 chat_id: str, 
                 text: str, 
-                reply_to_message_id: int = None,
-                list_markup: list = None,
+                reply_to_message_id: Optional[int] = None,
+                list_markup: Optional[list] = None,
                 row_width: int = 3
                            ) -> dict:
         """Отправить сообщение"""
-        markup = list_to_inline(list_markup, row_width=row_width)
+        markup = list_to_inline(list_markup or [], row_width=row_width)
 
         try:
             result = await self.bot.send_message(chat_id, text,
@@ -47,8 +48,8 @@ class TelegramExecutor(BaseExecutor):
                             list_markup: list, 
                             row_width: int = 3
                             ) -> dict:
-        markup = list_to_inline(list_markup, row_width=row_width)
-        
+        markup = list_to_inline(list_markup or [], row_width=row_width)
+
         try:
             await self.bot.edit_message_reply_markup(
                 chat_id=chat_id, message_id=message_id, 

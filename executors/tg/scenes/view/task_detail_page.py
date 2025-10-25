@@ -2,6 +2,8 @@ from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.api_client import get_cards, brain_api
 from global_modules.classes.enums import CardStatus, UserRole
+from tg.scenes.edit.task_scene import TaskScene
+from tg.oms.manager import scene_manager
 
 class TaskDetailPage(Page):
     __page_name__ = 'task-detail'
@@ -90,9 +92,34 @@ class TaskDetailPage(Page):
     @Page.on_callback('task_action')
     async def task_action_handler(self, callback, args):
         action = args[1]
-        print(f"Выполняется действие: {action}")
-        
-        message = 'Функция в разработке'
-        
-        # Показываем уведомление с информацией о заглушке
-        await callback.answer(message, show_alert=True)
+
+        if action == 'open_task':
+            await self.scene.end()
+            edit_scene: TaskScene = scene_manager.create_scene(
+                self.scene.user_id, TaskScene, 
+                self.scene.__bot__
+            ) # type: ignore
+            edit_scene.set_taskid(
+                self.scene.data['scene'].get('selected_task')
+                )
+
+            await edit_scene.start()
+
+        elif action == 'delete':
+            # Удаляем задачу
+            task = self.scene.data['scene'].get('current_task_data')
+            if not task:
+                return
+
+            card_id = task.get('card_id')
+            if not card_id:
+                return
+
+            res, status = await brain_api.delete(
+                f'/card/delete/{card_id}',
+            )
+
+            if status == 200:
+                await self.scene.update_key(
+                    'scene', 'selected_task', None)
+                await self.scene.update_page('task-list')

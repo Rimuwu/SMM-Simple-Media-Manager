@@ -17,12 +17,14 @@ def register_handlers(router: Union[Router, Dispatcher]):
         user_id = message.from_user.id
         scene = scene_manager.get_scene(user_id)
 
-        logger.info(
-            f'on_message\nscene: {scene}\nmessage: {message.text}'
-        )
+        if message.chat.id == user_id:
 
-        if scene:
-            await scene.text_handler(message)
+            logger.info(
+                f'on_message\nscene: {scene}\nmessage: {message.text}'
+            )
+
+            if scene:
+                await scene.text_handler(message)
 
     @router.callback_query(
         InScene(),

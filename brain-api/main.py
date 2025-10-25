@@ -26,11 +26,11 @@ async def lifespan(app: FastAPI):
     brain_logger.info("Creating missing tables on startup...")
     await create_tables()
     await create_superuser()
-    
+
     # await kaiten_check()
-    
-    # await sync_kaiten_settings()
-    
+
+    await sync_kaiten_settings()
+
     # await test_db()
     
     yield

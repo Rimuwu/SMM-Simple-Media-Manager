@@ -42,20 +42,36 @@ async def get_cards(task_id: Optional[str] = None,
     return cards
 
 async def update_card(card_id: str,
-    status: Optional[CardStatus] = None,
-    executor_id: Optional[str] = None,
-    customer_id: Optional[str] = None,
-    need_check: Optional[bool] = None,
-    forum_message_id: Optional[int] = None
-    ):
-    """Обновить карточку"""
+                      status: Optional[CardStatus] = None,
+                      executor_id: Optional[str] = None,
+                      customer_id: Optional[str] = None,
+                      need_check: Optional[bool] = None,
+                      forum_message_id: Optional[int] = None,
+                      content: Optional[str] = None,
+                      clients: Optional[list[str]] = None,
+                      tags: Optional[list[str]] = None,
+                      deadline: Optional[str] = None,
+                      image_prompt: Optional[str] = None,
+                      prompt_sended: Optional[bool] = None,
+                      calendar_id: Optional[str] = None
+                      ):
+    """
+    Обновить карточку
+    """
     data = {
         "card_id": card_id,
         "status": status,
         "executor_id": executor_id,
         "customer_id": customer_id,
         "need_check": need_check,
-        "forum_message_id": forum_message_id
+        "forum_message_id": forum_message_id,
+        "content": content,
+        "clients": clients,
+        "tags": tags,
+        "deadline": deadline,
+        "image_prompt": image_prompt,
+        "prompt_sended": prompt_sended,
+        "calendar_id": calendar_id
     }
     card, res_status = await brain_api.post(
         f"/card/update",
