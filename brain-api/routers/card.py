@@ -229,6 +229,8 @@ async def update_card(card_data: CardUpdate):
                         card.task_id,
                         tasker_id
                     )
+    
+    print("Updating card:", data)
 
     await card.update(**data)
     return card.to_dict()

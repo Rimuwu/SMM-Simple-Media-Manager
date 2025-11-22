@@ -90,26 +90,11 @@ class APIClient:
         if data:
             data = json.loads(json.dumps(data))  # Преобразуем данные в стандартный формат
 
-        # Генерируем ключ кеша для POST запроса
-        cache_key = self._generate_cache_key('POST', endpoint, data=data)
-        
-        # Проверяем кеш
-        cached_response, cached_status = self._get_from_cache(cache_key)
-        if cached_response is not None:
-            if getenv("DEBUG", False) == 'true':
-                print(f"Returning cached response for POST {endpoint}")
-            return cached_response, cached_status
-
-        # Если в кеше нет, делаем запрос
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.base_url}{endpoint}", json=data) as response:
                 response_data = await response.json()
                 status_code = response.status
                 
-                # Кешируем только успешные ответы (статус 200-299)
-                if 200 <= status_code < 300:
-                    self._save_to_cache(cache_key, response_data, status_code)
-
                 return response_data, status_code
 
     async def put(self, endpoint: str, data: dict = None):

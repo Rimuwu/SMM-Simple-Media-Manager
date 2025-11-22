@@ -4,12 +4,21 @@ from modules.api_client import get_cards, brain_api
 from global_modules.classes.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
+from modules.api_client import get_user_role
+
 
 class TaskDetailPage(Page):
     __page_name__ = 'task-detail'
 
     async def data_preparate(self) -> None:
         # Загружаем детальную информацию о задаче
+        role = self.scene.data['scene'].get('user_role')
+        
+        if role is None:
+            telegram_id = self.scene.user_id
+            user_role = await get_user_role(telegram_id)
+            await self.scene.update_key('scene', 'user_role', user_role or None)
+
         await self.load_task_details()
 
     async def content_worker(self) -> str:
@@ -54,11 +63,11 @@ class TaskDetailPage(Page):
         result = await super().buttons_worker()
 
         # Простые кнопки-заглушки для взаимодействия с задачей
-        action_buttons = [
-        ]
+        action_buttons = []
 
         role = self.scene.data['scene'].get('user_role')
         is_admin = role == UserRole.admin
+
         if role == UserRole.admin or is_admin:
             action_buttons.extend([
                 ('assign_executor', '👷 Исполнитель'),

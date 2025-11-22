@@ -4,11 +4,25 @@ from tg.oms import Scene
 import asyncio
 
 from modules.api_client import get_cards, update_card
+from .channels_page import ChannelsSettingsPage
+from .content_page import ContentSetterPage
+from .publish_date_page import PublishDateSetterPage
+from .status_page import StatusSetterPage
+from .ai_check_page import AICheckPage
+from .tags_page import TagsSetterPage
+from .main_page import MainPage
 
 class TaskScene(Scene):
 
     __scene_name__ = 'user-task'
     __pages__ = [
+        MainPage,
+        ChannelsSettingsPage,
+        ContentSetterPage,
+        PublishDateSetterPage,
+        StatusSetterPage,
+        AICheckPage,
+        TagsSetterPage
     ]
     
     def set_taskid(self, task_id: int):

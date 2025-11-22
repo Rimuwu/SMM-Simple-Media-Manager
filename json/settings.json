@@ -8,13 +8,101 @@
             "values_creatable_by_users": false,
             "show_on_facade": true,
             "values": {
-                "content": {
-                    "id": 16231060,
-                    "name": "Content"
-                },
                 "news": {
-                    "id": 16231061,
-                    "name": "News"
+                    "id": 16248105,
+                    "name": "Новости | События"
+                },
+                "tournaments": {
+                    "id": 16248106,
+                    "name": "Турниры"
+                },
+                "stream": {
+                    "id": 16248107,
+                    "name": "Прямые трансляции"
+                },
+                "loot": {
+                    "id": 16248108,
+                    "name": "Лут"
+                },
+                "video": {
+                    "id": 16248109,
+                    "name": "Видео"
+                },
+                "hobby_games": {
+                    "id": 16248110,
+                    "name": "Hobby Games"
+                },
+                "dota2": {
+                    "id": 16248111,
+                    "name": "Dota 2"
+                },
+                "cs2": {
+                    "id": 16248112,
+                    "name": "Counter-Strike 2"
+                },
+                "hearthstone": {
+                    "id": 16248113,
+                    "name": "Hearthstone"
+                },
+                "clash_royale": {
+                    "id": 16248114,
+                    "name": "Clash Royale"
+                },
+                "starcraft": {
+                    "id": 16248115,
+                    "name": "StarCraft"
+                },
+                "valorant": {
+                    "id": 16248116,
+                    "name": "Valorant"
+                },
+                "rocket_league": {
+                    "id": 16248117,
+                    "name": "Rocket League"
+                },
+                "r6s": {
+                    "id": 16248118,
+                    "name": "Rainbow Six Siege"
+                },
+                "osu": {
+                    "id": 16248119,
+                    "name": "osu!"
+                },
+                "minecraft": {
+                    "id": 16248120,
+                    "name": "Minecraft"
+                },
+                "tekken8": {
+                    "id": 16248121,
+                    "name": "Tekken 8"
+                },
+                "warface": {
+                    "id": 16248122,
+                    "name": "Warface"
+                },
+                "mlbb": {
+                    "id": 16248123,
+                    "name": "MLBB"
+                },
+                "overwatch": {
+                    "id": 16248124,
+                    "name": "Overwatch"
+                },
+                "lol": {
+                    "id": 16248125,
+                    "name": "League of Legends"
+                },
+                "apex": {
+                    "id": 16248126,
+                    "name": "Apex"
+                },
+                "fortnite": {
+                    "id": 16248127,
+                    "name": "Fortnite"
+                },
+                "schedule": {
+                    "id": 16248128,
+                    "name": "Schedule"
                 }
             }
         },

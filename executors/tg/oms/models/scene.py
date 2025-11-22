@@ -409,9 +409,9 @@ class Scene:
         """
         if element in self.data:
             if key in self.data[element]:
-                self.data[element][key] = value
+                self.data[element][key] = value.copy() if (isinstance(value, dict) or isinstance(value, list)) else value
             else:
-                self.data[element][key] = value
+                self.data[element][key] = value.copy() if (isinstance(value, dict) or isinstance(value, list)) else value
             await self.save_to_db()
             return True
         return False
