@@ -9,12 +9,14 @@ router = APIRouter(prefix='/user')
 async def get(
         telegram_id: Optional[int] = None,
         tasker_id: Optional[int] = None,
-        role: Optional[str] = None
+        role: Optional[str] = None,
+        user_id = None
     ):
     query = {
         'telegram_id': telegram_id,
         'tasker_id': tasker_id,
-        'role': role
+        'role': role,
+        'user_id': user_id
     }
 
     # Удаляем None значения из запроса

@@ -95,9 +95,9 @@ class TaskListPage(Page):
             # Задачи созданные пользователем
             tasks = await get_cards(customer_id=user_uuid)
         elif selected_filter == 'for-review':
-            # Задачи на проверку (статус edited)
-            tasks = await get_cards(status=CardStatus.edited)
-        
+            # Задачи на проверку
+            tasks = await get_cards(status=CardStatus.review)
+
         await self.scene.update_key('scene', 'tasks', tasks)
 
     async def buttons_worker(self) -> list[dict]:
@@ -139,7 +139,8 @@ class TaskListPage(Page):
                     self.scene.__scene_name__, 
                     'page_nav', 
                     str(current_page - 1)
-                )
+                ),
+                "ignore_row": True
             })
         
         # Следующая страница
@@ -150,7 +151,8 @@ class TaskListPage(Page):
                     self.scene.__scene_name__, 
                     'page_nav', 
                     str(current_page + 1)
-                )
+                ),
+                "ignore_row": True
             })
         
         # Добавляем навигационные кнопки в новой строке

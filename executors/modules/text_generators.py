@@ -1,13 +1,21 @@
 
+from pprint import pprint
 from aiogram import Bot, Dispatcher
 from tg.main import TelegramExecutor
 from modules.executors_manager import manager
 from modules.constants import SETTINGS
 from modules.api_client import brain_api, get_cards, update_card, get_users
 from global_modules.classes.enums import CardStatus
+from modules.utils import get_telegram_user
 
 forum_topic = SETTINGS.get('forum_topic', 0)
 group_forum = SETTINGS.get('group_forum', 0)
+
+pass_tag = '#НовоеЗадание'
+edited_tag = '#ЗаданиеВыполняется'
+open_chacked_tag = '#ЗаданиеТребуетПроверки'
+chacked_tag = '#ЗаданиеНаПроверке'
+
 
 
 async def card_deleted(card_id: str):
@@ -42,7 +50,57 @@ async def card_deleted(card_id: str):
 
     return {"success": True}
 
-async def forum_message(card_id: str):
+async def text_getter(card: dict, tag: str, 
+                      client_executor: TelegramExecutor) -> str:
+
+    name = card.get("name", "No Title")
+    description = card.get("description", "No Description")
+    deadline = card.get("deadline", "Без дедлайна")
+    tags = card.get("tags", []) if card.get("tags", []) else ["Без тегов"]
+    need_check = "✅" if card.get("need_check", False) else "❌"
+
+    data_list = []
+    for i in ['executor_id', 'customer_id']:
+
+        _id = card.get(i)
+
+        if _id is not None:
+            users = await get_users(user_id=_id)
+            user = users[0] if users else None
+
+            if user is not None:
+                tg_user = await get_telegram_user(
+                    bot=client_executor.bot,
+                    telegram_id=user.get("telegram_id")
+                )
+                if tg_user:
+                    username = f'@{tg_user.username}' if tg_user.username else f'`{tg_user.full_name}`'
+            else:
+                username = f"ID: {card.get(i)} (ошибка получения)"
+        else:
+            username = "👤 Не назначен"
+
+        data_list.append(username)
+
+    executor_nick, customer_nick = data_list
+
+    text = (f'Статус: {tag}\n'
+        f'Появилось новое задание!'
+        f'\n'
+        f'\nНазвание: `{name}`'
+        f'\nДедлайн: {deadline}'
+        f'\nИсполнитель: {executor_nick}'
+        f'\nЗаказчик: {customer_nick}'
+        f'\nТеги: {", ".join(tags)}'
+        f'\nПроверяемый: {need_check}'
+        f'\n\n```Описание'
+        f'\n{description}'
+        f'```'
+    )
+
+    return text
+
+async def forum_message(card_id: str, status: str):
     """Отправить сообщение в форум о новой карточке и обновить карточку с ID сообщения"""
 
     client_executor: TelegramExecutor = manager.get(
@@ -57,31 +115,65 @@ async def forum_message(card_id: str):
         return {"error": "Card not found", "success": False}
     else:
         card = cards[0]
-        name = card.get("name", "No Title")
-        description = card.get("description", "No Description")
-        deadline = card.get("deadline", "No Deadline")
-        tags = card.get("tags", [])
 
-    markup = [
-        {
-            "text": "Забрать задание",
-            "callback_data": "take_task"
-        }
-    ]
+    if status == CardStatus.pass_.value:
+        tag = pass_tag
+        markup = [
+            {
+                "text": "Забрать задание",
+                "callback_data": "take_task"
+            }
+        ]
 
-    text = f'Появилось новое задание: {name}\n\nОписание: {description}\n\nСрок: {deadline}\n\nТеги: #{", #".join(tags)}'
+    elif status == CardStatus.edited.value:
 
-    data = await client_executor.send_message(
-        reply_to_message_id=forum_topic,
-        chat_id=group_forum,
-        text=text,
-        list_markup=markup
-    )
+        tag = edited_tag
+
+        markup = [
+            {
+                "text": "Задание взято",
+                "callback_data": " "
+            }
+        ]
+
+    text = await text_getter(card, tag, client_executor)
+    
+    print(card)
+
+    if card.get("forum_message_id", None) is None:
+
+        data = await client_executor.send_message(
+            reply_to_message_id=forum_topic,
+            chat_id=group_forum,
+            text=text,
+            list_markup=markup,
+            parse_mode="Markdown"
+        )
+
+    else:
+        data = await client_executor.edit_message(
+            chat_id=group_forum,
+            message_id=card["forum_message_id"],
+            text=text,
+            parse_mode="Markdown",
+            list_markup=markup
+        )
+
+        if not data.get("success", False):
+            print(data)
+
+            data = await client_executor.send_message(
+                reply_to_message_id=forum_topic,
+                chat_id=group_forum,
+                text=text,
+                list_markup=markup,
+                parse_mode="Markdown"
+            )
 
     status = data.get("success", False)
     if not status:
         return {
-            "error": "Не удалось отправить сообщение в форум", 
+            "error": f"Не удалось отправить сообщение в форум. Error: {data.get('error', '')}", 
             "success": False
         }
 
@@ -107,18 +199,18 @@ async def card_executed(card_id: str, telegram_id: int):
     else:
         card = cards[0]
         executor_id = users[0]['user_id']
-        markup = [
-            {
-                "text": "Задание взято",
-                "callback_data": " "
-            }
-        ]
+        # markup = [
+        #     {
+        #         "text": "Задание взято",
+        #         "callback_data": " "
+        #     }
+        # ]
 
-        await client_executor.update_markup(
-            chat_id=group_forum,
-            message_id=card['forum_message_id'],
-            list_markup=markup
-        )
+        # await client_executor.update_markup(
+        #     chat_id=group_forum,
+        #     message_id=card['forum_message_id'],
+        #     list_markup=markup
+        # )
 
         await update_card(
             card_id=card_id,

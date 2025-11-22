@@ -28,7 +28,8 @@ class TelegramExecutor(BaseExecutor):
                 text: str, 
                 reply_to_message_id: Optional[int] = None,
                 list_markup: Optional[list] = None,
-                row_width: int = 3
+                row_width: int = 3,
+                parse_mode: Optional[str] = None
                            ) -> dict:
         """Отправить сообщение"""
         markup = list_to_inline(list_markup or [], row_width=row_width)
@@ -36,7 +37,8 @@ class TelegramExecutor(BaseExecutor):
         try:
             result = await self.bot.send_message(chat_id, text,
                     reply_to_message_id=reply_to_message_id,
-                    reply_markup=markup
+                    reply_markup=markup,
+                    parse_mode=parse_mode
                                                  )
             return {"success": True, "message_id": result.message_id}
         except Exception as e:
@@ -59,10 +61,25 @@ class TelegramExecutor(BaseExecutor):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def edit_message(self, chat_id: str, message_id: str, text: str) -> dict:
+    async def edit_message(self, 
+                           chat_id: str, 
+                           message_id: str, 
+                           text: str,
+                           parse_mode: Optional[str] = None,
+                           list_markup: Optional[list] = None,
+                           row_width: int = 3
+                           ) -> dict:
         """Изменить сообщение"""
+        markup = list_to_inline(list_markup or [], row_width=row_width) if list_markup is not None else None
+        
         try:
-            await self.bot.edit_message_text(text, chat_id, int(message_id))
+            await self.bot.edit_message_text(
+                text=text, 
+                chat_id=chat_id, 
+                message_id=int(message_id), 
+                parse_mode=parse_mode,
+                reply_markup=markup
+            )
             return {"success": True}
         except Exception as e:
             return {"success": False, "error": str(e)}

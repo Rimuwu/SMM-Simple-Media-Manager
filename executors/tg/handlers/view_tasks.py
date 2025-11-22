@@ -16,7 +16,7 @@ async def cmd_view_tasks(message: Message):
     """Команда для просмотра задач"""
     if not message.from_user:
         return
-        
+
     logger.info(f"User {message.from_user.id} requested tasks view")
 
     try:

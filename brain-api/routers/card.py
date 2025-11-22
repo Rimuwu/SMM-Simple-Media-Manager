@@ -9,6 +9,8 @@ from modules.json_get import open_settings
 from models.Card import Card, CardStatus
 from modules.api_client import executors_api
 from modules.calendar import create_calendar_event, delete_calendar_event
+from models.User import User
+
 
 # Создаём роутер
 router = APIRouter(prefix='/card')
@@ -190,6 +192,43 @@ async def update_card(card_data: CardUpdate):
 
     data = card_data.model_dump(exclude={'card_id'})
     data = {k: v for k, v in data.items() if v is not None}
+
+    if card_data.status != card.status:
+
+        if card_data.status == CardStatus.edited:
+            board_id = settings['space'][
+                'boards']['in_progress']['id']
+            column_id = settings['space'][
+                'boards']['in_progress']['columns'][0]['id']
+
+            if card.task_id != 0:
+                async with kaiten as client:
+                    await client.update_card(
+                        card.task_id,
+                        board_id=board_id,
+                        column_id=column_id
+                    )
+
+                    await client.add_comment(
+                        card.task_id,
+                        "Задание взято в работу"
+                    )
+
+    if card_data.executor_id != card.executor_id:
+
+        user = await User.get_by_key(
+            'user_id', card_data.executor_id
+        )
+        if user and card.task_id != 0:
+            tasker_id = user.tasker_id
+            if tasker_id:
+
+                async with kaiten as client:
+
+                    await client.add_card_member(
+                        card.task_id,
+                        tasker_id
+                    )
 
     await card.update(**data)
     return card.to_dict()

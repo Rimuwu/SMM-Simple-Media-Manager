@@ -25,7 +25,7 @@ class FilterSelectionPage(Page):
                 ('my-tasks', '📋 Мои задачи'),
                 ('all-tasks', '📁 Все задачи'), 
                 ('created-by-me', '➕ Созданные мной'),
-                ('for-review', '✅ Проверяемые мной')
+                ('for-review', '✨ Требуют проверки')
             ]
         elif user_role == UserRole.copywriter:
             filters = [
@@ -34,7 +34,7 @@ class FilterSelectionPage(Page):
         elif user_role == UserRole.editor:
             filters = [
                 ('my-tasks', '📋 Мои задачи'),
-                ('for-review', '✅ Проверяемые мной')
+                ('for-review', '✨ Требуют проверки')
             ]
         elif user_role == UserRole.customer:
             filters = [

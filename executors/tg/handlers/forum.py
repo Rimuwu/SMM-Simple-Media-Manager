@@ -2,7 +2,8 @@
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, CallbackQuery
-from modules.text_generators import card_executed
+from global_modules.classes.enums import CardStatus
+from modules.text_generators import card_executed, forum_message
 from modules.logs import executors_logger as logger
 from modules.executors_manager import manager
 from aiogram import F
@@ -17,7 +18,7 @@ dp: Dispatcher = client_executor.dp
 bot: Bot = client_executor.bot
 
 @dp.callback_query(F.data == "take_task")
-async def create_user(callback: CallbackQuery):
+async def take_task(callback: CallbackQuery):
 
     message_id = callback.message.message_id
     users = await get_users(telegram_id=callback.from_user.id)
@@ -54,7 +55,20 @@ async def create_user(callback: CallbackQuery):
             "Задание уже взято другим исполнителем.", show_alert=True)
         return
 
-    await card_executed(
+    data = await card_executed(
         card_id=card_id,
         telegram_id=callback.from_user.id
     )
+
+    if not data.get("success", False):
+        await callback.answer(
+            "Не удалось взять задание в работу.", show_alert=True)
+        return
+
+    await forum_message(
+        card_id=card_id,
+        status=CardStatus.edited.value
+    )
+
+    await callback.answer(
+        "Вы успешно взяли задание в работу.", show_alert=True)

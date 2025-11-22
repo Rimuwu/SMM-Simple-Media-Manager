@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 from pyrogram import Client
 from pyrogram.errors import (
     ApiIdInvalid, 
@@ -155,7 +156,7 @@ class TelegramPyrogramExecutor(BaseExecutor):
             logger.error(f"Error forwarding message: {e}")
             return {"success": False, "error": str(e)}
 
-    async def shedule_message(self, chat_id: str, text: str, schedule_time: int, **kwargs) -> dict:
+    async def schedule_message(self, chat_id: str, text: str, schedule_date: datetime.datetime, **kwargs) -> dict:
         """Запланировать сообщение"""
         try:
             if not self.client or not await self.client.get_me():
@@ -165,7 +166,7 @@ class TelegramPyrogramExecutor(BaseExecutor):
             await self.client.send_message(
                 chat_id=chat_id,
                 text=text,
-                schedule_time=schedule_time,
+                schedule_date=schedule_date,
                 **kwargs
             )
 

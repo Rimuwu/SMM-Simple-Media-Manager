@@ -123,3 +123,8 @@ class TaskDetailPage(Page):
                 await self.scene.update_key(
                     'scene', 'selected_task', None)
                 await self.scene.update_page('task-list')
+
+                await callback.answer("Задача успешно удалена.", show_alert=True)
+
+            else:
+                await callback.answer("Ошибка при удалении задачи.", show_alert=True)
