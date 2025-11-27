@@ -104,3 +104,11 @@ async def cmd_update_role(message: Message):
 
     else:
         await message.answer("Не удалось получить вашу роль пользователя.")
+
+@dp.callback_query(F.data == "delete_message")
+async def delete_message_callback(callback):
+    """Обработчик для удаления сообщения по коллбеку"""
+    try:
+        await callback.message.delete()
+    except Exception as e:
+        logger.error(f"Error deleting message: {e}")

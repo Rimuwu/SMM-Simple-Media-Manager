@@ -17,10 +17,19 @@ from global_modules.api_configurate import get_fastapi_app
 from modules.logs import brain_logger
 from modules.kaiten import kaiten
 from modules.config_kaiten import sync_kaiten_settings
+from modules.scheduler import TaskScheduler
+from database.connection import session_factory
+import asyncio
+
+
+# Глобальный экземпляр планировщика
+scheduler = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global scheduler
+    
     # Startup
     brain_logger.info("API is starting up...")
     brain_logger.info("Creating missing tables on startup...")
@@ -31,11 +40,24 @@ async def lifespan(app: FastAPI):
 
     await sync_kaiten_settings()
 
+    # Запуск планировщика задач
+    brain_logger.info("Starting task scheduler...")
+    scheduler = TaskScheduler(session_factory=session_factory, check_interval=10)
+    scheduler_task = asyncio.create_task(scheduler.start())
+
     # await test_db()
     
     yield
 
     # Shutdown
+    brain_logger.info("Stopping task scheduler...")
+    if scheduler:
+        await scheduler.stop()
+    scheduler_task.cancel()
+    try:
+        await scheduler_task
+    except asyncio.CancelledError:
+        pass
 
 app = get_fastapi_app(
     title="API",

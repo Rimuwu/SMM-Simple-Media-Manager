@@ -20,6 +20,13 @@ class MainPage(Page):
 
         if not data['tags']:
             add_vars['tags'] = '⭕'
+        
+        # Показываем количество файлов
+        files = data.get('files', [])
+        if files:
+            add_vars['files'] = f'📎 {len(files)} файл(ов)'
+        else:
+            add_vars['files'] = '⭕'
 
         self.content = self.append_variables(
             **add_vars

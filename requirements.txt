@@ -27,4 +27,5 @@ tgcrypto==1.2.5
 aiohttp>=3.8.0
 asyncio-throttle>=1.0.0
 
-g4f==0.6.4.0
+g4f==6.6.6
+python-multipart==0.0.20

@@ -11,6 +11,7 @@ from global_modules.classes.enums import UserRole, CardStatus, AutomationTypes
 __all__ = [
     "User", "UserRole",
     "Card", "CardStatus", 
+    "ScheduledTask", "TaskStatus",
     # "Message", "MessageType",
     # "Automation", "AutomationTypes", "Preset"
 ]

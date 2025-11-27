@@ -5,6 +5,7 @@ from .date_page import DatePage
 from .main_page import MainPage
 from .finish_page import FinishPage
 from .tags_page import TagsPage
+from .files_page import FilesPage
 
 class CreateTaskScene(Scene):
 
@@ -15,5 +16,6 @@ class CreateTaskScene(Scene):
         DatePage,
         FinishPage,
         TagsPage,
-        UserPage
+        UserPage,
+        FilesPage
     ]
