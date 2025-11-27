@@ -11,6 +11,8 @@ from .status_page import StatusSetterPage
 from .ai_check_page import AICheckPage
 from .tags_page import TagsSetterPage
 from .main_page import MainPage
+from .files_page import FilesPage
+from .preview_page import PreviewPage
 
 class TaskScene(Scene):
 
@@ -22,7 +24,9 @@ class TaskScene(Scene):
         PublishDateSetterPage,
         StatusSetterPage,
         AICheckPage,
-        TagsSetterPage
+        TagsSetterPage,
+        FilesPage,
+        PreviewPage
     ]
     
     def set_taskid(self, task_id: int):

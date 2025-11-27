@@ -165,7 +165,15 @@ async def get(task_id: Optional[str] = None,
         raise HTTPException(
             status_code=404, detail="Card not found")
 
-    return [card.to_dict() for card in cards]
+    # Конвертируем бинарные данные в hex для всех карточек
+    result = []
+    for card in cards:
+        card_dict = card.to_dict()
+        if 'post_image' in card_dict and card_dict['post_image']:
+            card_dict['post_image'] = card_dict['post_image'].hex() if isinstance(card_dict['post_image'], bytes) else None
+        result.append(card_dict)
+    
+    return result
 
 class CardUpdate(BaseModel):
     card_id: str
@@ -181,6 +189,7 @@ class CardUpdate(BaseModel):
     image_prompt: Optional[str] = None
     prompt_sended: Optional[bool] = None
     calendar_id: Optional[str] = None
+    post_image: Optional[str] = None  # Hex-encoded binary data
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
@@ -192,6 +201,13 @@ async def update_card(card_data: CardUpdate):
 
     data = card_data.model_dump(exclude={'card_id'})
     data = {k: v for k, v in data.items() if v is not None}
+    
+    # Преобразуем hex-строку в bytes для post_image
+    if 'post_image' in data and data['post_image']:
+        try:
+            data['post_image'] = bytes.fromhex(data['post_image'])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid hex format for post_image")
 
     if card_data.status != card.status:
 
@@ -233,7 +249,14 @@ async def update_card(card_data: CardUpdate):
     print("Updating card:", data)
 
     await card.update(**data)
-    return card.to_dict()
+    
+    # Возвращаем словарь без бинарных данных
+    result = card.to_dict()
+    if 'post_image' in result:
+        # Удаляем бинарные данные из ответа или конвертируем в hex
+        result['post_image'] = result['post_image'].hex() if result['post_image'] else None
+    
+    return result
 
 @router.delete("/delete/{card_id}")
 async def delete_card(card_id: str):

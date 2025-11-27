@@ -48,7 +48,8 @@ class APIClient:
 
     async def get(self, endpoint: str, 
                   params: dict = None,
-                  use_cache: bool = False):
+                  use_cache: bool = False,
+                  return_bytes: bool = False):
         # Фильтруем None значения из params
         if params:
             params = {k: v for k, v in params.items() if v is not None}
@@ -59,8 +60,8 @@ class APIClient:
         if params:
             params = json.loads(json.dumps(params))  # Преобразуем параметры в стандартный формат
 
-        if use_cache:
-            # Проверяем кеш
+        if use_cache and not return_bytes:
+            # Проверяем кеш (только для JSON ответов)
             cached_response, cached_status = self._get_from_cache(cache_key)
             if cached_response is not None:
                 if getenv("DEBUG", False) == 'true':
@@ -70,12 +71,18 @@ class APIClient:
         # Если в кеше нет, делаем запрос
         async with aiohttp.ClientSession() as session:
             async with session.get(f"{self.base_url}{endpoint}", params=params) as response:
-                response_data = await response.json()
                 status_code = response.status
-
-                # Кешируем только успешные ответы (статус 200-299)
-                if 200 <= status_code < 300:
-                    self._save_to_cache(cache_key, response_data, status_code)
+                
+                if return_bytes:
+                    # Возвращаем бинарные данные
+                    response_data = await response.read()
+                else:
+                    # Возвращаем JSON
+                    response_data = await response.json()
+                    
+                    # Кешируем только успешные JSON ответы (статус 200-299)
+                    if 200 <= status_code < 300:
+                        self._save_to_cache(cache_key, response_data, status_code)
                 
                 return response_data, status_code
 

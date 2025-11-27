@@ -1,6 +1,7 @@
 from tg.oms.models.text_page import TextTypeScene
 from modules.api_client import update_card
 from tg.oms.utils import callback_generator
+from aiogram.types import Message, MessageEntity
 
 class ContentSetterPage(TextTypeScene):
     
@@ -8,6 +9,43 @@ class ContentSetterPage(TextTypeScene):
     __scene_key__ = 'content'
     __next_page__ = 'main-page'
     checklist = False
+    
+    def _convert_entities_to_markdown(self, text: str, entities: list[MessageEntity]) -> str:
+        """Конвертирует Telegram entities в Markdown формат"""
+        if not entities:
+            return text
+        
+        # Сортируем entities по offset в обратном порядке
+        sorted_entities = sorted(entities, key=lambda e: e.offset, reverse=True)
+        
+        result = text
+        for entity in sorted_entities:
+            start = entity.offset
+            end = entity.offset + entity.length
+            entity_text = text[start:end]
+            
+            # Конвертируем в зависимости от типа
+            if entity.type == "bold":
+                replacement = f"**{entity_text}**"
+            elif entity.type == "italic":
+                replacement = f"*{entity_text}*"
+            elif entity.type == "code":
+                replacement = f"`{entity_text}`"
+            elif entity.type == "pre":
+                language = entity.language or ""
+                replacement = f"```{language}\n{entity_text}\n```"
+            elif entity.type == "text_link":
+                replacement = f"[{entity_text}]({entity.url})"
+            elif entity.type == "underline":
+                replacement = f"__{entity_text}__"
+            elif entity.type == "strikethrough":
+                replacement = f"~~{entity_text}~~"
+            else:
+                continue
+            
+            result = result[:start] + replacement + result[end:]
+        
+        return result
     
     async def data_preparate(self) -> None:
         await super().data_preparate()
@@ -37,7 +75,6 @@ class ContentSetterPage(TextTypeScene):
                 'callback_data': callback_generator(
                     self.scene.__scene_name__, 'to_content')
             })
-        print(buttons_list)
 
         return buttons_list
 
@@ -69,10 +106,16 @@ class ContentSetterPage(TextTypeScene):
         await self.scene.update_message()
 
     @TextTypeScene.on_text('str')
-    async def handle_text(self, message, value: str):
-        text = value.strip()
-        self.clear_content()
+    async def handle_text(self, message: Message, value: str):
+        # Получаем текст и entities для форматирования
+        text = message.text or ""
+        entities = message.entities or []
         
+        # Конвертируем entities в Markdown
+        # formatted_text = self._convert_entities_to_markdown(text, entities)
+        formatted_text = message.html_text or text
+
+        self.clear_content()
         if self.checklist: return
 
         if len(text) < self.min_length:
@@ -85,15 +128,15 @@ class ContentSetterPage(TextTypeScene):
             await self.scene.update_message()
             return
 
-        # Сохраняем контент в сцену
-        await self.scene.update_key('scene', self.scene_key, text)
+        # Сохраняем контент с форматированием в сцену
+        await self.scene.update_key('scene', self.scene_key, formatted_text)
         
         # Обновляем карточку
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
             await update_card(
                 card_id=task_id,
-                content=text
+                content=formatted_text
             )
 
         # Переходим к следующей странице

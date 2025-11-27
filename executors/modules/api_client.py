@@ -53,7 +53,8 @@ async def update_card(card_id: str,
                       deadline: Optional[str] = None,
                       image_prompt: Optional[str] = None,
                       prompt_sended: Optional[bool] = None,
-                      calendar_id: Optional[str] = None
+                      calendar_id: Optional[str] = None,
+                      binary_data: Optional[bytes] = None
                       ):
     """
     Обновить карточку
@@ -71,7 +72,8 @@ async def update_card(card_id: str,
         "deadline": deadline,
         "image_prompt": image_prompt,
         "prompt_sended": prompt_sended,
-        "calendar_id": calendar_id
+        "calendar_id": calendar_id,
+        "post_image": binary_data.hex() if binary_data else None
     }
     card, res_status = await brain_api.post(
         f"/card/update",

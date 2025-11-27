@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from enum import Enum
@@ -46,6 +46,7 @@ class Card(Base, AsyncCRUDMixin):
 
     image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     prompt_sended: Mapped[bool] = mapped_column(Boolean, default=False)
+    post_image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
 
     forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
 
