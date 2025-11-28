@@ -128,3 +128,75 @@ async def update_user(telegram_id: int,
         return None
 
     return user
+
+
+# ===== Работа со сценами =====
+
+async def insert_scene(user_id: int, data: dict) -> bool:
+    """Создание новой сцены в БД"""
+    scene_data = {
+        "user_id": user_id,
+        "scene": data.get("scene"),
+        "scene_path": data.get("scene_path"),
+        "page": data.get("page"),
+        "message_id": data.get("message_id"),
+        "data": data.get("data")
+    }
+    
+    scene, res_status = await brain_api.post(
+        "/scene/create",
+        data=scene_data
+    )
+    
+    return res_status == 200 and scene is not None
+
+
+async def load_scene(user_id: int) -> dict | None:
+    """Загрузка сцены пользователя из БД"""
+    scene, res_status = await brain_api.get(
+        f"/scene/get/{user_id}"
+    )
+    
+    if res_status == 200 and scene:
+        return scene
+    
+    return None
+
+
+async def update_scene(user_id: int, data: dict) -> bool:
+    """Обновление сцены в БД"""
+    scene_data = {
+        "user_id": user_id,
+        "scene": data.get("scene"),
+        "scene_path": data.get("scene_path"),
+        "page": data.get("page"),
+        "message_id": data.get("message_id"),
+        "data": data.get("data")
+    }
+    
+    scene, res_status = await brain_api.post(
+        "/scene/update",
+        data=scene_data
+    )
+    
+    return res_status == 200 and scene is not None
+
+
+async def delete_scene(user_id: int) -> bool:
+    """Удаление сцены пользователя из БД"""
+    result, res_status = await brain_api.delete(
+        f"/scene/delete/{user_id}"
+    )
+    
+    return res_status == 200
+
+async def get_all_scenes() -> list[dict]:
+    """Получить все сцены из БД"""
+    scenes, res_status = await brain_api.get(
+        "/scene/get-all"
+    )
+    
+    if res_status == 200 and scenes:
+        return scenes
+
+    return []

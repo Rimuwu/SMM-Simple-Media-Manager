@@ -1,9 +1,6 @@
-from pprint import pprint
-from aiogram import Bot
 from tg.oms import Scene
-import asyncio
 
-from modules.api_client import get_cards, update_card
+from modules.api_client import get_cards, update_card, insert_scene, load_scene, update_scene, delete_scene
 from .channels_page import ChannelsSettingsPage
 from .content_page import ContentSetterPage
 from .publish_date_page import PublishDateSetterPage
@@ -28,6 +25,12 @@ class TaskScene(Scene):
         FilesPage,
         PreviewPage
     ]
+
+    # Привязываем функции для работы с БД
+    __insert_function__ = staticmethod(insert_scene)
+    __load_function__ = staticmethod(load_scene)
+    __update_function__ = staticmethod(update_scene)
+    __delete_function__ = staticmethod(delete_scene)
     
     def set_taskid(self, task_id: int):
         """Устанавливает ID задачи в данные сцены"""
@@ -42,7 +45,9 @@ class TaskScene(Scene):
             )
             return
 
-        await super().start()
+        await self.insert_to_db()
+        await self.save_to_db()
+        await self.send_message()
 
     async def get_card_data(self):
         """Получает данные задачи по её ID"""

@@ -1,6 +1,8 @@
 # Импортируем все модели в правильном порядке для SQLAlchemy
 from .User import User
 from .Card import Card
+from .Scene import Scene
+from .ScheduledTask import ScheduledTask
 # from .Message import Message
 # from .Automation import Automation, Preset
 

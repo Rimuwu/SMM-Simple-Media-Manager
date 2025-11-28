@@ -1,10 +1,11 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import get_cards, brain_api
+from modules.api_client import get_cards, brain_api, delete_scene
 from global_modules.classes.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
 from modules.api_client import get_user_role
+from tg.oms import Scene
 
 
 class TaskDetailPage(Page):
@@ -103,16 +104,18 @@ class TaskDetailPage(Page):
         action = args[1]
 
         if action == 'open_task':
+            selected_task = self.scene.data['scene'].get('selected_task')
+
             await self.scene.end()
+
             edit_scene: TaskScene = scene_manager.create_scene(
                 self.scene.user_id, TaskScene, 
                 self.scene.__bot__
-            ) # type: ignore
-            edit_scene.set_taskid(
-                self.scene.data['scene'].get('selected_task')
-                )
+            )
+            edit_scene.set_taskid(selected_task)
 
             await edit_scene.start()
+            return 'exit'
 
         elif action == 'delete':
             # Удаляем задачу

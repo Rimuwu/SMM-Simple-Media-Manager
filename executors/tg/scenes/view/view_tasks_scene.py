@@ -2,6 +2,8 @@ from tg.oms import Scene
 from .filter_selection_page import FilterSelectionPage
 from .task_list_page import TaskListPage
 from .task_detail_page import TaskDetailPage
+from modules.api_client import insert_scene, load_scene, update_scene, delete_scene
+
 
 class ViewTasksScene(Scene):
 
@@ -11,3 +13,9 @@ class ViewTasksScene(Scene):
         TaskListPage,
         TaskDetailPage
     ]
+
+    # Привязываем функции для работы с БД
+    __insert_function__ = staticmethod(insert_scene)
+    __load_function__ = staticmethod(load_scene)
+    __update_function__ = staticmethod(update_scene)
+    __delete_function__ = staticmethod(delete_scene)

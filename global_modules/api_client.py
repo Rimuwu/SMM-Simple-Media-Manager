@@ -87,8 +87,8 @@ class APIClient:
                 return response_data, status_code
 
     async def post(self, endpoint: str, data: dict = None):
-        if getenv("DEBUG", False) == 'true': 
-            print(data)
+        # if getenv("DEBUG", False) == 'true': 
+        #     print(data)
 
         # Фильтруем None значения из data
         if data:

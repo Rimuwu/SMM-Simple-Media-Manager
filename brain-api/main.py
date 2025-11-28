@@ -12,6 +12,7 @@ from routers.ai import router as ai_router
 from routers.kaiten import router as kaiten_router
 from routers.kaiten_files import router as kaiten_files_router
 from routers.user import router as user_router
+from routers.scene import router as scene_router
 
 from global_modules.api_configurate import get_fastapi_app
 
@@ -70,7 +71,8 @@ app = get_fastapi_app(
     middlewares=[],
     routers=[
         standart_router, card_router, ai_router,
-        kaiten_router, kaiten_files_router, user_router
+        kaiten_router, kaiten_files_router, user_router,
+        scene_router
     ],
     api_logger=brain_logger
 )

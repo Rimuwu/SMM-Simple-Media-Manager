@@ -60,7 +60,7 @@ class Scene:
         return self
 
     async def start(self):
-        await self.save_to_db()
+        await self.insert_to_db()
         await self.send_message()
 
 
@@ -109,6 +109,17 @@ class Scene:
     async def update_page(self, page_name: str):
 
         if page_name not in self.scene.pages:
+            await self.__bot__.send_message(
+                self.user_id,
+                f'❌ Ошибка получения станицы. Попробуйте войти в сцену заново.'
+            )
+            try:
+                await self.__bot__.delete_message(
+                    self.user_id,
+                    self.message_id
+                )
+                await self.end()
+            except Exception as e: pass
             raise ValueError(f"Страница {page_name} не найдена в сцене {self.__scene_name__}")
 
         page_model: Page = self.pages[page_name]
@@ -325,6 +336,13 @@ class Scene:
         self.data = copy.deepcopy(data.get('data', {'scene': {}}))
         self.scene: SceneModel = scenes_loader.get_scene(
             self.__scene_name__) # type: ignore
+    
+    async def insert_to_db(self) -> bool:
+        if not self.__insert_function__:
+            return False
+
+        await self.__insert_function__(user_id=self.user_id, data=self.data_to_save())
+        return True
 
     async def save_to_db(self) -> bool:
         if not self.__insert_function__ or not self.__update_function__:
@@ -332,9 +350,7 @@ class Scene:
 
         if self.__load_function__:
             exist = await self.__load_function__(self.user_id)
-            if not exist:
-                await self.__insert_function__(user_id=self.user_id, data=self.data_to_save())
-            else:
+            if exist:
                 await self.__update_function__(user_id=self.user_id, data=self.data_to_save())
         return True
 

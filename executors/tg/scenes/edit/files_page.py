@@ -14,8 +14,7 @@ class FilesPage(Page):
     def __after_init__(self):
         """Инициализация значений по умолчанию"""
         self.max_files = 10  # Максимальное количество загружаемых файлов
-        self.allowed_types = ['photo', 'document', 'video']
-    
+
     async def data_preparate(self):
         """Подготовка данных перед отображением"""
         card = await self.scene.get_card_data()

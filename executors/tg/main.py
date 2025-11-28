@@ -3,8 +3,10 @@ from typing import Optional
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from tg.oms.utils import list_to_inline
+from tg.oms import scene_manager
 from modules.executor import BaseExecutor
 from modules.logs import executors_logger as logger
+from modules.api_client import get_all_scenes
 
 class TelegramExecutor(BaseExecutor):
     """Исполнитель для Telegram"""
@@ -95,6 +97,20 @@ class TelegramExecutor(BaseExecutor):
     async def start_polling(self):
         """Запустить пуллинг"""
         self.setup_handlers()
+        
+        all_scenes = await get_all_scenes()
+
+        for scene_data in all_scenes:
+
+            scene_manager.load_scene_from_db(
+                user_id=scene_data['user_id'],
+                scene_path=scene_data['scene_path'],
+                page=scene_data['page'],
+                message_id=scene_data['message_id'],
+                data=scene_data['data'],
+                bot_instance=self.bot,
+                update_message=False
+            )
 
         while self.is_running:
             try:
