@@ -72,6 +72,7 @@ services:
       - VK_ACCESS_TOKEN=${VK_ACCESS_TOKEN}
       - TP_PASSWORD=${TP_PASSWORD}
       - DEBUG=${DEBUG}
+      - KAITEN_DOMAIN=${KAITEN_DOMAIN}
     ports:
       - "8003:8003"
     depends_on:

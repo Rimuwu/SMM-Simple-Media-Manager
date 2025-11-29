@@ -1,8 +1,12 @@
 from datetime import datetime
 from pprint import pprint
 from typing import Optional
+from uuid import UUID as _UUID
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import selectinload
+from sqlalchemy import select
+from database.connection import session_factory
 from modules.kaiten import kaiten
 from modules.properties import multi_properties
 from modules.json_get import open_settings
@@ -148,32 +152,66 @@ async def get(task_id: Optional[str] = None,
               need_check: Optional[bool] = None,
               forum_message_id: Optional[int] = None
               ):
-    query = {
-        "task_id": task_id,
-        "card_id": card_id,
-        "status": status,
-        "customer_id": customer_id,
-        "executor_id": executor_id,
-        "need_check": need_check,
-        "forum_message_id": forum_message_id
-    }
-    # Убираем None значения из запроса
-    query = {k: v for k, v in query.items() if v is not None}
-
-    cards = await Card.filter_by(**query)
-    if not cards:
-        raise HTTPException(
-            status_code=404, detail="Card not found")
-
-    # Конвертируем бинарные данные в hex для всех карточек
-    result = []
-    for card in cards:
-        card_dict = card.to_dict()
-        if 'post_image' in card_dict and card_dict['post_image']:
-            card_dict['post_image'] = card_dict['post_image'].hex() if isinstance(card_dict['post_image'], bytes) else None
-        result.append(card_dict)
-    
-    return result
+    # Используем явный запрос с eager loading для связанных объектов
+    async with session_factory() as session:
+        stmt = select(Card).options(selectinload(Card.executor))
+        
+        # Применяем фильтры
+        if task_id:
+            stmt = stmt.where(Card.task_id == int(task_id))
+        if card_id:
+            stmt = stmt.where(Card.card_id == card_id)
+        if status:
+            stmt = stmt.where(Card.status == status)
+        if customer_id:
+            stmt = stmt.where(Card.customer_id == customer_id)
+        if executor_id:
+            stmt = stmt.where(Card.executor_id == executor_id)
+        if need_check is not None:
+            stmt = stmt.where(Card.need_check == need_check)
+        if forum_message_id is not None:
+            stmt = stmt.where(Card.forum_message_id == forum_message_id)
+        
+        result_db = await session.execute(stmt)
+        cards = result_db.scalars().all()
+        
+        if not cards:
+            raise HTTPException(status_code=404, detail="Card not found")
+        
+        # Получаем список пользователей из Kaiten один раз
+        kaiten_users = {}
+        try:
+            async with kaiten as client:
+                users = await client.get_company_users(only_virtual=True)
+                kaiten_users = {u['id']: u['full_name'] for u in users}
+        except Exception as e:
+            print(f"Error getting Kaiten users: {e}")
+        
+        # Конвертируем карточки в словари
+        result = []
+        for card in cards:
+            card_dict = card.to_dict()
+            
+            # Конвертируем бинарные данные
+            if 'post_image' in card_dict and card_dict['post_image']:
+                card_dict['post_image'] = card_dict['post_image'].hex() if isinstance(card_dict['post_image'], bytes) else None
+            
+            # Добавляем информацию об исполнителе
+            if card.executor:
+                kaiten_name = kaiten_users.get(card.executor.tasker_id) if card.executor.tasker_id else None
+                
+                card_dict['executor'] = {
+                    'user_id': str(card.executor.user_id),
+                    'telegram_id': card.executor.telegram_id,
+                    'tasker_id': card.executor.tasker_id,
+                    'full_name': kaiten_name or f"@{card.executor.telegram_id}"
+                }
+            else:
+                card_dict['executor'] = None
+            
+            result.append(card_dict)
+        
+        return result
 
 class CardUpdate(BaseModel):
     card_id: str
@@ -209,9 +247,24 @@ async def update_card(card_data: CardUpdate):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid hex format for post_image")
 
-    if card_data.status != card.status:
+    # Преобразуем deadline в datetime
+    if 'deadline' in data and isinstance(data['deadline'], str):
+        try:
+            data['deadline'] = datetime.fromisoformat(data['deadline'])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format for deadline")
 
-        if card_data.status == CardStatus.edited:
+    # Преобразуем UUID поля
+    for key in ['executor_id', 'customer_id']:
+        if key in data and isinstance(data[key], str):
+            try:
+                data[key] = _UUID(data[key])
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid UUID format for {key}")
+
+    if 'status' in data and data['status'] != card.status:
+
+        if data['status'] == CardStatus.edited:
             board_id = settings['space'][
                 'boards']['in_progress']['id']
             column_id = settings['space'][
@@ -230,10 +283,10 @@ async def update_card(card_data: CardUpdate):
                         "Задание взято в работу"
                     )
 
-    if card_data.executor_id != card.executor_id:
+    if 'executor_id' in data and data['executor_id'] != card.executor_id:
 
         user = await User.get_by_key(
-            'user_id', card_data.executor_id
+            'user_id', data['executor_id']
         )
         if user and card.task_id != 0:
             tasker_id = user.tasker_id

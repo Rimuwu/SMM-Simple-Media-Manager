@@ -8,6 +8,7 @@ from .tags_page import TagsPage
 from .files_page import FilesPage
 from modules.api_client import insert_scene, load_scene, update_scene, delete_scene
 from .cancel import CancelPage
+from .image import Image
 
 class CreateTaskScene(Scene):
 
@@ -20,7 +21,8 @@ class CreateTaskScene(Scene):
         TagsPage,
         UserPage,
         FilesPage,
-        CancelPage
+        CancelPage,
+        Image
     ]
 
     # Привязываем функции для работы с БД
