@@ -95,6 +95,18 @@ class TaskDetailPage(Page):
                 deadline_str = deadline
         else:
             deadline_str = 'Не установлен'
+
+        # Форматируем даты отправки
+        send_time = task.get('send_time')
+        if send_time:
+            from datetime import datetime
+            try:
+                send_time_dt = datetime.fromisoformat(send_time)
+                send_time_str = send_time_dt.strftime('%d.%m.%Y %H:%M')
+            except:
+                send_time_str = send_time
+        else:
+            send_time_str = 'Не установлено'
         
         # Форматируем каналы
         channels = task.get('clients', [])
@@ -146,7 +158,8 @@ class TaskDetailPage(Page):
             'channels': channels_str,
             'tags': tags_str,
             'image_prompt': task.get('image_prompt') or 'Не указано',
-            'kaiten_link': kaiten_link
+            'kaiten_link': kaiten_link,
+            'send_time': send_time_str
         }
 
         # Сохраняем данные задачи в сцену для использования в других методах

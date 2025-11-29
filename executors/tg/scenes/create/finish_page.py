@@ -90,7 +90,6 @@ class FinishPage(Page):
                 user_data = next((u for u in users if str(u['user_id']) == str(user_id)), None)
             
             if user_data:
-                # Получаем пользователей Kaiten если нужно
                 kaiten_users = {}
                 if user_data.get('tasker_id'):
                     k_users, k_status = await brain_api.get('/kaiten/get-users', params={'only_virtual': 1})
@@ -178,6 +177,7 @@ class FinishPage(Page):
                 'title': data['name'],
                 'description': data['description'],
                 'deadline': data['publish_date'],
+                'send_time': data['send_date'],
                 'channels': data['channels'],
                 'editor_check': True,
                 'image_prompt': data['image'],
@@ -187,16 +187,17 @@ class FinishPage(Page):
                 'customer_id': customer_id
             }
         )
+        print(res)
 
         if status and status == 200:
             if 'card_id' in res:
                 card_id = res['card_id']
-                
+
                 # Загружаем файлы если они есть
                 files = data.get('files', [])
                 if files:
                     await self._upload_files_to_card(card_id, files)
-                
+
                 await self.scene.end()
 
                 await self.scene.__bot__.send_message(
@@ -207,12 +208,12 @@ class FinishPage(Page):
             else:
                 await self.scene.__bot__.send_message(
                     self.scene.user_id,
-                    f'❌ Произошла ошибка при создании задачи: {res.get("error", "Неизвестная ошибка")}'
+                    f'❌ Произошла ошибка при создании задачи: {res.get("error", "Неизвестная ошибка 1")}'
                 )
         else:
             await self.scene.__bot__.send_message(
                 self.scene.user_id,
-                f'❌ Произошла ошибка при создании задачи: {res.get("error", "Неизвестная ошибка") if res else "Ошибка сервера"}'
+                f'❌ Произошла ошибка при создании задачи: {res.get("error", "Неизвестная ошибка 2") if res else "Ошибка сервера"}'
             )
     
     async def _upload_files_to_card(self, card_id: str, files: list):

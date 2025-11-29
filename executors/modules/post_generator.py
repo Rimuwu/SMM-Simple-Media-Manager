@@ -2,8 +2,7 @@
 Модуль для генерации постов с форматированием для различных платформ
 """
 from typing import Optional
-from modules.constants import CLIENTS
-
+from modules.constants import CLIENTS, SETTINGS
 
 def generate_post(
     content: str,
@@ -33,8 +32,10 @@ def generate_post(
         
         hashtags_list = []
         for tag in tags:
+            
+            tag_name = SETTINGS['properties']['tags']['values'].get(tag, {}).get('tag', tag)
             # Добавляем # если его нет
-            formatted_tag = tag if tag.startswith("#") else f"#{tag}"
+            formatted_tag = tag_name if tag_name.startswith("#") else f"#{tag_name}"
             # Добавляем суффикс к каждому хештегу
             if tag_suffix:
                 formatted_tag = f"{formatted_tag}{tag_suffix}"

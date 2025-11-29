@@ -54,6 +54,16 @@ class MainPage(Page):
                 add_vars['publish_date'] = data['publish_date']
         else:
             add_vars['publish_date'] = '➖'
+        
+        # Date
+        if data.get('send_date'):
+            try:
+                dt = datetime.fromisoformat(data['send_date'])
+                add_vars['send_date'] = dt.strftime('%d.%m.%Y %H:%M')
+            except ValueError:
+                add_vars['send_date'] = data['send_date']
+        else:
+            add_vars['send_date'] = '➖'
 
         # Executor
         user_id = data.get('user')
@@ -65,7 +75,6 @@ class MainPage(Page):
                 user_data = next((u for u in users if str(u['user_id']) == str(user_id)), None)
 
             if user_data:
-                # Получаем пользователей Kaiten если нужно
                 kaiten_users = {}
                 if user_data.get('tasker_id'):
                     k_users, k_status = await brain_api.get('/kaiten/get-users', params={'only_virtual': 1})
@@ -82,7 +91,7 @@ class MainPage(Page):
                 add_vars['user'] = f"ID: {user_id}"
         else:
             add_vars['user'] = '➖'
-        
+
         # Показываем количество файлов
         files = data.get('files', [])
         if files:

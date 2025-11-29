@@ -28,6 +28,7 @@ class CardCreate(BaseModel):
     title: str
     description: str
     deadline: Optional[str]  # ISO 8601 format (due_date)
+    send_time: Optional[str] = None  # ISO 8601 format (due_date_time)
 
     executor_id: Optional[str] = None # ID исполнителя в базе данных
     customer_id: Optional[str] = None # ID заказчика в базе данных
@@ -101,6 +102,7 @@ async def create_card(card_data: CardCreate):
         clients=card_data.channels,
         tags=card_data.tags,
         deadline=datetime.fromisoformat(card_data.deadline) if card_data.deadline else None,
+        send_time=datetime.fromisoformat(card_data.send_time) if card_data.send_time else None,
         image_prompt=card_data.image_prompt,
         customer_id=card_data.customer_id,
         executor_id=card_data.executor_id,
@@ -140,6 +142,7 @@ async def create_card(card_data: CardCreate):
 
     except Exception as e:
         print(f"Error creating calendar event: {e}")
+        return {'error': e.__str__()}
 
     return {"card_id": str(card.card_id)}
 
@@ -224,6 +227,7 @@ class CardUpdate(BaseModel):
     clients: Optional[list[str]] = None
     tags: Optional[list[str]] = None
     deadline: Optional[str] = None  # ISO 8601 format
+    send_time: Optional[str] = None  # ISO 8601 format
     image_prompt: Optional[str] = None
     prompt_sended: Optional[bool] = None
     calendar_id: Optional[str] = None
@@ -231,6 +235,7 @@ class CardUpdate(BaseModel):
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
+    print(card_data.__dict__)
 
     card = await Card.get_by_key('card_id', card_data.card_id)
     if not card:
@@ -239,7 +244,7 @@ async def update_card(card_data: CardUpdate):
 
     data = card_data.model_dump(exclude={'card_id'})
     data = {k: v for k, v in data.items() if v is not None}
-    
+
     # Преобразуем hex-строку в bytes для post_image
     if 'post_image' in data and data['post_image']:
         try:
@@ -298,8 +303,6 @@ async def update_card(card_data: CardUpdate):
                         card.task_id,
                         tasker_id
                     )
-    
-    print("Updating card:", data)
 
     await card.update(**data)
     
@@ -310,6 +313,24 @@ async def update_card(card_data: CardUpdate):
         result['post_image'] = result['post_image'].hex() if result['post_image'] else None
     
     return result
+
+@router.get('/delete-executor/{card_id}')
+async def delete_executor(card_id: str):
+    card = await Card.get_by_key('card_id', card_id)
+    if not card:
+        raise HTTPException(
+            status_code=404, detail="Card not found")
+
+    await card.update(executor_id=None)
+
+    if card.task_id and card.task_id != 0:
+        async with kaiten as client:
+            await client.update_card(
+                card.task_id,
+                executor_id=None
+            )
+
+    return {"detail": "Executor removed successfully"}
 
 @router.delete("/delete/{card_id}")
 async def delete_card(card_id: str):

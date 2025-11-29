@@ -17,7 +17,7 @@ class MainPage(Page):
             cards = await get_cards(card_id=task_id)
             if cards:
                 card = cards[0]
-                
+
                 # Форматируем каналы - преобразуем ключи в имена из настроек
                 channels = card.get('clients', [])
                 if channels:
@@ -47,12 +47,22 @@ class MainPage(Page):
                     tags_text = 'Не указаны'
                 
                 # Форматируем дату
-                publish_date = card.get('deadline')
+                publish_date = card.get('send_time')
                 if publish_date:
                     from datetime import datetime
                     try:
                         dt = datetime.fromisoformat(publish_date)
                         publish_date = dt.strftime('%d.%m.%Y %H:%M')
+                    except:
+                        pass
+
+                # Форматируем дату
+                deadline = card.get('deadline')
+                if deadline:
+                    from datetime import datetime
+                    try:
+                        dt = datetime.fromisoformat(deadline)
+                        deadline = dt.strftime('%d.%m.%Y %H:%M')
                     except:
                         pass
                 
@@ -82,7 +92,7 @@ class MainPage(Page):
                 await self.scene.update_key('scene', 'description', card.get('description', 'Нет описания'))
                 await self.scene.update_key('scene', 'channels', channels_text)
                 await self.scene.update_key('scene', 'publish_date', publish_date or 'Не указана')
-                await self.scene.update_key('scene', 'deadline', card.get('deadline', ''))
+                await self.scene.update_key('scene', 'deadline', deadline or 'Не указана')
                 await self.scene.update_key('scene', 'editors_check', '✅' if card.get('need_check', False) else '❌')
                 await self.scene.update_key('scene', 'status', status)
                 await self.scene.update_key('scene', 'tags', tags_text)

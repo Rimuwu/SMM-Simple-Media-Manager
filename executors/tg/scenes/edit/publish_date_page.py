@@ -16,7 +16,7 @@ class PublishDateSetterPage(Page):
         # Сохраняем дату в ISO формате
         iso_date = value.isoformat()
         
-        await self.scene.update_key('scene', 'deadline', iso_date)
+        await self.scene.update_key('scene', 'send_time', iso_date)
         
         # Форматируем для отображения
         display_date = value.strftime('%d.%m.%Y %H:%M')

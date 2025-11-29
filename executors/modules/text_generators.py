@@ -1,4 +1,5 @@
 
+from datetime import datetime
 from pprint import pprint
 from aiogram import Bot, Dispatcher
 from tg.main import TelegramExecutor
@@ -58,6 +59,13 @@ async def text_getter(card: dict, tag: str,
     deadline = card.get("deadline", "Без дедлайна")
     tags = card.get("tags", []) if card.get("tags", []) else ["Без тегов"]
     need_check = "✅" if card.get("need_check", False) else "❌"
+    
+    if deadline != "Без дедлайна":
+        try:
+            dt = datetime.fromisoformat(deadline)
+            deadline = dt.strftime('%d.%m.%Y %H:%M')
+        except: pass
+
 
     data_list = []
     for i in ['executor_id', 'customer_id']:
@@ -137,8 +145,6 @@ async def forum_message(card_id: str, status: str):
         ]
 
     text = await text_getter(card, tag, client_executor)
-    
-    print(card)
 
     if card.get("forum_message_id", None) is None:
 
@@ -199,18 +205,6 @@ async def card_executed(card_id: str, telegram_id: int):
     else:
         card = cards[0]
         executor_id = users[0]['user_id']
-        # markup = [
-        #     {
-        #         "text": "Задание взято",
-        #         "callback_data": " "
-        #     }
-        # ]
-
-        # await client_executor.update_markup(
-        #     chat_id=group_forum,
-        #     message_id=card['forum_message_id'],
-        #     list_markup=markup
-        # )
 
         await update_card(
             card_id=card_id,

@@ -9,6 +9,7 @@ from .files_page import FilesPage
 from modules.api_client import insert_scene, load_scene, update_scene, delete_scene
 from .cancel import CancelPage
 from .image import Image
+from .send_page import SendDatePage
 
 class CreateTaskScene(Scene):
 
@@ -22,7 +23,8 @@ class CreateTaskScene(Scene):
         UserPage,
         FilesPage,
         CancelPage,
-        Image
+        Image,
+        SendDatePage
     ]
 
     # Привязываем функции для работы с БД
