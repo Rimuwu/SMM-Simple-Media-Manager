@@ -1,6 +1,6 @@
 from datetime import datetime
 from tg.oms import Page
-from modules.api_client import get_cards
+from modules.api_client import get_cards, get_user_role
 from modules.constants import SETTINGS
 from global_modules.classes.enums import CardStatus
 
@@ -63,6 +63,10 @@ class MainPage(Page):
                 else:
                     content_block = 'Контент пока не указан'
                 
+                # Проверяем наличие комментариев
+                editor_notes = card.get('editor_notes', [])
+                has_notes = len(editor_notes) > 0
+                
                 # Обновляем все данные сцены одним вызовом
                 self.scene.data['scene'].update({
                     'name': card.get('name', 'Без названия'),
@@ -76,6 +80,50 @@ class MainPage(Page):
                     'content': content,
                     'content_block': content_block,
                     'clients_list': channels,
-                    'tags_list': tags
+                    'tags_list': tags,
+                    'has_notes': has_notes,
+                    'notes_count': len(editor_notes)
                 })
                 await self.scene.save_to_db()
+    
+    async def to_page_preworker(self, to_page_buttons: dict) -> dict:
+        """Фильтруем кнопки в зависимости от роли и статуса"""
+        task_id = self.scene.data['scene'].get('task_id')
+        
+        if task_id:
+            cards = await get_cards(card_id=task_id)
+            if cards:
+                card = cards[0]
+                status = card.get('status')
+                
+                # Проверяем роль пользователя
+                user_role = await get_user_role(self.scene.user_id)
+                
+                # Если статус "На проверке" и роль "копирайтер" - оставляем только комментарии
+                if status == CardStatus.review.value and user_role == 'copywriter':
+                    return {k: v for k, v in to_page_buttons.items() if k == 'editor-notes'}
+        
+        return to_page_buttons
+    
+    async def buttons_worker(self):
+        """Добавляем кнопку выхода из сцены"""
+        buttons = await super().buttons_worker()
+        
+        from tg.oms.utils import callback_generator
+        buttons.append({
+            'text': '🚪 Закрыть задачу',
+            'callback_data': callback_generator(
+                self.scene.__scene_name__,
+                'exit_scene'
+            ),
+            'ignore_row': True
+        })
+        
+        return buttons
+    
+    @Page.on_callback('exit_scene')
+    async def exit_scene(self, callback, args):
+        """Выход из сцены"""
+        await self.scene.end()
+        await callback.message.delete()
+        await callback.answer('👋 Задача закрыта')

@@ -93,7 +93,7 @@ async def get_users(
                    telegram_id: Optional[int] = None,
                    tasker_id: Optional[int] = None,
                    role: Optional[str] = None,
-                   user_id: Optional[int] = None
+                   user_id: Optional[str] = None
                    ):
     """Получить пользователей по различным параметрам"""
     params = {
@@ -246,5 +246,23 @@ async def get_kaiten_files(task_id: str):
     
     if status == 200 and response:
         return response
+    
+    return None
+
+async def add_editor_note(card_id: str, content: str, author_user_id: str):
+    """Добавить комментарий редактора к карточке"""
+    data = {
+        "card_id": card_id,
+        "content": content,
+        "author": author_user_id
+    }
+    
+    result, status = await brain_api.post(
+        "/card/add-editor-note",
+        data=data
+    )
+    
+    if status == 200:
+        return result
     
     return None

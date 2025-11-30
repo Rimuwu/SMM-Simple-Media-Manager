@@ -362,3 +362,65 @@ async def delete_card(card_id: str):
             return {"detail": "Card deleted from DB, but failed to delete forum message"}
 
     return {"detail": "Card deleted successfully"}
+
+class EditorNoteAdd(BaseModel):
+    card_id: str
+    content: str
+    author: str  # user_id автора комментария
+
+@router.post("/add-editor-note")
+async def add_editor_note(note_data: EditorNoteAdd):
+    """Добавить комментарий редактора к карточке"""
+    card = await Card.get_by_key('card_id', note_data.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    
+    # Получаем текущий список комментариев
+    editor_notes = card.editor_notes or []
+    
+    # Добавляем новый комментарий
+    new_note = {
+        "content": note_data.content,
+        "author": note_data.author,
+        "created_at": datetime.now().isoformat()
+    }
+    editor_notes.append(new_note)
+    
+    # Обновляем карточку
+    await card.update(editor_notes=editor_notes)
+    
+    # Добавляем комментарий в Kaiten если есть task_id
+    if card.task_id and card.task_id != 0:
+        try:
+            async with kaiten as client:
+                # Получаем информацию о пользователе
+                user = await User.get_by_key('user_id', note_data.author)
+                author_name = f"User {note_data.author}"
+                if user and user.tasker_id:
+                    # Получаем имя из Kaiten
+                    users = await client.get_company_users(only_virtual=True)
+                    kaiten_user = next((u for u in users if u['id'] == user.tasker_id), None)
+                    if kaiten_user:
+                        author_name = kaiten_user['full_name']
+                
+                comment_text = f"💬 Комментарий от {author_name}:\n{note_data.content}"
+                await client.add_comment(card.task_id, comment_text)
+        except Exception as e:
+            print(f"Error adding comment to Kaiten: {e}")
+    
+    # Обновляем все открытые сцены с этой карточкой
+    try:
+        update_data = {
+            "scene_name": "user-task",
+            "data_key": "task_id",
+            "data_value": str(note_data.card_id)
+        }
+        await executors_api.post("/events/update_scenes", data=update_data)
+    except Exception as e:
+        print(f"Error updating scenes: {e}")
+    
+    return {
+        "detail": "Note added successfully",
+        "note": new_note,
+        "total_notes": len(editor_notes)
+    }

@@ -10,6 +10,7 @@ from .tags_page import TagsSetterPage
 from .main_page import MainPage
 from .files_page import FilesPage
 from .preview_page import PreviewPage
+from .editor_notes_page import EditorNotesPage
 
 class TaskScene(Scene):
 
@@ -23,7 +24,8 @@ class TaskScene(Scene):
         AICheckPage,
         TagsSetterPage,
         FilesPage,
-        PreviewPage
+        PreviewPage,
+        EditorNotesPage
     ]
 
     # Привязываем функции для работы с БД

@@ -62,3 +62,63 @@ async def close_scene(user_id: int):
     for scene in active_scenes:
         if scene.user_id == user_id:
             await scene.end()
+
+    return {"status": "ok", "closed_scenes": len([s for s in active_scenes if s.user_id == user_id])}
+
+
+class UpdateScenesEvent(BaseModel):
+    scene_name: Optional[str] = None
+    page_name: Optional[str] = None
+    data_key: Optional[str] = None
+    data_value: Optional[str] = None
+
+
+@router.post("/update_scenes")
+async def update_scenes(event: UpdateScenesEvent):
+    """
+    Обновляет (перезагружает) все активные сцены, соответствующие указанным критериям.
+    
+    Параметры:
+    - scene_name: название сцены (например, 'user-task')
+    - page_name: название текущей страницы (например, 'main-page')
+    - data_key: ключ в данных сцены для проверки (например, 'task_id')
+    - data_value: значение для проверки (например, UUID карточки)
+    
+    Пример использования:
+    Обновить все сцены редактирования задачи с task_id = "123e4567-e89b-12d3-a456-426614174000"
+    """
+    active_scenes = list(scene_manager._instances.values())
+    updated_count = 0
+    
+    for scene in active_scenes:
+        # Проверяем соответствие критериям
+        match = True
+        
+        # Проверка названия сцены
+        if event.scene_name and scene.__scene_name__ != event.scene_name:
+            match = False
+        
+        # Проверка текущей страницы
+        if event.page_name and scene.current_page != event.page_name:
+            match = False
+        
+        # Проверка данных
+        if event.data_key and event.data_value:
+            scene_value = scene.data.get('scene', {}).get(event.data_key)
+            # Приводим к строке для сравнения
+            if str(scene_value) != str(event.data_value):
+                match = False
+        
+        # Если все критерии совпадают - обновляем сцену
+        if match:
+            try:
+                await scene.update_message()
+                updated_count += 1
+            except Exception as e:
+                print(f"Failed to update scene for user {scene.user_id}: {e}")
+    
+    return {
+        "status": "ok",
+        "total_active_scenes": len(active_scenes),
+        "updated_scenes": updated_count
+    }

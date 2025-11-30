@@ -179,14 +179,9 @@ class TaskDetailPage(Page):
                 ('change_deadline', '⏰ Изменить дедлайн')
             ])
 
-        if role == UserRole.copywriter or is_admin:
+        if role == UserRole.copywriter or is_admin or role == UserRole.editor:
             action_buttons.extend([
                 ('open_task', '📂 Открыть задачу')
-            ])
-
-        if role == UserRole.editor or is_admin:
-            action_buttons.extend([
-                ('start_check', '🔎 Начать проверку')
             ])
 
         # Добавляем кнопки действий
