@@ -10,9 +10,7 @@ class MainPage(Page):
     async def data_preparate(self):
         """Загружаем данные задачи"""
         task_id = self.scene.data['scene'].get('task_id')
-        
-        await self.scene.save_to_db()
-        
+
         if task_id:
             cards = await get_cards(card_id=task_id)
             if cards:

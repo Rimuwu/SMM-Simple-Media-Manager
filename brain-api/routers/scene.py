@@ -90,6 +90,14 @@ async def update_scene(scene_data: SceneUpdate):
         update_data['message_id'] = scene_data.message_id
     if scene_data.data is not None:
         update_data['data'] = scene_data.data
+    
+    # Сравниваем старые и новые данные, выводим изменения
+    changes = {key: new_value for key, new_value in update_data.items() if getattr(scene, key) != new_value}
+
+    if changes:
+        print(f"Changes for user {scene_data.user_id}: {changes.keys()}")
+    else:
+        print(f"No changes for user {scene_data.user_id}")
 
     try:
         await scene.update(**update_data)
@@ -103,7 +111,6 @@ async def update_scene(scene_data: SceneUpdate):
 async def delete_scene(user_id: int):
     """Удаление сцены пользователя"""
     scene = await Scene.get_by_key('user_id', user_id)
-    print(scene.__dict__.keys())
 
     if not scene:
         return {'error': 'Scene not found'}

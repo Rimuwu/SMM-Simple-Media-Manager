@@ -1,3 +1,4 @@
+import traceback
 from typing import Callable, Optional, Type
 
 from aiogram import Bot
@@ -340,7 +341,7 @@ class Scene:
         self.data = copy.deepcopy(data.get('data', {'scene': {}}))
         self.scene: SceneModel = scenes_loader.get_scene(
             self.__scene_name__) # type: ignore
-    
+
     async def insert_to_db(self) -> bool:
         if not self.__insert_function__:
             return False
@@ -349,13 +350,15 @@ class Scene:
         return True
 
     async def save_to_db(self) -> bool:
+        # stack = traceback.extract_stack()
+        # caller = stack[-2]
+        # print(f"[save_to_db] Вызовов из: {caller.filename}:{caller.lineno} в {caller.name}")
+        
         if not self.__insert_function__ or not self.__update_function__:
             return False
 
-        if self.__load_function__:
-            exist = await self.__load_function__(self.user_id)
-            if exist:
-                await self.__update_function__(user_id=self.user_id, data=self.data_to_save())
+        if self.__update_function__:
+            await self.__update_function__(user_id=self.user_id, data=self.data_to_save())
         return True
 
     async def load_from_db(self, update_page: bool) -> bool:
@@ -427,11 +430,18 @@ class Scene:
             Если ключа нет, он будет создан
             Аккуратно, value должен быть сериализуемым в JSON
         """
+        # stack = traceback.extract_stack()
+        # caller = stack[-2]
+        
+        # print(f"[update_key] Вызовов из: {caller.filename}:{caller.lineno} в {caller.name}")
+        
         if element in self.data:
             if key in self.data[element]:
-                self.data[element][key] = value.copy() if (isinstance(value, dict) or isinstance(value, list)) else value
+                self.data[element][key] = value.copy() if (
+                    isinstance(value, dict) or isinstance(value, list)) else value
             else:
-                self.data[element][key] = value.copy() if (isinstance(value, dict) or isinstance(value, list)) else value
+                self.data[element][key] = value.copy() if (
+                    isinstance(value, dict) or isinstance(value, list)) else value
             await self.save_to_db()
             return True
         return False

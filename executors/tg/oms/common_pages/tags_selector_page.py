@@ -63,8 +63,7 @@ class TagsSelectorPage(OptionTypeScene):
             success = await self.update_to_database(tags_list)
             
             if success:
-                await callback.answer("✅ Теги обновлены")
-                
+
                 # Выполняем callback если есть
                 if self.on_success_callback:
                     await self.on_success_callback(callback, tags_list)

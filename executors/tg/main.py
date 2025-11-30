@@ -109,7 +109,7 @@ class TelegramExecutor(BaseExecutor):
                 message_id=scene_data['message_id'],
                 data=scene_data['data'],
                 bot_instance=self.bot,
-                update_message=False
+                update_message=True
             )
 
         while self.is_running:
