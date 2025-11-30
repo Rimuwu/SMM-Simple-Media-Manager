@@ -8,13 +8,125 @@
             "values_creatable_by_users": false,
             "show_on_facade": true,
             "values": {
-                "content": {
-                    "id": 16231060,
-                    "name": "Content"
-                },
                 "news": {
-                    "id": 16231061,
-                    "name": "News"
+                    "id": 16248105,
+                    "name": "Новости | События",
+                    "tag": "News"
+                },
+                "tournaments": {
+                    "id": 16248106,
+                    "name": "Турниры",
+                    "tag": "Tournaments"
+                },
+                "stream": {
+                    "id": 16248107,
+                    "name": "Прямые трансляции",
+                    "tag": "Stream"
+                },
+                "loot": {
+                    "id": 16248108,
+                    "name": "Лут",
+                    "tag": "Loot"
+                },
+                "video": {
+                    "id": 16248109,
+                    "name": "Видео",
+                    "tag": "Video"
+                },
+                "hobbygames": {
+                    "id": 16248110,
+                    "name": "Hobby Games",
+                    "tag": "HobbyGames"
+                },
+                "dota2": {
+                    "id": 16248111,
+                    "name": "Dota 2",
+                    "tag": "Dota2"
+                },
+                "cs2": {
+                    "id": 16248112,
+                    "name": "Counter-Strike 2",
+                    "tag": "CS2"
+                },
+                "hearthstone": {
+                    "id": 16248113,
+                    "name": "Hearthstone",
+                    "tag": "Hearthstone"
+                },
+                "clashroyale": {
+                    "id": 16248114,
+                    "name": "Clash Royale",
+                    "tag": "ClashRoyale"
+                },
+                "starcraft2": {
+                    "id": 16248115,
+                    "name": "StarCraft",
+                    "tag": "StarCraft2"
+                },
+                "valorant": {
+                    "id": 16248116,
+                    "name": "Valorant",
+                    "tag": "Valorant"
+                },
+                "rocketleague": {
+                    "id": 16248117,
+                    "name": "Rocket League",
+                    "tag": "RocketLeague"
+                },
+                "r6s": {
+                    "id": 16248118,
+                    "name": "Rainbow Six Siege",
+                    "tag": "R6S"
+                },
+                "osu": {
+                    "id": 16248119,
+                    "name": "osu!",
+                    "tag": "Osu"
+                },
+                "minecraft": {
+                    "id": 16248120,
+                    "name": "Minecraft",
+                    "tag": "Minecraft"
+                },
+                "tekken8": {
+                    "id": 16248121,
+                    "name": "Tekken 8",
+                    "tag": "Tekken8"
+                },
+                "warface": {
+                    "id": 16248122,
+                    "name": "Warface",
+                    "tag": "Warface"
+                },
+                "mlbb": {
+                    "id": 16248123,
+                    "name": "MLBB",
+                    "tag": "MLBB"
+                },
+                "overwatch": {
+                    "id": 16248124,
+                    "name": "Overwatch",
+                    "tag": "Overwatch"
+                },
+                "lol": {
+                    "id": 16248125,
+                    "name": "League of Legends",
+                    "tag": "LOL"
+                },
+                "apex": {
+                    "id": 16248126,
+                    "name": "Apex",
+                    "tag": "Apex"
+                },
+                "fortnite": {
+                    "id": 16248127,
+                    "name": "Fortnite",
+                    "tag": "Fortnite"
+                },
+                "shedule": {
+                    "id": 16248128,
+                    "name": "Schedule",
+                    "tag": "Shedule"
                 }
             }
         },
@@ -76,7 +188,7 @@
                         "type": 1
                     },
                     {
-                        "id": 5251682,
+                        "id": 5456958,
                         "title": "Форум",
                         "type": 1
                     }

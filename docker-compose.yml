@@ -34,6 +34,12 @@ services:
       - ./json:/json:rw
     networks:
       - smm_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000')"]
+      interval: 5s
+      timeout: 1s
+      retries: 10
+      start_period: 10s
 
   calendar:
     build: 
@@ -66,10 +72,12 @@ services:
       - VK_ACCESS_TOKEN=${VK_ACCESS_TOKEN}
       - TP_PASSWORD=${TP_PASSWORD}
       - DEBUG=${DEBUG}
+      - KAITEN_DOMAIN=${KAITEN_DOMAIN}
     ports:
       - "8003:8003"
     depends_on:
-      - brain
+      brain:
+        condition: service_healthy
     restart: always
     volumes:
       - ./logs:/logs:rw

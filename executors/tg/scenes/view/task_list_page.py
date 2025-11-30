@@ -12,8 +12,28 @@ filter_names = {
 
 class TaskListPage(Page):
     __page_name__ = 'task-list'
-    
+
     async def data_preparate(self) -> None:
+
+        selected_filter = self.scene.data['scene'].get('selected_filter')
+
+        if selected_filter is None:
+            user_role = self.scene.data['scene'].get('user_role')
+
+            if user_role == UserRole.admin:
+                selected_filter = 'all-tasks'
+            elif user_role == UserRole.copywriter:
+                selected_filter = 'my-tasks'
+            elif user_role == UserRole.editor:
+                selected_filter = 'for-review'
+            elif user_role == UserRole.customer:
+                selected_filter = 'created-by-me'
+            else:
+                selected_filter = 'my-tasks'  # Общий фильтр по умолчанию
+
+            await self.scene.update_key('scene',    
+                        'selected_filter', selected_filter)
+
         # Загружаем задачи в зависимости от выбранного фильтра
         await self.load_tasks()
 
@@ -70,17 +90,14 @@ class TaskListPage(Page):
         elif selected_filter == 'all-tasks':
             # Все задачи (только для админа)
             tasks = await get_cards()
-            
-            print(f"Loaded {len(tasks)} tasks for all-tasks filter")
-            print(f"Tasks: {tasks}")
 
         elif selected_filter == 'created-by-me':
             # Задачи созданные пользователем
             tasks = await get_cards(customer_id=user_uuid)
         elif selected_filter == 'for-review':
-            # Задачи на проверку (статус edited)
-            tasks = await get_cards(status=CardStatus.edited)
-        
+            # Задачи на проверку
+            tasks = await get_cards(status=CardStatus.review)
+
         await self.scene.update_key('scene', 'tasks', tasks)
 
     async def buttons_worker(self) -> list[dict]:
@@ -122,7 +139,8 @@ class TaskListPage(Page):
                     self.scene.__scene_name__, 
                     'page_nav', 
                     str(current_page - 1)
-                )
+                ),
+                "ignore_row": True
             })
         
         # Следующая страница
@@ -133,7 +151,8 @@ class TaskListPage(Page):
                     self.scene.__scene_name__, 
                     'page_nav', 
                     str(current_page + 1)
-                )
+                ),
+                "ignore_row": True
             })
         
         # Добавляем навигационные кнопки в новой строке

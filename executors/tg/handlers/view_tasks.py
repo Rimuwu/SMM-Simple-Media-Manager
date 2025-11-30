@@ -3,6 +3,7 @@ from aiogram.types import Message
 from modules.logs import executors_logger as logger
 from modules.executors_manager import manager
 from aiogram.filters import Command
+from tg.filters.authorize import Authorize
 
 from tg.oms import scene_manager
 from tg.scenes.view.view_tasks_scene import ViewTasksScene
@@ -11,12 +12,12 @@ client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
 bot: Bot = client_executor.bot
 
-@dp.message(Command("tasks"))
+@dp.message(Command("tasks"), Authorize())
 async def cmd_view_tasks(message: Message):
     """Команда для просмотра задач"""
     if not message.from_user:
         return
-        
+
     logger.info(f"User {message.from_user.id} requested tasks view")
 
     try:
@@ -39,3 +40,9 @@ async def cmd_view_tasks(message: Message):
             bot
         )
         await sc.start()
+
+@dp.message(Command("tasks"), Authorize())
+async def not_authorized_tasks(message: Message):
+    """Команда для просмотра задач"""
+
+    await message.answer("❌ У вас нет доступа к просмотру задач.")

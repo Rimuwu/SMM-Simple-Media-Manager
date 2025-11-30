@@ -10,32 +10,56 @@ from routers.standart import router as standart_router
 from routers.card import router as card_router
 from routers.ai import router as ai_router
 from routers.kaiten import router as kaiten_router
+from routers.kaiten_files import router as kaiten_files_router
 from routers.user import router as user_router
+from routers.scene import router as scene_router
 
 from global_modules.api_configurate import get_fastapi_app
 
 from modules.logs import brain_logger
 from modules.kaiten import kaiten
 from modules.config_kaiten import sync_kaiten_settings
+from modules.scheduler import TaskScheduler
+from database.connection import session_factory
+import asyncio
+
+
+# Глобальный экземпляр планировщика
+scheduler = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global scheduler
+    
     # Startup
     brain_logger.info("API is starting up...")
     brain_logger.info("Creating missing tables on startup...")
     await create_tables()
     await create_superuser()
-    
+
     # await kaiten_check()
-    
-    # await sync_kaiten_settings()
-    
+
+    await sync_kaiten_settings()
+
+    # Запуск планировщика задач
+    brain_logger.info("Starting task scheduler...")
+    scheduler = TaskScheduler(session_factory=session_factory, check_interval=10)
+    scheduler_task = asyncio.create_task(scheduler.start())
+
     # await test_db()
     
     yield
 
     # Shutdown
+    brain_logger.info("Stopping task scheduler...")
+    if scheduler:
+        await scheduler.stop()
+    scheduler_task.cancel()
+    try:
+        await scheduler_task
+    except asyncio.CancelledError:
+        pass
 
 app = get_fastapi_app(
     title="API",
@@ -47,7 +71,8 @@ app = get_fastapi_app(
     middlewares=[],
     routers=[
         standart_router, card_router, ai_router,
-        kaiten_router, user_router
+        kaiten_router, kaiten_files_router, user_router,
+        scene_router
     ],
     api_logger=brain_logger
 )

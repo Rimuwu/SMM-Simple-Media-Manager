@@ -1,6 +1,7 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from global_modules.classes.enums import UserRole
+from modules.api_client import get_user_role
 
 class FilterSelectionPage(Page):
     __page_name__ = 'filter-selection'
@@ -8,7 +9,7 @@ class FilterSelectionPage(Page):
     async def data_preparate(self) -> None:
         # Убеждаемся, что роль пользователя загружена
         if not self.scene.data['scene'].get('user_role'):
-            from executors.modules.api_client import get_user_role
+
             telegram_id = self.scene.user_id
             user_role = await get_user_role(telegram_id)
             await self.scene.update_key('scene', 'user_role', user_role or 'Не определена')
@@ -24,7 +25,7 @@ class FilterSelectionPage(Page):
                 ('my-tasks', '📋 Мои задачи'),
                 ('all-tasks', '📁 Все задачи'), 
                 ('created-by-me', '➕ Созданные мной'),
-                ('for-review', '✅ Проверяемые мной')
+                ('for-review', '✨ Требуют проверки')
             ]
         elif user_role == UserRole.copywriter:
             filters = [
@@ -33,7 +34,7 @@ class FilterSelectionPage(Page):
         elif user_role == UserRole.editor:
             filters = [
                 ('my-tasks', '📋 Мои задачи'),
-                ('for-review', '✅ Проверяемые мной')
+                ('for-review', '✨ Требуют проверки')
             ]
         elif user_role == UserRole.customer:
             filters = [

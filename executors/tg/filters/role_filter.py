@@ -1,7 +1,7 @@
 from typing import Union
 from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
-from modules.api_client import get_user_role
+from modules.api_client import get_user_role, get_users
 
 class RoleFilter(BaseFilter):
     def __init__(self, need_role: str) -> None:
@@ -21,6 +21,10 @@ class RoleFilter(BaseFilter):
             else: return False
 
         if telegram_id is None: return False
+
+        users = await get_users(telegram_id=telegram_id)
+        if len(users) == 0: return False
+
         user_role = await get_user_role(telegram_id)
         if user_role is None: return False
         return user_role == self.need_role or user_role == "admin"

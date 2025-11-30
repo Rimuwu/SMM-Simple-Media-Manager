@@ -242,17 +242,23 @@ class Page:
         if args and args[0] in self.__callback_handlers__:
             callback_type = args[0]
             handler = self.__callback_handlers__[callback_type]
-            await handler(callback=callback, args=args)
+            res = await handler(callback=callback, args=args)
             handled = True
+
+            if res == 'exit': return
 
         if 'all' in self.__callback_handlers__:
             handler = self.__callback_handlers__['all']
-            await handler(callback=callback, args=args)
+            res = await handler(callback=callback, args=args)
+
+            if res == 'exit': return
 
         # Если текст не был обработан
         if not handled and 'not_handled' in self.__callback_handlers__:
             handler = self.__callback_handlers__['not_handled']
-            await handler(callback=callback, args=args)
+            res = await handler(callback=callback, args=args)
+
+            if res == 'exit': return
 
 
     # Служебные методы
@@ -326,3 +332,18 @@ class Page:
         """ Функция вызывающаяся после обработки текста / кнопки
         """
         pass
+
+    async def to_page_preworker(self, 
+                                to_page_buttons: dict
+                                ) -> dict:
+        """ Функция вызывающаяся перед формированием кнопок перехода по страницам
+            Позволяет модифицировать список кнопок перехода
+        """
+        return to_page_buttons
+    
+    async def post_buttons(self, 
+                           buttons: list[dict]
+                           ) -> list[dict]:
+        """ 
+        """
+        return buttons

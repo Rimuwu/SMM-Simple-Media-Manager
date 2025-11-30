@@ -542,42 +542,40 @@ class KaitenClient:
         files_data = response if isinstance(response, list) else response.get('items', [])
         return [File(self, file_data) for file_data in files_data]
     
-    async def upload_file(self, card_id: int, file_path: str, file_name: Optional[str] = None) -> File:
+    async def upload_file(self, card_id: int, file_data: bytes, file_name: str) -> File:
         """
         Загружает файл к карточке.
         
         Args:
             card_id: ID карточки
-            file_path: Путь к файлу
-            file_name: Имя файла (если отличается от file_path)
+            file_data: Бинарные данные файла
+            file_name: Имя файла
         
         Returns:
             Информация о загруженном файле
         """
-        import aiofiles
-        from pathlib import Path
-        
-        if not file_name:
-            file_name = Path(file_path).name
-        
-        async with aiofiles.open(file_path, 'rb') as f:
-            file_data = await f.read()
-        
-        # Для загрузки файлов используем multipart/form-data
+        # Для загрузки файлов создаем отдельную сессию без Content-Type заголовка
         data = aiohttp.FormData()
         data.add_field('file', file_data, filename=file_name)
-        data.add_field('card_id', str(card_id))
-        
-        # Временно меняем заголовки для загрузки файлов
-        headers = self.config.get_upload_headers()
-        url = f"{KaitenConfig.get_base_url(self.domain)}/{KaitenConfig.ENDPOINT_CARD_FILES.format(card_id=card_id)}"
-        
-        async with self.session.post(url, data=data, headers=headers) as response:
-            if response.status >= 400:
-                error_data = await response.text()
-                raise KaitenApiError(f"File upload error {response.status}: {error_data}")
-            result_data = await response.json()
-            return File(self, result_data)
+
+        # API Kaiten требует PUT запрос для загрузки файлов
+        endpoint = KaitenConfig.ENDPOINT_CARD_FILES.format(card_id=card_id)
+        url = f"{KaitenConfig.get_base_url(self.domain)}{endpoint}"
+
+        # Создаем временную сессию только с Authorization заголовком
+        # Это позволяет aiohttp автоматически установить правильный Content-Type для multipart
+        headers = {
+            'Authorization': f'Bearer {self.token}'
+        }
+
+        async with aiohttp.ClientSession(headers=headers) as temp_session:
+            async with temp_session.put(url, data=data) as response:
+                if response.status >= 400:
+                    error_data = await response.text()
+                    raise KaitenApiError(f"File upload error {response.status}: {error_data}")
+
+                result_data = await response.json()
+                return File(self, result_data)
 
     async def delete_file(self, card_id: int,
                           file_id: int) -> bool:

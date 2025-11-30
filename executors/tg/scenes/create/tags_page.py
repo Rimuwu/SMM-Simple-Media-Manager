@@ -1,18 +1,9 @@
-from tg.oms.models.option_page import OptionTypeScene
-from modules.constants import SETTINGS
+from tg.oms.common_pages import TagsSelectorPage
 
-class TagsPage(OptionTypeScene):
+
+class TagsPage(TagsSelectorPage):
 
     __page_name__ = 'tags'
-
-    async def data_preparate(self):
-        await super().data_preparate()
-
-        self.options = {
-            key: client['name'] 
-            for key, client in SETTINGS['properties']['tags']['values'].items()
-        }
-
-    @OptionTypeScene.on_callback('all')
-    async def on_all(self, callback, args):
-        await self.scene.update_message()
+    __scene_key__ = 'tags'
+    
+    update_to_db = False

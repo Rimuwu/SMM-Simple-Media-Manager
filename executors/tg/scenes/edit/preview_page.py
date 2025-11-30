@@ -1,0 +1,169 @@
+"""
+Страница предпросмотра поста для всех клиентов
+"""
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message, BufferedInputFile
+from aiogram import Bot
+from tg.oms import Page
+from modules.api_client import get_cards, brain_api
+from modules.post_generator import generate_post
+from modules.constants import SETTINGS, CLIENTS
+
+
+class PreviewPage(Page):
+    
+    __page_name__ = 'post-preview'
+    
+    async def data_preparate(self):
+        """Подготовка данных перед отображением"""
+        card = await self.scene.get_card_data()
+        
+        if not card:
+            await self.scene.update_key(self.__page_name__, 'clients', [])
+            return
+        
+        clients = card.get('clients', [])
+        await self.scene.update_key(self.__page_name__, 'clients', clients)
+    
+    async def content_worker(self) -> str:
+        """Возвращает текст сообщения"""
+        card = await self.scene.get_card_data()
+        clients = self.scene.get_key(self.__page_name__, 'clients') or []
+        content = card.get('content') if card else None
+        
+        if not clients:
+            return (
+                "👁 Предпросмотр поста\n\n"
+                "❌ Каналы не выбраны\n\n"
+                "Для предпросмотра поста сначала необходимо выбрать каналы для публикации.\n"
+                "Вернитесь назад и настройте каналы публикации."
+            )
+        
+        if not content:
+            return (
+                "👁 Предпросмотр поста\n\n"
+                "❌ Контент не создан\n\n"
+                "Для предпросмотра поста сначала необходимо создать контент.\n"
+                "Вернитесь назад и добавьте текст поста."
+            )
+        
+        return self.append_variables()
+    
+    async def buttons_worker(self) -> list[dict]:
+        """Создает кнопки с клиентами"""
+        from tg.oms.utils import callback_generator
+        
+        buttons = []
+        card = await self.scene.get_card_data()
+        clients = self.scene.get_key(self.__page_name__, 'clients') or []
+        content = card.get('content') if card else None
+        
+        # Если нет клиентов или контента, не создаем кнопки предпросмотра
+        if not clients or not content:
+            return buttons
+        
+        # Создаем кнопки для каждого клиента
+        for client in clients:
+            # Получаем имя клиента из clients.json
+            client_info = CLIENTS.get(client, {})
+            client_name = client_info.get('label', client)
+            
+            buttons.append({
+                'text': f"📱 {client_name}",
+                'callback_data': callback_generator(
+                    self.scene.__scene_name__,
+                    'preview_client',
+                    str(client)
+                )
+            })
+        
+        # Кнопка "Показать всем"
+        if clients:
+            buttons.append({
+                'text': "📤 Показать для всех",
+                'callback_data': callback_generator(
+                    self.scene.__scene_name__,
+                    'preview_all'
+                )
+            })
+        
+        return buttons
+    
+    @Page.on_callback('preview_client')
+    async def preview_client_handler(self, callback: CallbackQuery, args: list):
+        """Обработчик предпросмотра для клиента"""
+        if len(args) < 2:
+            await callback.answer("❌ Ошибка: не указан клиент")
+            return
+        
+        client = args[1]
+        await self.preview_for_client(callback, client)
+    
+    @Page.on_callback('preview_all')
+    async def preview_all_handler(self, callback: CallbackQuery, args: list):
+        """Обработчик отправки всем клиентам"""
+        await self.preview_all_clients(callback)
+    
+    async def preview_for_client(self, callback: CallbackQuery, client: str):
+        """Отправляет предпросмотр поста для конкретного клиента"""
+        card = await self.scene.get_card_data()
+        
+        if not card:
+            await callback.answer("❌ Карточка не найдена")
+            return
+        
+        content = card.get('content', '')
+        tags = card.get('tags', [])
+        post_image_hex = card.get('post_image')
+        
+        # Генерируем текст поста с тегом клиента
+        post_text = generate_post(content, tags, platform="telegram", client_key=client)
+
+        # Создаем клавиатуру с кнопкой удаления
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 Удалить тестовое сообщение", callback_data="delete_message")]
+        ])
+        
+        try:
+            # Если есть изображение, отправляем с фото
+            if post_image_hex:
+                photo_data = bytes.fromhex(post_image_hex)
+                photo = BufferedInputFile(photo_data, filename="post_image.jpg")
+                
+                await callback.message.answer_photo(
+                    photo=photo,
+                    caption=post_text,
+                    parse_mode="html",
+                    reply_markup=keyboard
+                )
+            else:
+                # Если нет изображения, отправляем только текст
+                await callback.message.answer(
+                    text=post_text,
+                    parse_mode="html",
+                    reply_markup=keyboard
+                )
+            
+            await callback.answer("✅ Предпросмотр показан")
+        
+        except Exception as e:
+            print(f"Error sending preview: {e}")
+            await callback.answer("❌ Ошибка при показе предпросмотра")
+    
+    async def preview_all_clients(self, callback: CallbackQuery):
+        """Показывает предпросмотр поста для всех клиентов"""
+        card = await self.scene.get_card_data()
+        
+        if not card:
+            await callback.answer("❌ Карточка не найдена")
+            return
+        
+        clients = card.get('clients', [])
+        
+        if not clients:
+            await callback.answer("❌ Нет каналов для предпросмотра")
+            return
+        
+        await callback.answer("📤 Показываю предпросмотры...")
+        
+        for client in clients:
+            await self.preview_for_client(callback, client)

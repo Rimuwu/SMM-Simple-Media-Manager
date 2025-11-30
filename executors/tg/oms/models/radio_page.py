@@ -60,6 +60,16 @@ class RadioTypeScene(Page):
 
         return buttons
 
+    async def on_selected(self, callback, selected_value):
+        """Метод для переопределения в дочерних классах.
+        Вызывается после выбора значения.
+        """
+        # Переходим к следующей странице
+        if self.next_page:
+            await self.scene.update_page(self.next_page)
+        else:
+            await self.scene.update_message_markup()
+
     @Page.on_callback('radio')
     async def handle_int(self, callback, args: list):
         value = args[1]
@@ -78,9 +88,5 @@ class RadioTypeScene(Page):
             value
         )
 
-        # Переходим к следующей странице
-        if self.next_page:
-            await self.scene.update_page(
-                self.next_page)
-        else:
-            await self.scene.update_message_markup()
+        # Вызываем метод для переопределения
+        await self.on_selected(callback, value)

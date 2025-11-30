@@ -1,6 +1,7 @@
 import asyncio
 import random
 import vk_api
+from vk_api.vk_api import VkApiMethod
 from modules.executor import BaseExecutor
 from typing import Optional, Dict, List, Any
 from modules.logs import executors_logger as logger
@@ -16,7 +17,7 @@ class VKExecutor(BaseExecutor):
 
         if self.token:
             self.vk_session = vk_api.VkApi(token=self.token)
-            self.vk = self.vk_session.get_api()
+            self.vk: VkApiMethod = self.vk_session.get_api()
         else:
             self.vk_session = None
             self.vk = None

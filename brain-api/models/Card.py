@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from enum import Enum
@@ -36,20 +36,24 @@ class Card(Base, AsyncCRUDMixin):
 
     # Контент и метаданные
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    clients: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    clients: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
     need_check: Mapped[bool] = mapped_column(Boolean, default=True)
-    tags: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    tags: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     # Дополнительные поля для управления карточками
     deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    send_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     prompt_sended: Mapped[bool] = mapped_column(Boolean, default=False)
+    post_image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
 
     forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
 
-    # Связи с автоматизациями
-    # automations: Mapped[list["Automation"]] = relationship("Automation", back_populates="card")
+    calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    editor_notes: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
+
 
     def __repr__(self) -> str:
         return f"<Card(id={self.card_id}, name='{self.name}', status='{self.status}')>"

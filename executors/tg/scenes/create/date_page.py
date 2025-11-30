@@ -1,22 +1,10 @@
-from tg.oms import Page
+from tg.oms.common_pages import DateInputPage
 
-class DatePage(Page):
+
+class DatePage(DateInputPage):
     
     __page_name__ = 'publish-date'
+    __scene_key__ = 'publish_date'
+    __next_page__ = 'main'
     
-    @Page.on_text('not_handled')
-    async def not_handled(self, message):
-
-        self.clear_content()
-        self.content += f'\n\n❗️ Некорректный формат даты. Попробуйте еще раз.'
-        await self.scene.update_message()
-
-    @Page.on_text('time')
-    async def handle_time(self, message, value):
-
-        await self.scene.update_key(
-            'scene',
-            'publish_date',
-            value.isoformat()
-        )
-        await self.scene.update_page('main')
+    update_to_db = False
