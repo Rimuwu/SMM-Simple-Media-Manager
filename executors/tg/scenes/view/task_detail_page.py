@@ -1,7 +1,7 @@
 from os import getenv
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import get_cards, brain_api, delete_scene
+from modules.api_client import get_cards, brain_api, delete_scene, get_users, get_kaiten_users_dict
 from global_modules.classes.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
@@ -52,13 +52,8 @@ class TaskDetailPage(Page):
         }
 
         # Получаем пользователей для отображения имен
-        users, status = await brain_api.get('/user/get')
-        all_users = users if status == 200 and users else []
-        
-        kaiten_users = {}
-        k_users, k_status = await brain_api.get('/kaiten/get-users', params={'only_virtual': 1})
-        if k_status == 200 and k_users:
-            kaiten_users = {u['id']: u['full_name'] for u in k_users}
+        all_users = await get_users()
+        kaiten_users = await get_kaiten_users_dict()
         
         # Форматируем исполнителя
         executor_id = task.get('executor_id')

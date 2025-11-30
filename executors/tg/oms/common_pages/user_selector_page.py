@@ -1,6 +1,6 @@
 from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms.utils import callback_generator
-from modules.api_client import brain_api
+from modules.api_client import get_users, get_kaiten_users_dict
 from typing import Optional, Callable
 
 
@@ -30,21 +30,12 @@ class UserSelectorPage(RadioTypeScene):
 
         if not self.users_data:
             # Получаем всех пользователей из БД
-            users, status = await brain_api.get('/user/get')
-            if status == 200 and users:
+            users = await get_users()
+            if users:
                 self.users_data = users
                 
                 # Получаем пользователей из Kaiten для тех, у кого есть tasker_id
-                kaiten_users_list, kaiten_status = await brain_api.get(
-                    '/kaiten/get-users',
-                    params={'only_virtual': 1}
-                )
-                
-                if kaiten_status == 200 and kaiten_users_list:
-                    self.kaiten_users = {
-                        user['id']: user['full_name'] 
-                        for user in kaiten_users_list
-                    }
+                self.kaiten_users = await get_kaiten_users_dict()
         
         # Формируем опции для выбора
         self.options = {}

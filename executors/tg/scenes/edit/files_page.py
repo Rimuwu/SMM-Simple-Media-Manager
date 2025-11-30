@@ -4,7 +4,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
 from aiogram import Bot
 from tg.oms import Page
-from modules.api_client import get_cards, brain_api
+from modules.api_client import get_cards, brain_api, get_kaiten_files
 
 
 class FilesPage(Page):
@@ -32,7 +32,8 @@ class FilesPage(Page):
         
         try:
             # Запрос файлов карточки
-            response, status = await brain_api.get(f"/kaiten/get-files/{task_id}")
+            response = await get_kaiten_files(task_id)
+            status = 200 if response else 404
             
             if status == 200 and response.get('files'):
                 await self.scene.update_key(self.__page_name__, 'files', response['files'])

@@ -217,3 +217,34 @@ async def create_user(telegram_id: int, role: str, tasker_id: Optional[int] = No
 
 async def delete_user(telegram_id: int):
     return await brain_api.delete(f"/user/delete?telegram_id={telegram_id}")
+
+async def get_kaiten_users(only_virtual: bool = True):
+    """Получить пользователей из Kaiten с кешированием"""
+    params = {'only_virtual': 1 if only_virtual else 0}
+    kaiten_users_list, status = await brain_api.get(
+        '/kaiten/get-users',
+        params=params,
+        use_cache=True
+    )
+    
+    if status == 200 and kaiten_users_list:
+        return kaiten_users_list
+    
+    return []
+
+async def get_kaiten_users_dict(only_virtual: bool = True):
+    """Получить словарь пользователей из Kaiten {id: full_name} с кешированием"""
+    kaiten_users_list = await get_kaiten_users(only_virtual)
+    return {user['id']: user['full_name'] for user in kaiten_users_list}
+
+async def get_kaiten_files(task_id: str):
+    """Получить файлы задачи из Kaiten с кешированием"""
+    response, status = await brain_api.get(
+        f"/kaiten/get-files/{task_id}",
+        use_cache=False
+    )
+    
+    if status == 200 and response:
+        return response
+    
+    return None

@@ -71,14 +71,15 @@ async def update(user_data: UserUpdate):
 
     update_data = {}
     if user_data.role is not None:
+        if user_data.role != user.role:
+            await executors_api.post(
+                '/events/close_scene/' + str(user.telegram_id)
+            )
+
         update_data['role'] = user_data.role
+
     if user_data.tasker_id is not None:
         update_data['tasker_id'] = user_data.tasker_id
-    
-    if user_data.role != user.role:
-        await executors_api.post(
-            '.events/close_scene/' + str(user.telegram_id)
-        )
 
     try:
         await user.update(**update_data)

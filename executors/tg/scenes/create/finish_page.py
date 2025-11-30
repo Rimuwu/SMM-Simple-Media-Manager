@@ -1,7 +1,7 @@
 from datetime import datetime
 from tg.oms.utils import callback_generator
 from tg.oms import Page
-from modules.api_client import brain_api
+from modules.api_client import brain_api, get_users, get_kaiten_users_dict
 from modules.constants import SETTINGS
 from tg.oms.common_pages import UserSelectorPage
 
@@ -84,17 +84,11 @@ class FinishPage(Page):
         user_id = data.get('user')
         if user_id:
             # Получаем информацию о пользователе
-            users, status = await brain_api.get('/user/get')
-            user_data = None
-            if status == 200 and users:
-                user_data = next((u for u in users if str(u['user_id']) == str(user_id)), None)
+            users = await get_users()
+            user_data = next((u for u in users if str(u['user_id']) == str(user_id)), None) if users else None
             
             if user_data:
-                kaiten_users = {}
-                if user_data.get('tasker_id'):
-                    k_users, k_status = await brain_api.get('/kaiten/get-users', params={'only_virtual': 1})
-                    if k_status == 200 and k_users:
-                        kaiten_users = {u['id']: u['full_name'] for u in k_users}
+                kaiten_users = await get_kaiten_users_dict() if user_data.get('tasker_id') else {}
                 
                 display_name = await UserSelectorPage.get_display_name(
                     user_data, 

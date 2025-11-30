@@ -1,7 +1,7 @@
 from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import create_user, update_user, brain_api
+from modules.api_client import create_user, update_user, get_kaiten_users
 
 class SelectKaitenUserPage(RadioTypeScene):
     __page_name__ = 'select-kaiten-user'
@@ -13,12 +13,9 @@ class SelectKaitenUserPage(RadioTypeScene):
 
     async def data_preparate(self):
         # Загружаем виртуальных пользователей Kaiten
-        kaiten_users_list, kaiten_status = await brain_api.get(
-            '/kaiten/get-users',
-            params={'only_virtual': 1}
-        )
+        kaiten_users_list = await get_kaiten_users()
         
-        if kaiten_status == 200 and kaiten_users_list:
+        if kaiten_users_list:
             self.options = {
                 user['id']: f"{user['full_name']}"
                 for user in kaiten_users_list

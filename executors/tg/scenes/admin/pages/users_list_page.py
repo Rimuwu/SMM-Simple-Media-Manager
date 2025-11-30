@@ -1,8 +1,7 @@
 from tg.oms import Page
-from modules.api_client import get_users
+from modules.api_client import get_users, get_kaiten_users_dict
 from tg.oms.utils import callback_generator
 from tg.oms.common_pages import UserSelectorPage
-from modules.api_client import brain_api
 
 class UsersListPage(Page):
     __page_name__ = 'users-list'
@@ -19,16 +18,13 @@ class UsersListPage(Page):
             'editor': '🖋️'
         }
         
-        kaiten_users_list, kaiten_status = await brain_api.get(
-                '/kaiten/get-users',
-                params={'only_virtual': 1}
-            )
+        kaiten_users_dict = await get_kaiten_users_dict()
         
         for user in users:
             role_icon = roles.get(user['role'], "👤")
 
             name = await UserSelectorPage.get_display_name(
-                user, kaiten_users_list, self.scene.bot
+                user, kaiten_users_dict, self.scene.bot
             )
             buttons.append({
                 "text": f"{role_icon} {name}",

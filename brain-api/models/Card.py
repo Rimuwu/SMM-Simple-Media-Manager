@@ -36,9 +36,9 @@ class Card(Base, AsyncCRUDMixin):
 
     # Контент и метаданные
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    clients: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    clients: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
     need_check: Mapped[bool] = mapped_column(Boolean, default=True)
-    tags: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    tags: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     # Дополнительные поля для управления карточками
     deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -52,8 +52,8 @@ class Card(Base, AsyncCRUDMixin):
 
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # Связи с автоматизациями
-    # automations: Mapped[list["Automation"]] = relationship("Automation", back_populates="card")
+    editor_notes: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
+
 
     def __repr__(self) -> str:
         return f"<Card(id={self.card_id}, name='{self.name}', status='{self.status}')>"
