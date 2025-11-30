@@ -103,13 +103,17 @@ async def update_scene(scene_data: SceneUpdate):
 async def delete_scene(user_id: int):
     """Удаление сцены пользователя"""
     scene = await Scene.get_by_key('user_id', user_id)
+    print(scene.__dict__.keys())
 
     if not scene:
         return {'error': 'Scene not found'}
 
     try:
         await scene.delete()
-        return {'success': True, 'message': 'Scene deleted successfully'}
+        return {
+            'success': True, 
+            'message': 'Scene deleted successfully'
+            }
     except Exception as e:
         print(f"Error in scene.delete: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

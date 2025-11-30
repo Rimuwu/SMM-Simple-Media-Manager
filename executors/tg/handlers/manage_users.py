@@ -7,49 +7,32 @@ from modules.executors_manager import manager
 from aiogram import F
 from aiogram.filters import Command
 
-from modules.api_client import brain_api as api
-from modules.api_client import get_user_role
+from tg.oms.manager import scene_manager
+from tg.scenes.admin.users_scene import UsersScene
+from tg.filters.role_filter import RoleFilter
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
 
-@dp.message(Command('create_user'))
-async def create_user(message: Message):
-    """Создать нового пользователя"""
-    telegram_id = None
-    role = "copywriter"
-    tasker_id = None
-
-    args = message.text.split()[1:]
-    args_count = len(args)
-    if args_count == 0:
-        await message.answer("Использование: /create_user <telegram_id> [role] [tasker_id]")
-        return
-
-    if args_count >= 1: telegram_id = int(args[0])
-    if args_count >= 2: role = args[1]
-    if args_count >= 3: tasker_id = args[2]
-    
-    if not telegram_id:
-        await message.answer("Telegram ID обязателен.")
-        return
-
-    role = await get_user_role(telegram_id)
-
-    if role is not None:
-        await message.answer("Пользователь с таким Telegram ID уже существует.")
-        return
-
-    data = {
-        "telegram_id": telegram_id,
-        "tasker_id": tasker_id,
-        "role": role
-    }
-
-    user, status_code = await api.post(
-        "/user/create", data=data)
-
-    if status_code == 201:
-        await message.answer(f"Пользователь создан!\nID: {user['user_id']}\nTelegram ID: {user['telegram_id']}\nРоль: {user['role']}")
-    else:
-        await message.answer("Ошибка при создании пользователя.")
+@dp.message(Command('users'), RoleFilter('admin'))
+async def users_command(message: Message, bot: Bot):
+    """Управление пользователями"""
+    try:
+        await scene_manager.create_scene(
+            message.from_user.id,
+            UsersScene,
+            bot
+        ).start()
+    except ValueError:
+        # Если сцена уже существует, удаляем её и создаем новую
+        scene_manager.remove_scene(message.from_user.id)
+        await scene_manager.create_scene(
+            message.from_user.id,
+            UsersScene,
+            bot
+        ).start()
+        
+@dp.message(Command('users'))
+async def users_command(message: Message, bot: Bot):
+    """Управление пользователями"""
+    await message.answer("У вас нет прав для использования этой команды.")

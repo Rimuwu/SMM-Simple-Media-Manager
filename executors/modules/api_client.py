@@ -203,3 +203,17 @@ async def get_all_scenes() -> list[dict]:
         return scenes
 
     return []
+
+async def create_user(telegram_id: int, role: str, tasker_id: Optional[int] = None):
+    data = {
+        "telegram_id": telegram_id,
+        "role": role,
+        "tasker_id": tasker_id
+    }
+    user, res_status = await brain_api.post("/user/create", data=data)
+    if res_status == 201 or res_status == 200:
+        return user
+    return None
+
+async def delete_user(telegram_id: int):
+    return await brain_api.delete(f"/user/delete?telegram_id={telegram_id}")

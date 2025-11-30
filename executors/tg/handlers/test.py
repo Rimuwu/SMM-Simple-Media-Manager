@@ -8,40 +8,17 @@ from modules.logs import executors_logger as logger
 from modules.executors_manager import manager
 from aiogram import F
 from aiogram.filters import Command
-from datetime import datetime, timedelta
-
-from global_modules.api_client import APIClient
 from tg.oms import scene_manager
-from tg.scenes.edit.task_scene import TaskScene
 from tg.scenes.create.create_scene import CreateTaskScene
+from tg.filters.role_filter import RoleFilter
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
 bot: Bot = client_executor.bot
 
-@dp.message(Command("test"))
-async def cmd_test(message: Message):
-    print("TEST")
 
-    try:
-        sc = scene_manager.create_scene(
-            message.from_user.id,
-            TaskScene,
-            bot
-        )
-        await sc.start()
-    except ValueError as e:
-        scene_manager.remove_scene(message.from_user.id)
-        sc = scene_manager.create_scene(
-            message.from_user.id,
-            TaskScene,
-            bot
-        )
-        await sc.start()
-
-@dp.message(Command("create"))
+@dp.message(Command("create"), RoleFilter('admin'))
 async def cmd_create(message: Message):
-    print("TEST")
 
     try:
         sc = scene_manager.create_scene(
@@ -62,6 +39,16 @@ async def cmd_create(message: Message):
         )
         await sc.start()
 
+@dp.message(Command("create"), RoleFilter('customer'))
+async def cmd_create_customer(message: Message):
+    await cmd_create(message)
+
+@dp.message(Command("create"))
+async def not_authorized_create(message: Message):
+    await message.answer("❌ У вас нет доступа к созданию задач.")
+
+
+# TEST
 @dp.message(Command("update_role"))
 async def cmd_update_role(message: Message):
     """Команда для обновления роли пользователя"""
@@ -105,6 +92,7 @@ async def cmd_update_role(message: Message):
     else:
         await message.answer("Не удалось получить вашу роль пользователя.")
 
+
 @dp.callback_query(F.data == "delete_message")
 async def delete_message_callback(callback):
     """Обработчик для удаления сообщения по коллбеку"""
@@ -112,3 +100,11 @@ async def delete_message_callback(callback):
         await callback.message.delete()
     except Exception as e:
         logger.error(f"Error deleting message: {e}")
+
+
+@dp.message(Command("cancel"))
+async def cancel(message: Message):
+    print(scene_manager.get_scene(message.from_user.id).__dict__)
+    ss = scene_manager.get_scene(message.from_user.id)
+    if ss:
+        await ss.end()

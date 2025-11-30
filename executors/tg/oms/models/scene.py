@@ -55,6 +55,10 @@ class Scene:
         if not self.scene:
             raise ValueError(f"Сцена {self.__scene_name__} не найдена")
 
+    @property
+    def bot(self) -> Bot:
+        return self.__bot__
+
     def __call__(self, *args, **kwargs):
         # self.__init__(*args, **kwargs)
         return self

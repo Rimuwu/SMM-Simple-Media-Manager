@@ -58,7 +58,10 @@ class UserSelectorPage(RadioTypeScene):
             self.options[user_id] = display_name
     
     @staticmethod
-    async def get_display_name(user_data: dict, kaiten_users: dict, bot=None) -> str:
+    async def get_display_name(user_data: dict, 
+                               kaiten_users: dict, 
+                               bot=None
+                               ) -> str:
         """
         Получить отображаемое имя пользователя.
         
@@ -69,19 +72,24 @@ class UserSelectorPage(RadioTypeScene):
         """
         tasker_id = user_data.get('tasker_id')
         telegram_id = user_data.get('telegram_id')
-        
-        # Если есть привязка к Kaiten
+
         if tasker_id and tasker_id in kaiten_users:
-            return f"{kaiten_users[tasker_id]} (@{telegram_id})"
-        
-        # Если есть бот и telegram_id, пробуем получить имя из Telegram
+            if bot and telegram_id:
+                try:
+                    chat = await bot.get_chat(telegram_id)
+                    return f"{kaiten_users[tasker_id]} (@{chat.username})" if chat.username else kaiten_users[tasker_id]
+                except Exception:
+                    pass
+            else:
+                return kaiten_users[tasker_id]
+
         if bot and telegram_id:
             try:
                 chat = await bot.get_chat(telegram_id)
                 return f"{chat.full_name} (@{chat.username})" if chat.username else chat.full_name
             except Exception:
                 pass
-                
+
         return f"@{telegram_id}"
 
     async def buttons_worker(self):

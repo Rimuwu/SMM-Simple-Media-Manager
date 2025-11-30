@@ -295,6 +295,38 @@
                 }
             }
         }
+    },
+    "users": {
+        "settings": {
+            "parse_mode": "Markdown",
+            "delete_after_send": true,
+            "start_page": "users-list"
+        },
+        "standart_data": {
+            "selected_user": null,
+            "new_user_id": null,
+            "new_user_role": null,
+            "edit_mode": false
+        },
+        "pages": {
+            "users-list": {
+                "content": "👥 **Управление пользователями**\n\nВыберите пользователя для редактирования или добавьте нового.",
+                "row_width": 2
+            },
+            "user-detail": {
+                "content": "👤 **Пользователь:** `{telegram_id}`\n🎭 **Роль:** {role}\n🆔 **Kaiten ID:** {tasker_id}"
+            },
+            "add-user": {
+                "content": "Введите Telegram ID нового пользователя:"
+            },
+            "select-role": {
+                "content": "Выберите роль пользователя:"
+            },
+            "select-kaiten-user": {
+                "content": "Выберите пользователя Kaiten для привязки:",
+                "row_width": 2
+            }
+        }
     }
 
 }

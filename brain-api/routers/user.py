@@ -2,6 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from models.User import User
+from modules.api_client import executors_api
 
 router = APIRouter(prefix='/user')
 
@@ -43,7 +44,10 @@ async def create(user_data: UserCreate):
         user = await User.create(
             telegram_id=user_data.telegram_id,
             role=user_data.role,
-            tasker_id=user_data.tasker_id
+            tasker_id=user_data.tasker_id,
+            task_per_year=0,
+            task_per_month=0,
+            tasks=0
         )
         return user.to_dict()
 
@@ -70,10 +74,30 @@ async def update(user_data: UserUpdate):
         update_data['role'] = user_data.role
     if user_data.tasker_id is not None:
         update_data['tasker_id'] = user_data.tasker_id
+    
+    if user_data.role != user.role:
+        await executors_api.post(
+            '.events/close_scene/' + str(user.telegram_id)
+        )
 
     try:
         await user.update(**update_data)
         return user.to_dict()
     except Exception as e:
         print(f"Error in user.update: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, 
+                            detail=f"Internal server error: {str(e)}")
+
+@router.delete("/delete")
+async def delete(telegram_id: int):
+    user = await User.get_by_key('telegram_id', telegram_id)
+    if not user:
+        raise HTTPException(status_code=404, 
+                            detail="User not found")
+
+    await executors_api.post(
+            '/events/close_scene/' + str(user.telegram_id)
+        )
+
+    await user.delete()
+    return {"status": "ok"}
