@@ -10,6 +10,7 @@ from modules.api_client import insert_scene, load_scene, update_scene, delete_sc
 from .cancel import CancelPage
 from .image import Image
 from .send_page import SendDatePage
+from .ai_parse_page import AIParserPage
 
 class CreateTaskScene(Scene):
 
@@ -24,7 +25,8 @@ class CreateTaskScene(Scene):
         FilesPage,
         CancelPage,
         Image,
-        SendDatePage
+        SendDatePage,
+        AIParserPage
     ]
 
     # Привязываем функции для работы с БД

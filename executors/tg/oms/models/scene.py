@@ -185,6 +185,8 @@ class Scene:
                     'next_line': len(buttons) > 0 and i == 0
                 })
 
+        buttons = await page.post_buttons(buttons)
+ 
         if not raw_buttons:
             inl_markup = list_to_inline(buttons, page.row_width)
         else:

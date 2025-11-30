@@ -333,8 +333,17 @@ class Page:
         """
         pass
 
-    async def to_page_preworker(self, to_page_buttons: dict) -> dict:
+    async def to_page_preworker(self, 
+                                to_page_buttons: dict
+                                ) -> dict:
         """ Функция вызывающаяся перед формированием кнопок перехода по страницам
             Позволяет модифицировать список кнопок перехода
         """
         return to_page_buttons
+    
+    async def post_buttons(self, 
+                           buttons: list[dict]
+                           ) -> list[dict]:
+        """ 
+        """
+        return buttons

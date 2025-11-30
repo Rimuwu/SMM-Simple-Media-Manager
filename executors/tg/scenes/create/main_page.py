@@ -141,3 +141,21 @@ class MainPage(Page):
             datetime.today().isoformat()
         )
         await self.scene.update_message()
+    
+    
+    async def post_buttons(self, 
+                           buttons: list[dict]) -> list[dict]:
+
+        buttons_lst = buttons.copy()
+
+        for ind, item in enumerate(buttons_lst):
+
+            if item['callback_data'].split(':')[-1] in [
+                'ai-parse', 'finish'
+            ]:
+                buttons_lst[ind][
+                    'ignore_row'] = True
+                buttons_lst[ind][
+                    'next_line'] = False
+
+        return buttons_lst
