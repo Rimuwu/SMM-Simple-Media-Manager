@@ -357,6 +357,31 @@ async def update_card(card_data: CardUpdate):
 
     await card.update(**data)
     
+    # Обновляем сообщение на форуме если есть forum_message_id и изменились важные данные
+    if card.forum_message_id:
+        # Список полей, при изменении которых нужно обновить сообщение на форуме
+        forum_update_fields = ['status', 'executor_id', 'deadline', 'name', 'description', 'content']
+        should_update_forum = any(field in data for field in forum_update_fields)
+        
+        if should_update_forum:
+            try:
+                # Определяем статус для отправки
+                forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
+                
+                # Вызываем обновление сообщения на форуме
+                forum_result, forum_status_code = await executors_api.post(
+                    "/forum/update-forum-message",
+                    data={
+                        "card_id": str(card.card_id),
+                        "status": forum_status
+                    }
+                )
+                
+                if forum_status_code != 200:
+                    print(f"Failed to update forum message: {forum_result}")
+            except Exception as e:
+                print(f"Error updating forum message: {e}")
+    
     # Отправляем уведомление исполнителю
     if card_data.notify_executor and card.executor_id:
         try:

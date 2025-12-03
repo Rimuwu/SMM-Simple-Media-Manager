@@ -34,3 +34,22 @@ async def delete_forum_message(card_id: str):
     return {"success": data.get("success", False),
             "message_id": data.get("message_id", None),
             "error": data.get("error", None)}
+
+class UpdateForumMessage(BaseModel):
+    card_id: str
+    status: str
+
+@router.post("/update-forum-message")
+async def update_forum_message(message: UpdateForumMessage):
+    """Обновить сообщение на форуме"""
+    
+    data = await forum_message(
+        message.card_id, 
+        message.status
+    )
+
+    return {
+        "success": data.get("success", False),
+        "message_id": data.get("message_id", None),
+        "error": data.get("error", None)
+    }
