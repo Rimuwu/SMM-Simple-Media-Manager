@@ -11,13 +11,15 @@ async def get(
         telegram_id: Optional[int] = None,
         tasker_id: Optional[int] = None,
         role: Optional[str] = None,
-        user_id = None
+        user_id = None,
+        department: Optional[str] = None
     ):
     query = {
         'telegram_id': telegram_id,
         'tasker_id': tasker_id,
         'role': role,
-        'user_id': user_id
+        'user_id': user_id,
+        'department': department
     }
 
     # Удаляем None значения из запроса
@@ -33,6 +35,8 @@ class UserCreate(BaseModel):
     telegram_id: int
     role: str
     tasker_id: Optional[int] = None
+    department: Optional[str] = None
+    about: Optional[str] = None
 
 @router.post("/create")
 async def create(user_data: UserCreate):
@@ -45,6 +49,8 @@ async def create(user_data: UserCreate):
             telegram_id=user_data.telegram_id,
             role=user_data.role,
             tasker_id=user_data.tasker_id,
+            department=user_data.department,
+            about=user_data.about,
             task_per_year=0,
             task_per_month=0,
             tasks=0
@@ -59,6 +65,8 @@ class UserUpdate(BaseModel):
     telegram_id: int
     role: Optional[str] = None
     tasker_id: Optional[int] = None
+    department: Optional[str] = None
+    about: Optional[str] = None
 
 @router.post("/update")
 async def update(user_data: UserUpdate):
@@ -80,6 +88,12 @@ async def update(user_data: UserUpdate):
 
     if user_data.tasker_id is not None:
         update_data['tasker_id'] = user_data.tasker_id
+
+    if user_data.department is not None:
+        update_data['department'] = user_data.department
+
+    if user_data.about is not None:
+        update_data['about'] = user_data.about
 
     try:
         await user.update(**update_data)

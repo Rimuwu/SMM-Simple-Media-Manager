@@ -56,14 +56,23 @@ class UsersListPage(Page):
 
     @Page.on_callback('add-user')
     async def on_add_user(self, callback, args):
+        # Сбрасываем все данные нового пользователя
+        await self.scene.update_key('scene', 'new_user_id', None)
+        await self.scene.update_key('scene', 'new_user_role', None)
+        await self.scene.update_key('scene', 'new_user_tasker_id', None)
+        await self.scene.update_key('scene', 'new_user_department', None)
+        await self.scene.update_key('scene', 'about_text', '')
 
-        await self.scene.update_key('scene', 
-                                    'selected_role', None)
-        await self.scene.update_key('select-role', 
-                                    'selected_role', None)
+        await self.scene.update_key('scene', 'selected_role', None)
+        await self.scene.update_key('select-role', 'selected_role', None)
 
-        await self.scene.update_key('scene', 
-                                    'selected_kaiten_id', None)
-        await self.scene.update_key('select-kaiten-user', 
-                                    'selected_kaiten_id', None)
+        await self.scene.update_key('scene', 'selected_kaiten_id', None)
+        await self.scene.update_key('select-kaiten-user', 'selected_kaiten_id', None)
+        
+        await self.scene.update_key('scene', 'selected_department', None)
+        await self.scene.update_key('select-department', 'selected_department', None)
+        
+        await self.scene.update_key('scene', 'about_text', '')
+        await self.scene.update_key('edit-about', 'about_text', '')
+        
         await self.scene.update_page('add-user')

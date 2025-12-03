@@ -32,3 +32,18 @@ class UserRole(str, Enum):
     editor = "editor"
     customer = "customer"
     admin = "admin"
+
+class Department(str, Enum):
+    """Отделы"""
+
+    it = "it" # IT отдел
+    design = "design" # Дизайн отдел
+    cosplay = "cosplay" # Отдел косплея
+    craft = "craft" # Ремесленный отдел
+    media = "media" # Медиа отдел
+    board_games = "board_games" # Отдел настольных игр
+    smm = "smm" # SMM отдел
+    judging = "judging" # Отдел судейства
+    streaming = "streaming" # Отдел стриминга
+
+    without_department = "without_department" # Без отдела

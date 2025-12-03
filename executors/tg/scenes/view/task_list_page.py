@@ -7,7 +7,8 @@ filter_names = {
     'my-tasks': 'Мои задачи',
     'all-tasks': 'Все задачи',
     'created-by-me': 'Созданные мной',
-    'for-review': 'Проверяемые мной'
+    'for-review': 'Проверяемые мной',
+    'department-tasks': 'Задачи отдела'
 }
 
 class TaskListPage(Page):
@@ -97,6 +98,33 @@ class TaskListPage(Page):
         elif selected_filter == 'for-review':
             # Задачи на проверку
             tasks = await get_cards(status=CardStatus.review)
+        elif selected_filter == 'department-tasks':
+            # Задачи отдела - получаем всех пользователей из отдела и их задачи
+            department = user.get('department')
+            if department:
+                # Получаем всех пользователей из этого отдела
+                department_users = await get_users(department=department)
+                # Собираем все задачи этих пользователей
+                all_department_tasks = []
+                for dept_user in department_users:
+                    dept_user_id = dept_user['user_id']
+                    # Получаем задачи где пользователь исполнитель
+                    executor_tasks = await get_cards(executor_id=dept_user_id)
+                    all_department_tasks.extend(executor_tasks)
+                    # Получаем задачи созданные пользователем
+                    customer_tasks = await get_cards(customer_id=dept_user_id)
+                    all_department_tasks.extend(customer_tasks)
+                
+                # Убираем дубликаты по card_id
+                seen_ids = set()
+                tasks = []
+                for task in all_department_tasks:
+                    task_id = task.get('card_id')
+                    if task_id not in seen_ids:
+                        seen_ids.add(task_id)
+                        tasks.append(task)
+            else:
+                tasks = []
 
         await self.scene.update_key('scene', 'tasks', tasks)
 

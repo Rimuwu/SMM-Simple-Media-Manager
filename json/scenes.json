@@ -321,7 +321,8 @@
             "selected_user": null,
             "new_user_id": null,
             "new_user_role": null,
-            "edit_mode": false
+            "edit_mode": false,
+            "selected_department": null
         },
         "pages": {
             "users-list": {
@@ -329,7 +330,8 @@
                 "row_width": 2
             },
             "user-detail": {
-                "content": "👤 **Пользователь:** `{telegram_id}`\n🎭 **Роль:** {role}\n🆔 **Kaiten ID:** {tasker_id}"
+                "content": "👤 **Пользователь:** `{telegram_id}`\n🎭 **Роль:** {role}\n🆔 **Kaiten ID:** {tasker_id}\n🏢 **Департамент:** {department}\n📝 **Описание:** {about}",
+                "row_width": 2
             },
             "add-user": {
                 "content": "Введите Telegram ID нового пользователя:"
@@ -340,6 +342,13 @@
             "select-kaiten-user": {
                 "content": "Выберите пользователя Kaiten для привязки:",
                 "row_width": 2
+            },
+            "select-department": {
+                "content": "Выберите департамент пользователя:",
+                "row_width": 2
+            },
+            "edit-about": {
+                "content": "Введите описание пользователя:\n\n**Текущее:** {about_text}"
             }
         }
     }

@@ -16,6 +16,8 @@ class UserDetailPage(Page):
         self.user = users[0]
         role = self.user['role']
         kaiten_id = self.user['tasker_id']
+        department = self.user.get('department')
+        about = self.user.get('about', '')
 
         await self.scene.update_key('scene', 
                                     'selected_role', role)
@@ -27,14 +29,43 @@ class UserDetailPage(Page):
         await self.scene.update_key('select-kaiten-user', 
                                     'selected_kaiten_id', kaiten_id)
 
+        await self.scene.update_key('scene', 
+                                    'selected_department', department)
+        await self.scene.update_key('select-department', 
+                                    'selected_department', department)
+
+        await self.scene.update_key('scene', 
+                                    'about_text', about)
+        await self.scene.update_key('edit-about', 
+                                    'about_text', about)
+
     async def content_worker(self) -> str:
         if not self.user:
             return "❌ Пользователь не найден."
 
+        # Маппинг отделов на читаемые названия
+        department_names = {
+            "it": "IT отдел",
+            "design": "Дизайн отдел",
+            "cosplay": "Отдел косплея",
+            "craft": "Ремесленный отдел",
+            "media": "Медиа отдел",
+            "board_games": "Отдел настольных игр",
+            "smm": "SMM отдел",
+            "judging": "Отдел судейства",
+            "streaming": "Отдел стриминга",
+            "without_department": "Без отдела"
+        }
+        
+        department_value = self.user.get('department', 'Не указан')
+        department_display = department_names.get(department_value, department_value)
+
         return self.content.format(
             telegram_id=self.user['telegram_id'],
             role=self.user['role'],
-            tasker_id=self.user.get('tasker_id', 'Не привязан')
+            tasker_id=self.user.get('tasker_id', 'Не привязан'),
+            department=department_display,
+            about=self.user.get('about', 'Не указано')
         )
 
     async def buttons_worker(self):
@@ -52,6 +83,20 @@ class UserDetailPage(Page):
                 "callback_data": callback_generator(
                     self.scene.__scene_name__,
                     "select-kaiten-user"
+                )
+            },
+            {
+                "text": "🏢 Изменить департамент",
+                "callback_data": callback_generator(
+                    self.scene.__scene_name__,
+                    "select-department"
+                )
+            },
+            {
+                "text": "📝 Изменить описание",
+                "callback_data": callback_generator(
+                    self.scene.__scene_name__,
+                    "edit-about"
                 )
             },
             {
@@ -89,6 +134,16 @@ class UserDetailPage(Page):
     async def on_select_kaiten(self, callback, args):
         await self.scene.update_key('scene', 'edit_mode', True)
         await self.scene.update_page('select-kaiten-user')
+
+    @Page.on_callback('select-department')
+    async def on_select_department(self, callback, args):
+        await self.scene.update_key('scene', 'edit_mode', True)
+        await self.scene.update_page('select-department')
+
+    @Page.on_callback('edit-about')
+    async def on_edit_about(self, callback, args):
+        await self.scene.update_key('scene', 'edit_mode', True)
+        await self.scene.update_page('edit-about')
 
     @Page.on_callback('users-list')
     async def on_back(self, callback, args):

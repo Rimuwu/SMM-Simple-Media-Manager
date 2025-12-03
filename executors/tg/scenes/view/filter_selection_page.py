@@ -16,9 +16,9 @@ class FilterSelectionPage(Page):
 
     async def buttons_worker(self) -> list[dict]:
         result = await super().buttons_worker()
-        
+
         user_role = self.scene.data['scene'].get('user_role')
-        
+
         # Фильтры в зависимости от роли
         if user_role == UserRole.admin:
             filters = [
@@ -38,7 +38,8 @@ class FilterSelectionPage(Page):
             ]
         elif user_role == UserRole.customer:
             filters = [
-                ('created-by-me', '➕ Созданные мной')
+                ('created-by-me', '➕ Созданные мной'),
+                ('department-tasks', '🏢 Задачи отдела')
             ]
         else:
             filters = []

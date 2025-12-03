@@ -1,6 +1,6 @@
 from typing import Optional
 from global_modules.api_client import APIClient
-from global_modules.classes.enums import CardStatus
+from global_modules.classes.enums import CardStatus, Department
 
 brain_api = APIClient('http://brain:8000')
 
@@ -93,14 +93,16 @@ async def get_users(
                    telegram_id: Optional[int] = None,
                    tasker_id: Optional[int] = None,
                    role: Optional[str] = None,
-                   user_id: Optional[str] = None
+                   user_id: Optional[str] = None,
+                   department: Optional[str] = None
                    ):
     """Получить пользователей по различным параметрам"""
     params = {
         "telegram_id": telegram_id,
         "tasker_id": tasker_id,
         "role": role,
-        "user_id": user_id
+        "user_id": user_id,
+        "department": department
     }
     users, res_status = await brain_api.get(
         "/user/get",
@@ -114,13 +116,17 @@ async def get_users(
 
 async def update_user(telegram_id: int,
                       role: Optional[str] = None,
-                      tasker_id: Optional[int] = None
+                      tasker_id: Optional[int] = None,
+                      department: Optional[Department] = None,
+                      about: Optional[str] = None
                       ):
     """Обновить пользователя"""
     data = {
         "telegram_id": telegram_id,
         "role": role,
-        "tasker_id": tasker_id
+        "tasker_id": tasker_id,
+        "department": department,
+        "about": about
     }
     user, res_status = await brain_api.post(
         f"/user/update",
@@ -204,11 +210,17 @@ async def get_all_scenes() -> list[dict]:
 
     return []
 
-async def create_user(telegram_id: int, role: str, tasker_id: Optional[int] = None):
+async def create_user(telegram_id: int, 
+                      role: str, 
+                      tasker_id: Optional[int] = None,
+                      department: Optional[str] = None,
+                      about: Optional[str] = None):
     data = {
         "telegram_id": telegram_id,
         "role": role,
-        "tasker_id": tasker_id
+        "tasker_id": tasker_id,
+        "department": department,
+        "about": about
     }
     user, res_status = await brain_api.post("/user/create", data=data)
     if res_status == 201 or res_status == 200:
