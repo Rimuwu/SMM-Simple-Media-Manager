@@ -2,6 +2,7 @@ from datetime import datetime
 from pprint import pprint
 from typing import Optional
 from uuid import UUID as _UUID
+from os import getenv
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
@@ -13,8 +14,9 @@ from modules.properties import multi_properties
 from modules.json_get import open_settings
 from models.Card import Card, CardStatus
 from modules.api_client import executors_api
-from modules.calendar import create_calendar_event, delete_calendar_event
+from modules.calendar import create_calendar_event, delete_calendar_event, update_calendar_event
 from models.User import User
+from modules.scheduler import schedule_card_notifications, cancel_card_tasks, reschedule_card_notifications
 
 
 # Создаём роутер
@@ -127,9 +129,16 @@ async def create_card(card_data: CardCreate):
     try:
         deadline_datetime = datetime.fromisoformat(card_data.deadline) if card_data.deadline else None
 
+        # Формируем ссылку на задание в Telegram боте
+        bot_username = getenv('BOT_USERNAME', 'your_bot')
+        task_link = f"https://t.me/{bot_username}?start=task_{card.card_id}"
+        
+        # Добавляем ссылку в описание
+        calendar_description = f"{card_data.description}\n\n📎 Ссылка на задание: {task_link}"
+
         data = await create_calendar_event(
             card_data.title,
-            card_data.description,
+            calendar_description,
             deadline_datetime,
             all_day=True,
             color_id='7'
@@ -168,6 +177,15 @@ async def create_card(card_data: CardCreate):
                 )
         except Exception as e:
             print(f"Error notifying executor about new task: {e}")
+
+    # Планируем уведомления для карточки с дедлайном
+    if card_data.deadline:
+        try:
+            async with session_factory() as session:
+                await card.refresh()
+                await schedule_card_notifications(session, card)
+        except Exception as e:
+            print(f"Error scheduling card notifications: {e}")
 
     return {"card_id": str(card.card_id)}
 
@@ -334,7 +352,9 @@ async def update_card(card_data: CardUpdate):
                     )
 
     # Обработка изменения deadline
+    deadline_changed = False
     if 'deadline' in data and card.task_id and card.task_id != 0:
+        deadline_changed = True
         try:
             async with kaiten as client:
                 # Обновляем deadline в Kaiten
@@ -354,8 +374,28 @@ async def update_card(card_data: CardUpdate):
                         await client.add_comment(card.task_id, "Дедлайн изменен")
         except Exception as e:
             print(f"Error updating Kaiten card deadline: {e}")
+        
+        # Обновляем событие в календаре если есть calendar_id
+        if card.calendar_id:
+            try:
+                await update_calendar_event(
+                    event_id=card.calendar_id,
+                    start_time=data['deadline']
+                )
+                print(f"Calendar event {card.calendar_id} updated with new deadline")
+            except Exception as e:
+                print(f"Error updating calendar event: {e}")
 
     await card.update(**data)
+    
+    # Перепланируем задачи при изменении дедлайна
+    if deadline_changed:
+        try:
+            async with session_factory() as session:
+                await card.refresh()
+                await reschedule_card_notifications(session, card)
+        except Exception as e:
+            print(f"Error rescheduling card notifications: {e}")
     
     # Обновляем сообщение на форуме если есть forum_message_id и изменились важные данные
     if card.forum_message_id:
@@ -443,6 +483,13 @@ async def delete_card(card_id: str):
     if not card:
         raise HTTPException(
             status_code=404, detail="Card not found")
+
+    # Удаляем все запланированные задачи для карточки
+    try:
+        async with session_factory() as session:
+            await cancel_card_tasks(session, card_id)
+    except Exception as e:
+        print(f"Error canceling card tasks: {e}")
 
     await card.delete()
 

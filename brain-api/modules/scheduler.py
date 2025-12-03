@@ -174,3 +174,109 @@ async def create_scheduled_task(
     logger.info(f"Создана задача {task.task_id} для выполнения в {execute_at}")
     
     return task
+
+
+async def schedule_card_notifications(session: AsyncSession, card: Card) -> None:
+    """
+    Запланировать уведомления для карточки.
+    Создает задачи:
+    - За 2 дня до дедлайна: напоминание исполнителю (если статус не ready)
+    - За 1 день до дедлайна: уведомление админам если нет исполнителя
+    
+    Args:
+        session: Сессия БД
+        card: Карточка для которой нужно запланировать уведомления
+    """
+    if not card.deadline:
+        logger.info(f"У карточки {card.card_id} нет дедлайна, задачи не создаются")
+        return
+    
+    from datetime import timedelta
+    from uuid import UUID as PyUUID
+    
+    # Вычисляем время для уведомлений
+    two_days_before = card.deadline - timedelta(days=2)
+    one_day_before = card.deadline - timedelta(days=1)
+    
+    # Проверяем, что время уведомлений еще не прошло
+    now = datetime.utcnow()
+    
+    card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
+    
+    # Задача: напоминание исполнителю за 2 дня
+    if two_days_before > now:
+        task = ScheduledTask(
+            card_id=card_uuid,
+            function_path="modules.notifications.send_card_deadline_reminder",
+            execute_at=two_days_before,
+            arguments={"card_id": str(card.card_id)}
+        )
+        session.add(task)
+        logger.info(f"Создана задача напоминания для карточки {card.card_id} на {two_days_before}")
+    
+    # Задача: уведомление админам за 1 день (только если дедлайн больше чем через 1 день)
+    time_until_deadline = (card.deadline - now).total_seconds()
+    if one_day_before > now and time_until_deadline > 86400:  # 86400 секунд = 1 день
+        task = ScheduledTask(
+            card_id=card_uuid,
+            function_path="modules.notifications.send_admin_no_executor_alert",
+            execute_at=one_day_before,
+            arguments={"card_id": str(card.card_id)}
+        )
+        session.add(task)
+        logger.info(f"Создана задача уведомления админов для карточки {card.card_id} на {one_day_before}")
+    
+    await session.commit()
+
+
+async def cancel_card_tasks(session: AsyncSession, card_id: str) -> int:
+    """
+    Отменить все запланированные задачи для карточки.
+    
+    Args:
+        session: Сессия БД
+        card_id: ID карточки (строка или UUID)
+        
+    Returns:
+        Количество удаленных задач
+    """
+    from sqlalchemy import delete
+    from uuid import UUID as PyUUID
+    
+    # Преобразуем card_id в UUID если это строка
+    try:
+        card_uuid = PyUUID(card_id) if isinstance(card_id, str) else card_id
+    except ValueError:
+        logger.error(f"Невалидный card_id: {card_id}")
+        return 0
+    
+    # Находим все задачи, связанные с этой карточкой
+    stmt = delete(ScheduledTask).where(
+        ScheduledTask.card_id == card_uuid
+    )
+    
+    result = await session.execute(stmt)
+    await session.commit()
+    
+    deleted_count = result.rowcount
+    logger.info(f"Удалено {deleted_count} задач для карточки {card_id}")
+    
+    return deleted_count
+
+
+async def reschedule_card_notifications(session: AsyncSession, card: Card) -> None:
+    """
+    Перепланировать уведомления для карточки при изменении дедлайна.
+    Удаляет старые задачи и создает новые с обновленным временем.
+    
+    Args:
+        session: Сессия БД
+        card: Карточка с обновленным дедлайном
+    """
+    # Удаляем старые задачи
+    deleted_count = await cancel_card_tasks(session, str(card.card_id))
+    logger.info(f"Удалено {deleted_count} старых задач для карточки {card.card_id}")
+    
+    # Создаем новые задачи
+    await schedule_card_notifications(session, card)
+    logger.info(f"Созданы новые задачи для карточки {card.card_id}")

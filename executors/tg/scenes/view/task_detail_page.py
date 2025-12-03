@@ -184,8 +184,10 @@ class TaskDetailPage(Page):
                 ('open_task', '📂 Открыть задачу')
             ])
 
-        if role == UserRole.customer:
+        if role == UserRole.customer or is_admin:
             action_buttons.extend([
+                ('change_name', '✏️ Изменить название'),
+                ('change_description', '📝 Изменить описание'),
                 ('change_deadline', '⏰ Изменить дедлайн'),
                 ('add_comment', '💬 Добавить комментарий')
             ])
@@ -210,6 +212,16 @@ class TaskDetailPage(Page):
         if action == 'assign_executor':
             # Переход на страницу назначения исполнителя
             await self.scene.update_page('assign-executor')
+            return
+        
+        elif action == 'change_name':
+            # Переход на страницу изменения названия
+            await self.scene.update_page('change-name')
+            return
+        
+        elif action == 'change_description':
+            # Переход на страницу изменения описания
+            await self.scene.update_page('change-description')
             return
         
         elif action == 'change_deadline':
