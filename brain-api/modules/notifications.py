@@ -9,7 +9,6 @@ from models.Card import Card, CardStatus
 from models.User import User
 from global_modules.classes.enums import UserRole
 from modules.api_client import executors_api
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -170,3 +169,156 @@ async def check_card_approval(card: Card, **kwargs):
         logger.info(f"Карточка {card.card_id} ожидает проверки")
     
     logger.info(f"Проверка карточки {card.card_id} завершена")
+
+
+# ================== Функции для публикации постов ==================
+
+
+async def schedule_post_via_executor(card: Card, client_key: str, **kwargs):
+    """
+    Запланировать пост через исполнителя с отложенной отправкой.
+    Используется для tp_executor (Pyrogram), который поддерживает schedule_message.
+    
+    Вся генерация контента и работа с исполнителями происходит на стороне executors API.
+    
+    Args:
+        card: Карточка с контентом
+        client_key: Ключ клиента из clients.json
+        **kwargs: Дополнительные параметры
+    """
+    logger.info(f"Планирование поста через исполнителя для карточки {card.card_id}, клиент: {client_key}")
+    
+    try:
+        # Отправляем запрос на отложенную публикацию - всю логику выполняет executors API
+        response, status = await executors_api.post(
+            "/post/schedule",
+            data={
+                "card_id": str(card.card_id),
+                "client_key": client_key,
+                "content": card.content or card.description or "",
+                "tags": card.tags,
+                "send_time": card.send_time.isoformat() if card.send_time else None,
+                "image": card.post_image.hex() if card.post_image else None
+            }
+        )
+        
+        if status == 200 and response.get('success'):
+            logger.info(f"Пост для карточки {card.card_id} запланирован, клиент: {client_key}")
+        else:
+            logger.error(f"Ошибка планирования поста: {response}")
+            await notify_admins_about_post_failure(card, client_key, response.get('error', 'Unknown error'))
+            
+    except Exception as e:
+        logger.error(f"Ошибка при планировании поста для карточки {card.card_id}: {e}", exc_info=True)
+        await notify_admins_about_post_failure(card, client_key, str(e))
+
+
+async def send_post_now(card: Card, client_key: str, **kwargs):
+    """
+    Немедленно отправить пост через исполнителя.
+    Используется для telegram_executor и vk_executor, которые не поддерживают
+    нативную отложенную отправку.
+    
+    Вся генерация контента и работа с исполнителями происходит на стороне executors API.
+    
+    Args:
+        card: Карточка с контентом
+        client_key: Ключ клиента из clients.json
+        **kwargs: Дополнительные параметры
+    """
+    logger.info(f"Немедленная отправка поста для карточки {card.card_id}, клиент: {client_key}")
+    
+    try:
+        # Отправляем запрос на немедленную публикацию - всю логику выполняет executors API
+        response, status = await executors_api.post(
+            "/post/send",
+            data={
+                "card_id": str(card.card_id),
+                "client_key": client_key,
+                "content": card.content or card.description or "",
+                "tags": card.tags,
+                "image": card.post_image.hex() if card.post_image else None
+            }
+        )
+        
+        if status == 200 and response.get('success'):
+            logger.info(f"Пост для карточки {card.card_id} отправлен, клиент: {client_key}")
+        else:
+            logger.error(f"Ошибка отправки поста: {response}")
+            await notify_admins_about_post_failure(card, client_key, response.get('error', 'Unknown error'))
+            
+    except Exception as e:
+        logger.error(f"Ошибка при отправке поста для карточки {card.card_id}: {e}", exc_info=True)
+        await notify_admins_about_post_failure(card, client_key, str(e))
+
+
+async def verify_post_sent(card: Card, client_key: str, **kwargs):
+    """
+    Проверить, был ли отправлен пост через исполнителя с отложенной отправкой.
+    Вызывается через минуту после запланированного времени отправки.
+    Если пост не был отправлен - отправляет его немедленно.
+    
+    Args:
+        card: Карточка с контентом
+        client_key: Ключ клиента из clients.json
+        **kwargs: Дополнительные параметры
+    """
+    logger.info(f"Проверка отправки поста для карточки {card.card_id}, клиент: {client_key}")
+    
+    try:
+        # Проверяем статус отправки через executors API
+        response, status = await executors_api.get(
+            f"/post/verify/{card.card_id}/{client_key}"
+        )
+        
+        if status == 200 and response.get('sent'):
+            logger.info(f"Пост для карточки {card.card_id} успешно отправлен")
+            return
+        
+        # Пост не был отправлен - отправляем немедленно
+        logger.warning(f"Пост для карточки {card.card_id} не был отправлен, отправляем сейчас")
+        await send_post_now(card, client_key, **kwargs)
+        
+    except Exception as e:
+        logger.error(f"Ошибка при проверке отправки поста: {e}", exc_info=True)
+        # В случае ошибки проверки - отправляем пост
+        await send_post_now(card, client_key, **kwargs)
+
+
+async def notify_admins_about_post_failure(card: Card, client_key: str, error: str):
+    """
+    Уведомить админов об ошибке публикации поста.
+    
+    Args:
+        card: Карточка
+        client_key: Ключ клиента
+        error: Текст ошибки
+    """
+    try:
+        admins = await User.filter_by(role=UserRole.admin)
+        if not admins:
+            logger.warning("Админы не найдены в системе")
+            return
+        
+        message_text = (
+            f"❌ Ошибка публикации поста\n\n"
+            f"📝 Задача: {card.name}\n"
+            f"📢 Канал: {client_key}\n"
+            f"⚠️ Ошибка: {error}\n\n"
+            f"Требуется ручная публикация!"
+        )
+        
+        for admin in admins:
+            try:
+                await executors_api.post(
+                    "/events/notify_user",
+                    data={
+                        "user_id": admin.telegram_id,
+                        "message": message_text
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Ошибка уведомления админа {admin.telegram_id}: {e}")
+                
+    except Exception as e:
+        logger.error(f"Ошибка уведомления админов об ошибке публикации: {e}", exc_info=True)

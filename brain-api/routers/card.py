@@ -16,7 +16,7 @@ from models.Card import Card, CardStatus
 from modules.api_client import executors_api
 from modules.calendar import create_calendar_event, delete_calendar_event, update_calendar_event
 from models.User import User
-from modules.scheduler import schedule_card_notifications, cancel_card_tasks, reschedule_card_notifications
+from modules.scheduler import schedule_card_notifications, cancel_card_tasks, reschedule_card_notifications, schedule_post_tasks, cancel_post_tasks, reschedule_post_tasks
 
 
 # Создаём роутер
@@ -337,6 +337,18 @@ async def update_card(card_data: CardUpdate):
                         "Задание взято в работу"
                     )
 
+        # Обработка изменения статуса на ready - создаем задачи публикации
+        if data['status'] == CardStatus.ready:
+            try:
+                async with session_factory() as session:
+                    # Обновляем карточку перед созданием задач
+                    await card.refresh()
+                    # Планируем задачи публикации для каждого канала
+                    await schedule_post_tasks(session, card)
+                    print(f"Scheduled post tasks for card {card.card_id}")
+            except Exception as e:
+                print(f"Error scheduling post tasks: {e}")
+
     if 'executor_id' in data and data['executor_id'] != card.executor_id:
 
         user = await User.get_by_key(
@@ -425,6 +437,20 @@ async def update_card(card_data: CardUpdate):
             except Exception as e:
                 print(f"Error updating calendar event: {e}")
 
+    # Обработка изменения send_time - перепланируем задачи публикации
+    send_time_changed = False
+    if 'send_time' in data:
+        # Преобразуем send_time в datetime если это строка
+        if isinstance(data['send_time'], str):
+            try:
+                data['send_time'] = datetime.fromisoformat(data['send_time'])
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format for send_time")
+        
+        # Проверяем, действительно ли изменилось время
+        if data['send_time'] != card.send_time:
+            send_time_changed = True
+
     await card.update(**data)
     
     # Перепланируем задачи при изменении дедлайна
@@ -435,6 +461,16 @@ async def update_card(card_data: CardUpdate):
                 await reschedule_card_notifications(session, card)
         except Exception as e:
             print(f"Error rescheduling card notifications: {e}")
+    
+    # Перепланируем задачи публикации при изменении send_time
+    if send_time_changed:
+        try:
+            async with session_factory() as session:
+                await card.refresh()
+                await reschedule_post_tasks(session, card)
+                print(f"Rescheduled post tasks for card {card.card_id}")
+        except Exception as e:
+            print(f"Error rescheduling post tasks: {e}")
     
     # Обновляем сообщение на форуме если есть forum_message_id и изменились важные данные
     if card.forum_message_id:

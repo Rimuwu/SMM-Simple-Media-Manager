@@ -27,7 +27,7 @@ class PublishDateSetterPage(Page):
         if task_id:
             await update_card(
                 card_id=task_id,
-                deadline=iso_date
+                send_time=iso_date
             )
         
         await self.scene.update_page('main-page')
