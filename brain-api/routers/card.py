@@ -261,6 +261,8 @@ async def get(task_id: Optional[str] = None,
 
 class CardUpdate(BaseModel):
     card_id: str
+    name: Optional[str] = None  # Название карточки
+    description: Optional[str] = None  # Описание карточки
     status: Optional[CardStatus] = None
     executor_id: Optional[str] = None
     customer_id: Optional[str] = None
@@ -351,6 +353,43 @@ async def update_card(card_data: CardUpdate):
                         tasker_id
                     )
 
+    # Обработка изменения name (названия)
+    if 'name' in data and card.task_id and card.task_id != 0:
+        try:
+            async with kaiten as client:
+                # Обновляем название в Kaiten
+                await client.update_card(
+                    card.task_id,
+                    title=data['name']
+                )
+                
+                # Добавляем комментарий об изменении
+                if card_data.old_value and card_data.new_value:
+                    comment = f"✏️ Название изменено:\n{card_data.old_value} → {card_data.new_value}"
+                    await client.add_comment(card.task_id, comment)
+                else:
+                    await client.add_comment(card.task_id, f"✏️ Название изменено на: {data['name']}")
+        except Exception as e:
+            print(f"Error updating Kaiten card name: {e}")
+    
+    # Обработка изменения description (описания)
+    if 'description' in data and card.task_id and card.task_id != 0:
+        try:
+            async with kaiten as client:
+                # Обновляем описание в Kaiten
+                await client.update_card(
+                    card.task_id,
+                    description=data['description']
+                )
+                
+                # Добавляем комментарий об изменении
+                comment = f"📝 Описание обновлено:\n{data['description'][:200]}"
+                if len(data['description']) > 200:
+                    comment += "..."
+                await client.add_comment(card.task_id, comment)
+        except Exception as e:
+            print(f"Error updating Kaiten card description: {e}")
+    
     # Обработка изменения deadline
     deadline_changed = False
     if 'deadline' in data and card.task_id and card.task_id != 0:
@@ -368,7 +407,7 @@ async def update_card(card_data: CardUpdate):
                     try:
                         old_dt = datetime.fromisoformat(card_data.old_value)
                         new_dt = datetime.fromisoformat(card_data.new_value)
-                        comment = f"Дедлайн изменен: {old_dt.strftime('%d.%m.%Y %H:%M')} → {new_dt.strftime('%d.%m.%Y %H:%M')}"
+                        comment = f"⏰ Дедлайн изменен: {old_dt.strftime('%d.%m.%Y %H:%M')} → {new_dt.strftime('%d.%m.%Y %H:%M')}"
                         await client.add_comment(card.task_id, comment)
                     except:
                         await client.add_comment(card.task_id, "Дедлайн изменен")
@@ -428,10 +467,12 @@ async def update_card(card_data: CardUpdate):
             executor = await User.get_by_key('user_id', card.executor_id)
             if executor:
                 change_messages = {
-                    'deadline': '❓ Изменен дедлайн',
-                    'comment': '💬 Добавлен комментарий'
+                    'deadline': '⏰ Изменен дедлайн',
+                    'comment': '💬 Добавлен комментарий',
+                    'name': '✏️ Изменено название',
+                    'description': '📝 Изменено описание'
                 }
-                message_text = change_messages.get(card_data.change_type, '🔔 Изменение в задаче')
+                message_text = change_messages.get(card_data.change_type or '', '🔔 Изменение в задаче')
                 message_text += f"\n\n📝 Задача: {card.name}"
                 
                 if card_data.change_type == 'deadline' and card_data.new_value:
@@ -440,6 +481,12 @@ async def update_card(card_data: CardUpdate):
                         message_text += f"\n⏰ Новый дедлайн: {new_dt.strftime('%d.%m.%Y %H:%M')}"
                     except:
                         pass
+                elif card_data.change_type == 'name' and card_data.new_value:
+                    message_text += f"\n\nНовое название: {card_data.new_value}"
+                elif card_data.change_type == 'description' and card_data.new_value:
+                    # Обрезаем длинное описание
+                    description_preview = card_data.new_value[:200] + "..." if len(card_data.new_value) > 200 else card_data.new_value
+                    message_text += f"\n\nНовое описание:\n{description_preview}"
                 
                 await executors_api.post(
                     "/events/notify_user",

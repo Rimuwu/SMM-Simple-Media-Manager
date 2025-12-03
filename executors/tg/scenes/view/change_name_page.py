@@ -1,14 +1,12 @@
-from tg.oms.models.text_page import TextTypeScene
+from tg.oms.common_pages.update_text_page import UpdateTextPage
 from modules.api_client import brain_api
 
 
-class ChangeNamePage(TextTypeScene):
+class ChangeNamePage(UpdateTextPage):
     
     __page_name__ = 'change-name'
     __scene_key__ = 'task_name'
     __next_page__ = 'task-detail'
-    
-    update_to_db = True
 
     async def data_preparate(self):
         """Подгружаем текущее название задачи"""

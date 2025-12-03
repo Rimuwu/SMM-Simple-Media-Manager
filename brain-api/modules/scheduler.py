@@ -38,7 +38,7 @@ class TaskScheduler:
         self.session_factory = session_factory
         self.check_interval = check_interval
         self.is_running = False
-        
+
     async def start(self):
         """Запустить планировщик."""
         self.is_running = True

@@ -1,14 +1,12 @@
-from tg.oms.models.text_page import TextTypeScene
+from tg.oms.common_pages.update_text_page import UpdateTextPage
 from modules.api_client import brain_api
 
 
-class ChangeDescriptionPage(TextTypeScene):
+class ChangeDescriptionPage(UpdateTextPage):
     
     __page_name__ = 'change-description'
     __scene_key__ = 'task_description'
     __next_page__ = 'task-detail'
-    
-    update_to_db = True
 
     async def data_preparate(self):
         """Подгружаем текущее описание задачи"""
@@ -29,7 +27,7 @@ class ChangeDescriptionPage(TextTypeScene):
             
         self.content = self.append_variables(task_description=current_description)
         return self.content
-    
+
     async def update_to_database(self, value: str) -> bool:
         """Обновляем описание в карточке"""
         task = self.scene.data['scene'].get('current_task_data')

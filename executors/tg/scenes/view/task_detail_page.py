@@ -175,8 +175,7 @@ class TaskDetailPage(Page):
         if role == UserRole.admin or is_admin:
             action_buttons.extend([
                 ('assign_executor', '👷 Исполнитель'),
-                ('delete', '🗑️ Удалить задачу'),
-                ('change_deadline', '⏰ Изменить дедлайн')
+                ('delete', '🗑️ Удалить задачу')
             ])
 
         if role == UserRole.copywriter or is_admin or role == UserRole.editor:

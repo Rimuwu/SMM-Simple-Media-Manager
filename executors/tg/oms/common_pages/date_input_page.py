@@ -16,6 +16,10 @@ class DateInputPage(Page):
     on_success_callback: Optional[Callable] = None
     __scene_key__: str
     __next_page__: str
+    
+    async def data_preparate(self) -> None:
+        self.clear_content()
+        return await super().data_preparate()
 
     @Page.on_text('not_handled')
     async def not_handled(self, message: Message):
