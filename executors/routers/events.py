@@ -122,3 +122,46 @@ async def update_scenes(event: UpdateScenesEvent):
         "total_active_scenes": len(active_scenes),
         "updated_scenes": updated_count
     }
+
+
+class NotifyUserEvent(BaseModel):
+    user_id: int
+    message: str
+
+
+@router.post("/notify_user")
+async def notify_user(event: NotifyUserEvent):
+    """
+    Отправляет уведомление пользователю с кнопкой удаления
+    """
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    from tg.oms.manager import scene_manager
+    
+    try:
+        # Получаем бот из любой активной сцены или создаем новый экземпляр
+        bot = None
+        active_scenes = list(scene_manager._instances.values())
+        if active_scenes:
+            bot = active_scenes[0].bot
+        
+        if not bot:
+            # Если нет активных сцен, получаем бот из менеджера исполнителей
+            from modules.executors_manager import manager
+            client_executor = manager.get("telegram_executor")
+            bot = client_executor.bot
+        
+        # Создаем клавиатуру с кнопкой удаления
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑️ Удалить", callback_data="delete_message")]
+        ])
+        
+        await bot.send_message(
+            chat_id=event.user_id,
+            text=event.message,
+            reply_markup=keyboard
+        )
+        
+        return {"status": "ok", "sent": True}
+    except Exception as e:
+        print(f"Error sending notification to user {event.user_id}: {e}")
+        return {"status": "error", "error": str(e), "sent": False}

@@ -184,6 +184,12 @@ class TaskDetailPage(Page):
                 ('open_task', '📂 Открыть задачу')
             ])
 
+        if role == UserRole.customer:
+            action_buttons.extend([
+                ('change_deadline', '⏰ Изменить дедлайн'),
+                ('add_comment', '💬 Добавить комментарий')
+            ])
+
         # Добавляем кнопки действий
         for action_key, action_name in action_buttons:
             result.append({
@@ -209,6 +215,12 @@ class TaskDetailPage(Page):
         elif action == 'change_deadline':
             # Переход на страницу изменения дедлайна
             await self.scene.update_page('change-deadline')
+            return
+        
+        elif action == 'add_comment':
+            # Переход на страницу добавления комментария
+            await self.scene.update_key('scene', 'comment_text', '')
+            await self.scene.update_page('add-comment')
             return
 
         elif action == 'open_task':

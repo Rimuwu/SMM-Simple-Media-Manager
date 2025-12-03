@@ -47,3 +47,9 @@ class Department(str, Enum):
     streaming = "streaming" # Отдел стриминга
 
     without_department = "without_department" # Без отдела
+
+class CardType(str, Enum):
+    """Типы карточек"""
+
+    public = "public"
+    private = "private"

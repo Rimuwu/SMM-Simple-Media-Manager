@@ -16,11 +16,13 @@ class UserSelectorPage(RadioTypeScene):
         update_to_db: Если True, обновляет данные через API после выбора
         allow_reset: Если True, показывает кнопку "Сбросить"
         on_success_callback: Опциональная функция для выполнения после успешного обновления
+        filter_department: Если указан, фильтрует пользователей по департаменту
     """
     
     update_to_db: bool = False
     allow_reset: bool = True
     on_success_callback: Optional[Callable] = None
+    filter_department: Optional[str] = None
     
     users_data = []
     kaiten_users = {}
@@ -29,8 +31,12 @@ class UserSelectorPage(RadioTypeScene):
         await super().data_preparate()
 
         if not self.users_data:
-            # Получаем всех пользователей из БД
-            users = await get_users()
+            # Получаем пользователей из БД с фильтром по департаменту если указан
+            if self.filter_department:
+                users = await get_users(department=self.filter_department)
+            else:
+                users = await get_users()
+            
             if users:
                 self.users_data = users
                 
@@ -40,6 +46,12 @@ class UserSelectorPage(RadioTypeScene):
         # Формируем опции для выбора
         self.options = {}
         for user in self.users_data:
+            # Применяем фильтр по департаменту если указан
+            if self.filter_department:
+                user_department = user.get('department')
+                if user_department != self.filter_department:
+                    continue
+            
             user_id = str(user['user_id'])
             display_name = await self.get_display_name(
                 user, 
@@ -47,6 +59,29 @@ class UserSelectorPage(RadioTypeScene):
                 self.scene.__bot__
             )
             self.options[user_id] = display_name
+
+    async def content_worker(self) -> str:
+        """Формирует контент с отображением текущего пользователя"""
+        current_user_id = self.scene.data['scene'].get(self.scene_key)
+        current_user_name = 'Не назначен'
+        
+        if current_user_id:
+            # Ищем пользователя в загруженных данных
+            user_data = next((u for u in self.users_data if str(u.get('user_id')) == str(current_user_id)), None)
+            if user_data:
+                current_user_name = await self.get_display_name(
+                    user_data,
+                    self.kaiten_users,
+                    self.scene.__bot__
+                )
+        
+        # Формируем переменные для подстановки в шаблон
+        variables = {
+            'user': current_user_name,
+            'executor': current_user_name
+        }
+        
+        return self.append_variables(**variables)
     
     @staticmethod
     async def get_display_name(user_data: dict, 
@@ -134,6 +169,9 @@ class UserSelectorPage(RadioTypeScene):
             else:
                 await callback.answer("❌ Ошибка при обновлении")
                 return
+        
+        # Переходим на следующую страницу
+        await self.scene.update_page(self.next_page)
     
     async def update_to_database(self, user_id: Optional[str]) -> bool:
         """

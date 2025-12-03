@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from database.connection import session_factory
+from global_modules.classes.enums import CardType
 from modules.kaiten import kaiten
 from modules.properties import multi_properties
 from modules.json_get import open_settings
@@ -38,7 +39,7 @@ class CardCreate(BaseModel):
     editor_check: bool = True # Нужно ли проверять перед публикацией
     image_prompt: Optional[str] = None  # Промпт задачи для картинки
     tags: Optional[list[str]] = None  # Теги для карты
-    type_id: str  # Тип задания
+    type_id: CardType  # Тип задания
 
 
 @router.post("/create")
@@ -108,7 +109,7 @@ async def create_card(card_data: CardCreate):
         executor_id=card_data.executor_id,
     )
 
-    if card_data.type_id == 'public':
+    if card_data.type_id == CardType.public:
 
         forum_res, status = await executors_api.post(
             "/forum/send-message-to-forum",
@@ -143,6 +144,30 @@ async def create_card(card_data: CardCreate):
     except Exception as e:
         print(f"Error creating calendar event: {e}")
         return {'error': e.__str__()}
+
+    # Отправляем уведомление исполнителю при создании личной задачи
+    if card_data.type_id == CardType.private and card_data.executor_id:
+        try:
+            executor = await User.get_by_key('user_id', card_data.executor_id)
+            if executor:
+                deadline_str = ""
+                if card_data.deadline:
+                    try:
+                        deadline_dt = datetime.fromisoformat(card_data.deadline)
+                        deadline_str = f"\n⏰ Дедлайн: {deadline_dt.strftime('%d.%m.%Y %H:%M')}"
+                    except:
+                        pass
+                
+                message_text = f"🆕 Новая задача\n\n📝 {card_data.title}{deadline_str}\n\n{card_data.description}"
+                await executors_api.post(
+                    "/events/notify_user",
+                    data={
+                        "user_id": executor.telegram_id,
+                        "message": message_text
+                    }
+                )
+        except Exception as e:
+            print(f"Error notifying executor about new task: {e}")
 
     return {"card_id": str(card.card_id)}
 
@@ -232,6 +257,10 @@ class CardUpdate(BaseModel):
     prompt_sended: Optional[bool] = None
     calendar_id: Optional[str] = None
     post_image: Optional[str] = None  # Hex-encoded binary data
+    notify_executor: Optional[bool] = False  # Отправить уведомление исполнителю
+    change_type: Optional[str] = None  # Тип изменения
+    old_value: Optional[str] = None  # Старое значение
+    new_value: Optional[str] = None  # Новое значение
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
@@ -304,7 +333,58 @@ async def update_card(card_data: CardUpdate):
                         tasker_id
                     )
 
+    # Обработка изменения deadline
+    if 'deadline' in data and card.task_id and card.task_id != 0:
+        try:
+            async with kaiten as client:
+                # Обновляем deadline в Kaiten
+                await client.update_card(
+                    card.task_id,
+                    due_date=data['deadline'].strftime('%Y-%m-%d')
+                )
+                
+                # Добавляем комментарий об изменении
+                if card_data.old_value and card_data.new_value:
+                    try:
+                        old_dt = datetime.fromisoformat(card_data.old_value)
+                        new_dt = datetime.fromisoformat(card_data.new_value)
+                        comment = f"Дедлайн изменен: {old_dt.strftime('%d.%m.%Y %H:%M')} → {new_dt.strftime('%d.%m.%Y %H:%M')}"
+                        await client.add_comment(card.task_id, comment)
+                    except:
+                        await client.add_comment(card.task_id, "Дедлайн изменен")
+        except Exception as e:
+            print(f"Error updating Kaiten card deadline: {e}")
+
     await card.update(**data)
+    
+    # Отправляем уведомление исполнителю
+    if card_data.notify_executor and card.executor_id:
+        try:
+            executor = await User.get_by_key('user_id', card.executor_id)
+            if executor:
+                change_messages = {
+                    'deadline': '❓ Изменен дедлайн',
+                    'comment': '💬 Добавлен комментарий'
+                }
+                message_text = change_messages.get(card_data.change_type, '🔔 Изменение в задаче')
+                message_text += f"\n\n📝 Задача: {card.name}"
+                
+                if card_data.change_type == 'deadline' and card_data.new_value:
+                    try:
+                        new_dt = datetime.fromisoformat(card_data.new_value)
+                        message_text += f"\n⏰ Новый дедлайн: {new_dt.strftime('%d.%m.%Y %H:%M')}"
+                    except:
+                        pass
+                
+                await executors_api.post(
+                    "/events/notify_user",
+                    data={
+                        "user_id": executor.telegram_id,
+                        "message": message_text
+                    }
+                )
+        except Exception as e:
+            print(f"Error notifying executor: {e}")
     
     # Возвращаем словарь без бинарных данных
     result = card.to_dict()
@@ -362,6 +442,62 @@ async def delete_card(card_id: str):
             return {"detail": "Card deleted from DB, but failed to delete forum message"}
 
     return {"detail": "Card deleted successfully"}
+
+class CommentAdd(BaseModel):
+    card_id: str
+    content: str
+    author: str  # user_id автора комментария
+
+@router.post("/add-comment")
+async def add_comment(note_data: CommentAdd):
+    """Добавить комментарий к карточке (обычный комментарий)"""
+    card = await Card.get_by_key('card_id', note_data.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    
+    # Добавляем комментарий в Kaiten
+    if card.task_id and card.task_id != 0:
+        try:
+            # Получаем имя автора
+            author = await User.get_by_key('user_id', note_data.author)
+            author_name = "Unknown"
+            if author:
+                if author.tasker_id:
+                    async with kaiten as client:
+                        users = await client.get_users()
+                        kaiten_user = next((u for u in users if u.id == author.tasker_id), None)
+                        if kaiten_user:
+                            author_name = kaiten_user.full_name
+                if author_name == "Unknown":
+                    # Используем telegram_id
+                    author_name = f"@{author.telegram_id}"
+            
+            comment_text = f"💬 {author_name}: {note_data.content}"
+            
+            async with kaiten as client:
+                await client.add_comment(card.task_id, comment_text)
+        except Exception as e:
+            print(f"Error adding comment to Kaiten: {e}")
+    
+    # Отправляем уведомление исполнителю
+    if card.executor_id:
+        try:
+            executor = await User.get_by_key('user_id', card.executor_id)
+            if executor:
+                message_text = f"💬 Новый комментарий к задаче\n\n📝 {card.name}\n\n{note_data.content}"
+                await executors_api.post(
+                    "/events/notify_user",
+                    data={
+                        "user_id": executor.telegram_id,
+                        "message": message_text
+                    }
+                )
+        except Exception as e:
+            print(f"Error notifying executor: {e}")
+    
+    return {
+        "detail": "Comment added successfully"
+    }
 
 class EditorNoteAdd(BaseModel):
     card_id: str

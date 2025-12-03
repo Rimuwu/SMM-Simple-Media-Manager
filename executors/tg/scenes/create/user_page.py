@@ -9,3 +9,4 @@ class UserPage(UserSelectorPage):
     
     update_to_db = False
     allow_reset = True
+    filter_department = 'smm'  # Фильтруем только пользователей из SMM департамента
