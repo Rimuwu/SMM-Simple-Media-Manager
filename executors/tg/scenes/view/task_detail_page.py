@@ -385,18 +385,18 @@ class TaskDetailPage(Page):
 
             card_id = task.get('card_id')
             
-            # Устанавливаем время отправки на сейчас
+            # Вызываем специальный эндпоинт для немедленной отправки
             res, status = await brain_api.post(
-                '/card/update',
+                '/card/send-now',
                 data={
-                    'card_id': card_id,
-                    'send_time': datetime.now().isoformat()
+                    'card_id': card_id
                 }
             )
             
             if status == 200:
-                await callback.answer("Время отправки установлено на сейчас.", show_alert=True)
+                await callback.answer("🚀 Задача отправлена на публикацию!", show_alert=True)
                 await self.load_task_details()
                 await self.scene.update_page('task-detail')
             else:
-                await callback.answer("Ошибка при обновлении времени отправки.", show_alert=True)
+                error_detail = res.get('detail', 'Неизвестная ошибка') if isinstance(res, dict) else str(res)
+                await callback.answer(f"Ошибка: {error_detail}", show_alert=True)

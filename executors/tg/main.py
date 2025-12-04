@@ -94,6 +94,112 @@ class TelegramExecutor(BaseExecutor):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    async def send_photo(self, 
+                         chat_id: str,
+                         photo: str,
+                         caption: Optional[str] = None,
+                         parse_mode: Optional[str] = 'HTML',
+                         list_markup: Optional[list] = None,
+                         row_width: int = 3
+                         ) -> dict:
+        """
+        Отправить фото.
+        
+        Args:
+            chat_id: ID чата
+            photo: file_id, URL или bytes данные фото
+            caption: Подпись
+            parse_mode: Режим парсинга
+            list_markup: Кнопки
+            row_width: Ширина ряда кнопок
+        """
+        from aiogram.types import BufferedInputFile
+        
+        markup = list_to_inline(list_markup or [], row_width=row_width) if list_markup else None
+        
+        try:
+            # Если photo - bytes, конвертируем в BufferedInputFile
+            if isinstance(photo, bytes):
+                photo = BufferedInputFile(photo, filename="photo.jpg")
+            
+            result = await self.bot.send_photo(
+                chat_id=chat_id,
+                photo=photo,
+                caption=caption,
+                parse_mode=parse_mode,
+                reply_markup=markup
+            )
+            return {"success": True, "message_id": result.message_id}
+        except Exception as e:
+            logger.error(f"Error sending photo: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_media_group(self,
+                               chat_id: str,
+                               media: list,
+                               caption: Optional[str] = None,
+                               parse_mode: Optional[str] = 'HTML'
+                               ) -> dict:
+        """
+        Отправить группу медиа (несколько фото).
+        
+        Args:
+            chat_id: ID чата
+            media: Список bytes данных или словарей с file_id
+            caption: Подпись (применяется к первому фото)
+            parse_mode: Режим парсинга
+        """
+        from aiogram.types import InputMediaPhoto, BufferedInputFile
+        
+        try:
+            media_group = []
+            for idx, item in enumerate(media):
+                # Подпись только для первого элемента
+                item_caption = caption if idx == 0 else None
+                item_parse_mode = parse_mode if idx == 0 else None
+                
+                # Определяем тип данных
+                if isinstance(item, bytes):
+                    # bytes данные - конвертируем в BufferedInputFile
+                    photo_input = BufferedInputFile(item, filename=f"photo_{idx}.jpg")
+                    media_group.append(InputMediaPhoto(
+                        media=photo_input,
+                        caption=item_caption,
+                        parse_mode=item_parse_mode
+                    ))
+                elif isinstance(item, dict):
+                    # Словарь с file_id (старый формат для совместимости)
+                    file_id = item.get('file_id')
+                    if not file_id:
+                        continue
+                    media_group.append(InputMediaPhoto(
+                        media=file_id,
+                        caption=item_caption,
+                        parse_mode=item_parse_mode
+                    ))
+                elif isinstance(item, str):
+                    # Строка - file_id или URL
+                    media_group.append(InputMediaPhoto(
+                        media=item,
+                        caption=item_caption,
+                        parse_mode=item_parse_mode
+                    ))
+            
+            if not media_group:
+                return {"success": False, "error": "No valid media items"}
+            
+            result = await self.bot.send_media_group(
+                chat_id=chat_id,
+                media=media_group
+            )
+            
+            # Возвращаем ID первого сообщения
+            first_message_id = result[0].message_id if result else None
+            return {"success": True, "message_id": first_message_id, "messages_count": len(result)}
+        except Exception as e:
+            logger.error(f"Error sending media group: {e}")
+            return {"success": False, "error": str(e)}
+
     async def start_polling(self):
         """Запустить пуллинг"""
         self.setup_handlers()

@@ -19,10 +19,6 @@ def register_handlers(router: Union[Router, Dispatcher]):
 
         if message.chat.id == user_id:
 
-            logger.info(
-                f'on_message\nscene: {scene}\nmessage: {message.text}'
-            )
-
             if scene:
                 await scene.text_handler(message)
 

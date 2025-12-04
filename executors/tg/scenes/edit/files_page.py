@@ -4,7 +4,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
 from aiogram import Bot
 from tg.oms import Page
-from modules.api_client import get_cards, brain_api, get_kaiten_files
+from modules.api_client import get_cards, brain_api, get_kaiten_files, update_card
 
 
 class FilesPage(Page):
@@ -22,16 +22,22 @@ class FilesPage(Page):
         if not card:
             await self.scene.update_key(self.__page_name__, 'files', [])
             await self.scene.update_key(self.__page_name__, 'uploaded_files', [])
+            await self.scene.update_key(self.__page_name__, 'selected_files', [])
             return
         
         # Инициализируем список загруженных файлов если его нет
-        if not self.scene.get_key(self.__page_name__, 'uploaded_files'):
+        if self.scene.get_key(self.__page_name__, 'uploaded_files') is None:
             await self.scene.update_key(self.__page_name__, 'uploaded_files', [])
+        
+        # Загружаем выбранные файлы из карточки (post_images)
+        saved_images = card.get('post_images') or []
+        if self.scene.get_key(self.__page_name__, 'selected_files') is None:
+            await self.scene.update_key(self.__page_name__, 'selected_files', saved_images)
         
         task_id = card.get('task_id')
         
         try:
-            # Запрос файлов карточки
+            # Запрос файлов карточки из Kaiten
             response = await get_kaiten_files(task_id)
             status = 200 if response else 404
             
@@ -45,23 +51,37 @@ class FilesPage(Page):
     
     async def content_worker(self) -> str:
         """Возвращает текст сообщения"""
-        uploaded_files = self.scene.get_key(self.__page_name__, 'uploaded_files') or []
+        files = self.scene.get_key(self.__page_name__, 'files') or []
+        selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
         
         add_vars = {
-            'uploaded_count': len(uploaded_files),
+            'kaiten_count': len(files),
+            'selected_count': len(selected_files),
             'max_files': self.max_files
         }
         
-        # Формируем список загруженных файлов для отображения
-        if uploaded_files:
+        # Формируем список выбранных файлов для отображения
+        # selected_files теперь list[str] - имена файлов
+        if selected_files:
             files_list = []
-            for idx, file_info in enumerate(uploaded_files, 1):
-                file_type = file_info.get('type', 'файл')
-                file_name = file_info.get('name', 'без имени')
-                files_list.append(f"{idx}. {file_type}: `{file_name}`")
-            add_vars['uploaded_files_list'] = '\n'.join(files_list)
+            for idx, file_name in enumerate(selected_files, 1):
+                files_list.append(f"✅ {idx}. `{file_name}`")
+            add_vars['selected_files_list'] = '\n'.join(files_list)
         else:
-            add_vars['uploaded_files_list'] = ''
+            add_vars['selected_files_list'] = '📭 Нет выбранных файлов'
+        
+        # Формируем список файлов из Kaiten
+        if files:
+            files_list = []
+            for idx, file_info in enumerate(files, 1):
+                file_name = file_info.get('name', 'без имени')
+                # Проверяем, выбран ли файл (по имени)
+                is_selected = file_name in selected_files
+                mark = '✅' if is_selected else '⬜️'
+                files_list.append(f"{mark} {idx}. `{file_name}`")
+            add_vars['kaiten_files_list'] = '\n'.join(files_list)
+        else:
+            add_vars['kaiten_files_list'] = '📭 Нет файлов в карточке Kaiten'
         
         return self.append_variables(**add_vars)
     
@@ -71,49 +91,194 @@ class FilesPage(Page):
         
         buttons = []
         files = self.scene.get_key(self.__page_name__, 'files') or []
-        uploaded_files = self.scene.get_key(self.__page_name__, 'uploaded_files') or []
+        selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
         
-        # Кнопки для файлов из Kaiten
+        # Кнопки для файлов из Kaiten (toggle выбора по имени)
         for file in files:
             file_id = file.get('id')
             file_name = file.get('name', 'Без названия')
+            full_name = file_name  # Сохраняем полное имя для callback
+            
+            # Проверяем выбран ли файл
+            is_selected = file_name in selected_files
+            mark = '✅' if is_selected else '⬜️'
             
             # Ограничиваем длину имени для кнопки
-            if len(file_name) > 30:
-                file_name = file_name[:27] + "..."
+            display_name = file_name[:25] + "..." if len(file_name) > 28 else file_name
             
             buttons.append({
-                'text': f"📎 {file_name}",
+                'text': f"{mark} {display_name}",
                 'callback_data': callback_generator(
                     self.scene.__scene_name__,
-                    'select_file',
-                    str(file_id)
+                    'toggle_kaiten',
+                    str(file_id)  # Используем ID для идентификации
                 )
             })
         
-        # Кнопки для просмотра загруженных файлов
-        if uploaded_files:
-            for idx, file_info in enumerate(uploaded_files):
-                buttons.append({
-                    'text': f'👁 Просмотр {idx + 1}',
-                    'callback_data': callback_generator(
-                        self.scene.__scene_name__,
-                        'view_uploaded',
-                        str(idx)
-                    )
-                })
-            
-            # Кнопка очистки загруженных файлов
+        # Кнопка просмотра выбранного файла
+        if files:
             buttons.append({
-                'text': '🗑 Очистить загруженные',
+                'text': '👁 Просмотр файла',
                 'callback_data': callback_generator(
                     self.scene.__scene_name__,
-                    'clear_uploaded'
+                    'select_file',
+                    str(files[0].get('id', 0)) if files else '0'
+                ),
+                'ignore_row': True
+            })
+        
+        # Кнопка сохранения выбранных файлов в карточку
+        if selected_files:
+            buttons.append({
+                'text': f'💾 Сохранить выбранные ({len(selected_files)})',
+                'callback_data': callback_generator(
+                    self.scene.__scene_name__,
+                    'save_selected'
+                ),
+                'ignore_row': True
+            })
+            
+            # Кнопка очистки выбранных
+            buttons.append({
+                'text': '🗑 Очистить выбранные',
+                'callback_data': callback_generator(
+                    self.scene.__scene_name__,
+                    'clear_selected'
                 ),
                 'ignore_row': True
             })
         
         return buttons
+    
+    @Page.on_callback('toggle_kaiten')
+    async def toggle_kaiten_handler(self, callback: CallbackQuery, args: list):
+        """Toggle выбора файла из Kaiten по ID"""
+        if len(args) < 2:
+            await callback.answer('❌ Ошибка')
+            return
+        
+        try:
+            file_id = args[1]
+            files = self.scene.get_key(self.__page_name__, 'files') or []
+            selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
+            
+            # Находим файл по ID
+            target_file = next((f for f in files if str(f.get('id')) == file_id), None)
+            if not target_file:
+                await callback.answer('❌ Файл не найден')
+                return
+            
+            file_name = target_file.get('name')
+            
+            if file_name in selected_files:
+                # Убираем из выбранных
+                selected_files.remove(file_name)
+                await callback.answer(f'❌ Убран: {file_name[:30]}')
+            else:
+                # Добавляем в выбранные
+                if len(selected_files) >= self.max_files:
+                    await callback.answer(f'❌ Максимум {self.max_files} файлов')
+                    return
+                selected_files.append(file_name)
+                await callback.answer(f'✅ Добавлен: {file_name[:30]}')
+            
+            await self.scene.update_key(self.__page_name__, 'selected_files', selected_files)
+            await self.scene.update_message()
+            
+        except Exception as e:
+            print(f"Error toggling kaiten file: {e}")
+            await callback.answer(f'❌ Ошибка: {str(e)}')
+    
+    @Page.on_callback('clear_selected')
+    async def clear_selected_handler(self, callback: CallbackQuery, args: list):
+        """Очистить выбранные файлы"""
+        await self.scene.update_key(self.__page_name__, 'selected_files', [])
+        await callback.answer('🗑 Выбранные очищены')
+        await self.scene.update_message()
+
+    @Page.on_callback('toggle_select')
+    async def toggle_select_handler(self, callback: CallbackQuery, args: list):
+        """Toggle выбора загруженного файла (устарело, для совместимости)"""
+        if len(args) < 2:
+            await callback.answer('❌ Ошибка')
+            return
+        
+        try:
+            file_idx = int(args[1])
+            uploaded_files = self.scene.get_key(self.__page_name__, 'uploaded_files') or []
+            selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
+            
+            if file_idx < 0 or file_idx >= len(uploaded_files):
+                await callback.answer('❌ Файл не найден')
+                return
+            
+            file_info = uploaded_files[file_idx]
+            file_id = file_info.get('file_id')
+            
+            # Проверяем, выбран ли файл
+            existing_idx = next(
+                (i for i, f in enumerate(selected_files) if f.get('file_id') == file_id), 
+                None
+            )
+            
+            if existing_idx is not None:
+                # Убираем из выбранных
+                selected_files.pop(existing_idx)
+                await callback.answer('❌ Файл убран из выбранных')
+            else:
+                # Добавляем в выбранные
+                if len(selected_files) >= self.max_files:
+                    await callback.answer(f'❌ Максимум {self.max_files} файлов')
+                    return
+                selected_files.append(file_info)
+                await callback.answer('✅ Файл добавлен в выбранные')
+            
+            await self.scene.update_key(self.__page_name__, 'selected_files', selected_files)
+            await self.scene.update_message()
+            
+        except Exception as e:
+            print(f"Error toggling select: {e}")
+            await callback.answer(f'❌ Ошибка: {str(e)}')
+    
+    @Page.on_callback('save_selected')
+    async def save_selected_handler(self, callback: CallbackQuery, args: list):
+        """Сохранить выбранные файлы в карточку"""
+        try:
+            selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
+            
+            card = await self.scene.get_card_data()
+            if not card:
+                await callback.answer('❌ Карточка не найдена')
+                return
+            
+            card_id = card.get('card_id')
+            
+            # Сохраняем в карточку
+            success = await update_card(
+                card_id=card_id,
+                post_images=selected_files
+            )
+            
+            if success:
+                await callback.answer(f'✅ Сохранено {len(selected_files)} файл(ов)')
+            else:
+                await callback.answer('❌ Ошибка сохранения')
+        
+        except Exception as e:
+            print(f"Error saving selected: {e}")
+            await callback.answer(f'❌ Ошибка: {str(e)}')
+    
+    @Page.on_callback('view_all_uploaded')
+    async def view_all_uploaded_handler(self, callback: CallbackQuery, args: list):
+        """Просмотр всех загруженных файлов"""
+        uploaded_files = self.scene.get_key(self.__page_name__, 'uploaded_files') or []
+        
+        if not uploaded_files:
+            await callback.answer('📭 Нет загруженных файлов')
+            return
+        
+        # Показываем первый файл
+        await self.view_uploaded_handler(callback, ['view_uploaded', '0'])
     
     @Page.on_callback('select_file')
     async def select_file_handler(self, callback: CallbackQuery, args: list):

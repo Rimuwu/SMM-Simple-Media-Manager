@@ -238,10 +238,6 @@ async def get(task_id: Optional[str] = None,
         for card in cards:
             card_dict = card.to_dict()
             
-            # Конвертируем бинарные данные
-            if 'post_image' in card_dict and card_dict['post_image']:
-                card_dict['post_image'] = card_dict['post_image'].hex() if isinstance(card_dict['post_image'], bytes) else None
-            
             # Добавляем информацию об исполнителе
             if card.executor:
                 kaiten_name = kaiten_users.get(card.executor.tasker_id) if card.executor.tasker_id else None
@@ -276,7 +272,7 @@ class CardUpdate(BaseModel):
     image_prompt: Optional[str] = None
     prompt_sended: Optional[bool] = None
     calendar_id: Optional[str] = None
-    post_image: Optional[str] = None  # Hex-encoded binary data
+    post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten для публикации
     notify_executor: Optional[bool] = False  # Отправить уведомление исполнителю
     change_type: Optional[str] = None  # Тип изменения
     old_value: Optional[str] = None  # Старое значение
@@ -295,16 +291,8 @@ async def update_card(card_data: CardUpdate):
     data = card_data.model_dump(exclude={'card_id'})
     data = {k: v for k, v in data.items() if v is not None}
     
-    # Логируем только ключи, которые меняются (без бинарных данных)
-    log_data = {k: v for k, v in data.items() if k != 'post_image'}
-    logger.info(f"Обновление карточки {card.card_id}: {log_data}")
-
-    # Преобразуем hex-строку в bytes для post_image
-    if 'post_image' in data and data['post_image']:
-        try:
-            data['post_image'] = bytes.fromhex(data['post_image'])
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid hex format for post_image")
+    # Логируем ключи, которые меняются
+    logger.info(f"Обновление карточки {card.card_id}: {data}")
 
     # Преобразуем deadline в datetime
     if 'deadline' in data and isinstance(data['deadline'], str):
@@ -331,36 +319,70 @@ async def update_card(card_data: CardUpdate):
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"Invalid UUID format for {key}")
 
+    # Флаг для отслеживания, было ли сообщение форума уже обновлено при смене статуса
+    forum_already_updated = False
+
     if 'status' in data and data['status'] != card.status:
         logger.info(f"Изменение статуса карточки {card.card_id}: {card.status} -> {data['status']}")
 
         # Если статус изменился на review (ждет проверки)
         if data['status'] == CardStatus.review:
+            forum_already_updated = True  # Помечаем что форум обновим здесь
+            
+            # Перемещаем карточку в Kaiten в колонку "На проверке"
+            if card.task_id and card.task_id != 0:
+                try:
+                    board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
+                    column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][1]['id']
+                    async with kaiten as client:
+                        await client.update_card(card.task_id, board_id=board_id, column_id=column_id)
+                        await client.add_comment(card.task_id, "🔍 Задача отправлена на проверку")
+                except Exception as e:
+                    print(f"Error moving card to review in Kaiten: {e}")
+            
+            # Удаляем старое сообщение с форума
+            if card.forum_message_id:
+                try:
+                    await executors_api.delete(ApiEndpoints.FORUM_DELETE_MESSAGE.value.format(card.card_id))
+                    await card.update(forum_message_id=None)
+                except Exception as e:
+                    print(f"Error deleting forum message: {e}")
+            
+            # Создаём новое сообщение на форуме со статусом review
+            try:
+                await card.refresh()
+                forum_res, _ = await executors_api.post(
+                    ApiEndpoints.FORUM_UPDATE_MESSAGE,
+                    data={"card_id": str(card.card_id), "status": CardStatus.review.value}
+                )
+                message_id = forum_res.get("message_id")
+                if message_id:
+                    await card.update(forum_message_id=message_id)
+            except Exception as e:
+                print(f"Error creating forum message for review: {e}")
+            
             # Уведомляем админов и редакторов
             recipients = []
             admins = await User.filter_by(role=UserRole.admin)
             editors = await User.filter_by(role=UserRole.editor)
             if admins: recipients.extend(admins)
             if editors: recipients.extend(editors)
-            
-            # Убираем дубликаты
             recipients = list({u.user_id: u for u in recipients}.values())
             
-            msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус (вернуть в работу или завершить)."
+            msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
             
             for recipient in recipients:
                 try:
                     await executors_api.post(
                         ApiEndpoints.NOTIFY_USER,
-                        data={
-                            "user_id": recipient.telegram_id,
-                            "message": msg
-                        }
+                        data={"user_id": recipient.telegram_id, "message": msg}
                     )
                 except Exception as e:
                     print(f"Error notifying recipient {recipient.telegram_id}: {e}")
 
         if data['status'] == CardStatus.edited:
+            forum_already_updated = True  # Помечаем что форум обновим здесь
+            
             # Если статус меняется на edited (в работе), удаляем запланированные задачи публикации (если были)
             if card.status == CardStatus.ready:
                 try:
@@ -392,14 +414,56 @@ async def update_card(card_data: CardUpdate):
                         card.task_id,
                         Messages.TASK_TAKEN
                     )
+            
+            # Обновляем сцену исполнителя
+            try:
+                await executors_api.post(ApiEndpoints.UPDATE_SCENES, data={
+                    "scene_name": SceneNames.USER_TASK,
+                    "data_key": "task_id",
+                    "data_value": str(card.card_id)
+                })
+            except Exception as e:
+                print(f"Error updating executor scene: {e}")
+            
+            # Обновляем сообщение на форуме
+            try:
+                await card.refresh()
+                forum_res, _ = await executors_api.post(
+                    ApiEndpoints.FORUM_UPDATE_MESSAGE,
+                    data={"card_id": str(card.card_id), "status": CardStatus.edited.value}
+                )
+                message_id = forum_res.get("message_id")
+                if message_id:
+                    await card.update(forum_message_id=message_id)
+            except Exception as e:
+                print(f"Error updating forum message: {e}")
 
         # Обработка изменения статуса на ready - создаем задачи публикации
         if data['status'] == CardStatus.ready:
+            # Перемещаем карточку в Kaiten в колонку "Готово"
+            if card.task_id and card.task_id != 0:
+                try:
+                    board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
+                    column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
+                    async with kaiten as client:
+                        await client.update_card(card.task_id, board_id=board_id, column_id=column_id)
+                        await client.add_comment(card.task_id, "✅ Задача готова к публикации")
+                except Exception as e:
+                    print(f"Error moving card to ready in Kaiten: {e}")
+            
+            # Закрываем сцену исполнителя
+            if card.executor_id:
+                try:
+                    executor = await User.get_by_key('user_id', card.executor_id)
+                    if executor:
+                        await executors_api.post(f'/events/close_scene/{executor.telegram_id}')
+                except Exception as e:
+                    print(f"Error closing executor scene: {e}")
+            
+            # Планируем задачи публикации
             try:
                 async with session_factory() as session:
-                    # Обновляем карточку перед созданием задач
                     await card.refresh()
-                    # Планируем задачи публикации для каждого канала
                     await schedule_post_tasks(session, card)
                     print(f"Scheduled post tasks for card {card.card_id}")
             except Exception as e:
@@ -450,10 +514,9 @@ async def update_card(card_data: CardUpdate):
             # Удаляем сообщение с форума
             if card.forum_message_id:
                 try:
-                    await executors_api.post(
-                        ApiEndpoints.FORUM_DELETE_MESSAGE.format(card.forum_message_id)
+                    await executors_api.delete(
+                        ApiEndpoints.FORUM_DELETE_MESSAGE.value.format(card.card_id)
                     )
-                    # Обнуляем ID сообщения, так как оно удалено
                     await card.update(forum_message_id=None)
                 except Exception as e:
                     print(f"Error deleting forum message: {e}")
@@ -643,9 +706,12 @@ async def update_card(card_data: CardUpdate):
             print(f"Error rescheduling post tasks: {e}")
     
     # Обновляем сообщение на форуме если есть forum_message_id и изменились важные данные
-    if card.forum_message_id:
+    # Но только если форум не был уже обновлён при смене статуса
+    if card.forum_message_id and not forum_already_updated:
         # Список полей, при изменении которых нужно обновить сообщение на форуме
-        forum_update_fields = ['status', 'executor_id', 'deadline', 'name', 'description', 'content']
+        # Не включаем content - он не отображается на форуме
+        # Не включаем status - он обрабатывается отдельно выше
+        forum_update_fields = ['executor_id', 'deadline', 'name', 'description']
         should_update_forum = any(field in data for field in forum_update_fields)
         
         if should_update_forum:
@@ -693,13 +759,7 @@ async def update_card(card_data: CardUpdate):
         
         await notify_executor(str(card.executor_id), message_text)
     
-    # Возвращаем словарь без бинарных данных
-    result = card.to_dict()
-    if 'post_image' in result:
-        # Удаляем бинарные данные из ответа или конвертируем в hex
-        result['post_image'] = result['post_image'].hex() if result['post_image'] else None
-    
-    return result
+    return card.to_dict()
 
 @router.get('/delete-executor/{card_id}')
 async def delete_executor(card_id: str):
@@ -752,8 +812,8 @@ async def delete_card(card_id: str):
         return {"detail": f"Card deleted from DB, but failed to delete from Calendar: {e}"}
 
     if card.forum_message_id:
-        forum_res, status = await executors_api.post(
-                ApiEndpoints.FORUM_DELETE_MESSAGE.value.format(card_id)
+        forum_res, status = await executors_api.delete(
+                ApiEndpoints.FORUM_DELETE_MESSAGE.value.format(card.card_id)
             )
 
         if not forum_res.get('success', False):
@@ -871,4 +931,55 @@ async def add_editor_note(note_data: EditorNoteAdd):
         "detail": "Note added successfully",
         "note": new_note,
         "total_notes": len(editor_notes)
+    }
+
+
+class SendNowRequest(BaseModel):
+    card_id: str
+
+@router.post("/send-now")
+async def send_now(request: SendNowRequest):
+    """
+    Отправить карточку немедленно.
+    Обновляет время существующих задач на текущее (не удаляет и не создаёт новые).
+    """
+    logger.info(f"Запрос на немедленную отправку карточки {request.card_id}")
+    
+    card = await Card.get_by_key('card_id', request.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    
+    if card.status != CardStatus.ready:
+        raise HTTPException(status_code=400, detail="Card must be in ready status to send")
+    
+    from datetime import timedelta
+    from global_modules.timezone import now_naive as moscow_now
+    from modules.scheduler import update_post_tasks_time, schedule_post_tasks
+    
+    # Устанавливаем время отправки на 5 секунд вперёд
+    now = moscow_now()
+    send_time = now + timedelta(seconds=5)
+    
+    await card.update(send_time=send_time)
+    logger.info(f"Время отправки карточки {card.card_id} установлено на {send_time}")
+    
+    # Пробуем обновить время существующих задач
+    try:
+        async with session_factory() as session:
+            await card.refresh()
+            updated_count = await update_post_tasks_time(session, card, send_time)
+            
+            # Если задач не было (например, первый раз нажали), создаём новые
+            if updated_count == 0:
+                logger.info(f"Задач для обновления не найдено, создаём новые для карточки {card.card_id}")
+                await schedule_post_tasks(session, card)
+            else:
+                logger.info(f"Обновлено {updated_count} задач публикации для карточки {card.card_id}")
+    except Exception as e:
+        logger.error(f"Ошибка обновления задач публикации: {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating tasks: {e}")
+    
+    return {
+        "detail": "Card scheduled for immediate sending",
+        "send_time": send_time.isoformat()
     }

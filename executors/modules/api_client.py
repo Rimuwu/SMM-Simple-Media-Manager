@@ -54,8 +54,8 @@ async def update_card(card_id: str,
                       image_prompt: Optional[str] = None,
                       prompt_sended: Optional[bool] = None,
                       calendar_id: Optional[str] = None,
-                      binary_data: Optional[bytes] = None,
-                      send_time: Optional[str] = None
+                      send_time: Optional[str] = None,
+                      post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten
                       ):
     """
     Обновить карточку
@@ -75,7 +75,7 @@ async def update_card(card_id: str,
         "image_prompt": image_prompt,
         "prompt_sended": prompt_sended,
         "calendar_id": calendar_id,
-        "post_image": binary_data.hex() if binary_data else None
+        "post_images": post_images
     }
     
     card, res_status = await brain_api.post(

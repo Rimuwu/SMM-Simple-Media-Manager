@@ -17,7 +17,7 @@ async def api_start():
     await server.serve()
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
+    # logging.basicConfig(level=logging.INFO)
 
     tasks = await executors_start() # Запускаем всех исполнителей
 

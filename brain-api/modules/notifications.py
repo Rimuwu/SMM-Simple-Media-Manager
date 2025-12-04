@@ -277,7 +277,8 @@ async def schedule_post_via_executor(card: Card, client_key: str, **kwargs):
                 "content": card.content or card.description or "",
                 "tags": card.tags,
                 "send_time": card.send_time.isoformat() if card.send_time else None,
-                "image": card.post_image.hex() if card.post_image else None
+                "task_id": card.task_id,  # ID карточки в Kaiten для скачивания файлов
+                "post_images": card.post_images or []  # Имена файлов из Kaiten
             }
         )
         
@@ -316,7 +317,8 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
                 "client_key": client_key,
                 "content": card.content or card.description or "",
                 "tags": card.tags,
-                "image": card.post_image.hex() if card.post_image else None
+                "task_id": card.task_id,  # ID карточки в Kaiten для скачивания файлов
+                "post_images": card.post_images or []  # Имена файлов из Kaiten
             }
         )
         
@@ -401,3 +403,71 @@ async def notify_admins_about_post_failure(card: Card, client_key: str, error: s
                 
     except Exception as e:
         logger.error(f"Ошибка уведомления админов об ошибке публикации: {e}", exc_info=True)
+
+
+async def finalize_card_publication(card: Card, **kwargs):
+    """
+    Финализировать публикацию карточки после отправки всех постов.
+    Меняет статус на sent, удаляет сообщение с форума, увеличивает счётчики задач исполнителя и отправляет отчёт админам.
+    
+    Args:
+        card: Карточка
+        **kwargs: Дополнительные параметры
+    """
+    logger.info(f"Финализация публикации карточки {card.card_id}")
+    
+    try:
+        # Обновляем статус карточки на sent
+        await card.update(status=CardStatus.sent)
+        logger.info(f"Статус карточки {card.card_id} изменен на sent")
+        
+        # Удаляем сообщение с форума
+        if card.forum_message_id:
+            try:
+                await executors_api.delete(f"/forum/delete-forum-message/{card.card_id}")
+                await card.update(forum_message_id=None)
+                logger.info(f"Сообщение с форума для карточки {card.card_id} удалено")
+            except Exception as e:
+                logger.error(f"Ошибка удаления сообщения с форума: {e}")
+        
+        # Увеличиваем счётчики задач исполнителя
+        if card.executor_id:
+            try:
+                executor = await User.get_by_key('user_id', card.executor_id)
+                if executor:
+                    await executor.update(
+                        tasks=executor.tasks + 1,
+                        task_per_month=executor.task_per_month + 1,
+                        task_per_year=executor.task_per_year + 1
+                    )
+                    logger.info(f"Счётчики задач исполнителя {executor.user_id} увеличены")
+            except Exception as e:
+                logger.error(f"Ошибка увеличения счётчиков задач: {e}")
+        
+        # Получаем список каналов для отчёта
+        clients_str = ", ".join(card.clients) if card.clients else "Не указаны"
+        
+        # Отправляем отчёт админам
+        admins = await User.filter_by(role=UserRole.admin)
+        if admins:
+            message_text = (
+                f"✅ Публикация завершена\n\n"
+                f"📝 Задача: {card.name}\n"
+                f"📢 Каналы: {clients_str}\n"
+                f"⏰ Время: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+            )
+            
+            for admin in admins:
+                try:
+                    await executors_api.post(
+                        "/events/notify_user",
+                        data={
+                            "user_id": admin.telegram_id,
+                            "message": message_text
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"Ошибка уведомления админа {admin.telegram_id}: {e}")
+        
+    except Exception as e:
+        logger.error(f"Ошибка финализации публикации карточки {card.card_id}: {e}", exc_info=True)

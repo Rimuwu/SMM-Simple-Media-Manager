@@ -112,8 +112,13 @@ class MainPage(Page):
                 user_role = await get_user_role(self.scene.user_id)
                 
                 # Если статус "На проверке" и роль "копирайтер" - оставляем только комментарии
-                if status == CardStatus.review.value and user_role == 'copywriter':
+                if status in [CardStatus.review.value, CardStatus.ready.value] and user_role == 'copywriter':
                     return {k: v for k, v in to_page_buttons.items() if k == 'editor-notes'}
+
+                if status == CardStatus.sent.value and user_role == 'copywriter':
+                    return {}
+
+                
         
         return to_page_buttons
     
@@ -137,5 +142,4 @@ class MainPage(Page):
     async def exit_scene(self, callback, args):
         """Выход из сцены"""
         await self.scene.end()
-        await callback.message.delete()
         await callback.answer('👋 Задача закрыта')

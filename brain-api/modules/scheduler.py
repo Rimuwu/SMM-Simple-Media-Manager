@@ -404,6 +404,18 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
                 session.add(send_task)
                 logger.info(f"Время отправки прошло, создана задача немедленной отправки для {client_key}")
     
+    # Создаём задачу финализации после отправки всех постов
+    # Выполняется через 2 минуты после последнего поста
+    finalize_time = (card.send_time if card.send_time > now else now) + timedelta(minutes=2)
+    finalize_task = ScheduledTask(
+        card_id=card_uuid,
+        function_path="modules.notifications.finalize_card_publication",
+        execute_at=finalize_time,
+        arguments={"card_id": str(card.card_id)}
+    )
+    session.add(finalize_task)
+    logger.info(f"Создана задача финализации публикации для карточки {card.card_id} на {finalize_time}")
+    
     await session.commit()
 
 
@@ -467,3 +479,74 @@ async def reschedule_post_tasks(session: AsyncSession, card: Card) -> None:
     if card.status == CardStatus.ready:
         await schedule_post_tasks(session, card)
         logger.info(f"Созданы новые задачи публикации для карточки {card.card_id}")
+
+
+async def update_post_tasks_time(session: AsyncSession, card: Card, new_time: datetime) -> int:
+    """
+    Обновить время выполнения существующих задач публикации.
+    Используется для кнопки "Отправить сейчас" - не удаляет/создаёт, а меняет время.
+    
+    Args:
+        session: Сессия БД
+        card: Карточка
+        new_time: Новое время выполнения
+        
+    Returns:
+        Количество обновлённых задач
+    """
+    from sqlalchemy import update, or_
+    from uuid import UUID as PyUUID
+    
+    try:
+        card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
+    except ValueError:
+        logger.error(f"Невалидный card_id: {card.card_id}")
+        return 0
+    
+    # Обновляем время для задач публикации
+    post_functions = [
+        "modules.notifications.schedule_post_via_executor",
+        "modules.notifications.send_post_now",
+    ]
+    
+    stmt = (
+        update(ScheduledTask)
+        .where(
+            ScheduledTask.card_id == card_uuid,
+            or_(*[ScheduledTask.function_path == func for func in post_functions])
+        )
+        .values(execute_at=new_time)
+    )
+    
+    result = await session.execute(stmt)
+    
+    # Также обновляем задачу верификации и финализации на время + 1 и 2 минуты
+    verify_time = new_time + timedelta(minutes=1)
+    finalize_time = new_time + timedelta(minutes=2)
+    
+    verify_stmt = (
+        update(ScheduledTask)
+        .where(
+            ScheduledTask.card_id == card_uuid,
+            ScheduledTask.function_path == "modules.notifications.verify_post_sent"
+        )
+        .values(execute_at=verify_time)
+    )
+    await session.execute(verify_stmt)
+    
+    finalize_stmt = (
+        update(ScheduledTask)
+        .where(
+            ScheduledTask.card_id == card_uuid,
+            ScheduledTask.function_path == "modules.notifications.finalize_card_publication"
+        )
+        .values(execute_at=finalize_time)
+    )
+    await session.execute(finalize_stmt)
+    
+    await session.commit()
+    
+    updated_count = result.rowcount
+    logger.info(f"Обновлено время для {updated_count} задач публикации карточки {card.card_id} на {new_time}")
+    
+    return updated_count

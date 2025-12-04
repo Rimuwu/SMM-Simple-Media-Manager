@@ -6,10 +6,12 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+import aiohttp
 from modules.executors_manager import manager
 from modules.constants import CLIENTS
 from modules.logs import executors_logger as logger
 from modules.post_generator import generate_post
+from modules.api_client import brain_api
 from global_modules.timezone import now_naive as moscow_now
 
 router = APIRouter(prefix="/post", tags=["Post"])
@@ -19,6 +21,65 @@ router = APIRouter(prefix="/post", tags=["Post"])
 scheduled_posts: dict = {}
 
 
+async def download_kaiten_files(task_id: int, file_names: list[str]) -> list[bytes]:
+    """
+    Скачать файлы из Kaiten по именам.
+    
+    Args:
+        task_id: ID карточки в Kaiten
+        file_names: Список имён файлов для скачивания
+    
+    Returns:
+        Список байтовых данных файлов
+    """
+    if not task_id or not file_names:
+        return []
+    
+    downloaded_files = []
+    
+    try:
+        # Получаем список файлов карточки
+        response, status = await brain_api.get(f"/kaiten/get-files/{task_id}")
+        
+        if status != 200 or not response.get('files'):
+            logger.warning(f"No files found for task {task_id}")
+            return []
+        
+        kaiten_files = response['files']
+        
+        # Ищем файлы по именам и скачиваем
+        for file_name in file_names:
+            target_file = next(
+                (f for f in kaiten_files if f.get('name') == file_name),
+                None
+            )
+            
+            if not target_file:
+                logger.warning(f"File '{file_name}' not found in task {task_id}")
+                continue
+            
+            file_id = target_file.get('id')
+            if not file_id:
+                continue
+            
+            # Скачиваем файл
+            file_data, dl_status = await brain_api.get(
+                f"/kaiten/files/{file_id}",
+                params={"task_id": task_id},
+                return_bytes=True
+            )
+            
+            if dl_status == 200 and isinstance(file_data, bytes):
+                downloaded_files.append(file_data)
+                logger.info(f"Downloaded file '{file_name}' ({len(file_data)} bytes)")
+            else:
+                logger.error(f"Failed to download file '{file_name}'")
+    
+    except Exception as e:
+        logger.error(f"Error downloading files from Kaiten: {e}", exc_info=True)
+    
+    return downloaded_files
+
 class PostScheduleRequest(BaseModel):
     """Запрос на планирование поста"""
     card_id: str
@@ -26,7 +87,8 @@ class PostScheduleRequest(BaseModel):
     content: str  # Сырой контент
     tags: Optional[list[str]] = None
     send_time: Optional[str] = None  # ISO 8601 format
-    image: Optional[str] = None  # Hex-encoded binary data
+    image: Optional[str] = None  # Hex-encoded binary data (устарело, для совместимости)
+    post_images: Optional[list[dict]] = None  # Список фото с file_id из Telegram
 
 
 class PostSendRequest(BaseModel):
@@ -35,7 +97,8 @@ class PostSendRequest(BaseModel):
     client_key: str
     content: str  # Сырой контент
     tags: Optional[list[str]] = None
-    image: Optional[str] = None  # Hex-encoded binary data
+    task_id: Optional[int] = None  # ID карточки в Kaiten для скачивания файлов
+    post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten
 
 
 def get_client_config(client_key: str) -> tuple:
@@ -152,6 +215,7 @@ async def send_post(request: PostSendRequest):
     Используется для telegram_executor и vk_executor.
     
     Генерация контента происходит здесь, на стороне executors.
+    Поддерживает отправку нескольких фото (media group).
     """
     logger.info(f"Sending post for card {request.card_id}, client {request.client_key}")
     
@@ -182,20 +246,54 @@ async def send_post(request: PostSendRequest):
         
         # Определяем тип исполнителя и вызываем соответствующий метод
         executor_type = executor.get_type()
+        result = None
+        
+        # Получаем имена файлов для отправки
+        post_image_names = request.post_images or []
+        
+        # Скачиваем файлы из Kaiten если есть
+        downloaded_images = []
+        if post_image_names and request.task_id:
+            downloaded_images = await download_kaiten_files(request.task_id, post_image_names)
+            logger.info(f"Downloaded {len(downloaded_images)} images from Kaiten for card {request.card_id}")
         
         if executor_type == "vk":
             # Для VK используем create_wall_post
             result = await executor.create_wall_post(
                 text=post_text
             )
+        elif executor_type == "telegram":
+            # Для Telegram - проверяем наличие фото
+            if downloaded_images:
+                # Отправляем с фото (bytes данные)
+                if len(downloaded_images) == 1:
+                    # Одно фото - send_photo
+                    result = await executor.send_photo(
+                        chat_id=chat_id,
+                        photo=downloaded_images[0],  # bytes
+                        caption=post_text
+                    )
+                else:
+                    # Несколько фото - media group
+                    result = await executor.send_media_group(
+                        chat_id=chat_id,
+                        media=downloaded_images,  # list[bytes]
+                        caption=post_text
+                    )
+            else:
+                # Без фото - просто текст
+                result = await executor.send_message(
+                    chat_id=chat_id,
+                    text=post_text
+                )
         else:
-            # Для Telegram используем send_message
+            # Для других исполнителей - просто текст
             result = await executor.send_message(
                 chat_id=chat_id,
                 text=post_text
             )
         
-        if result.get('success'):
+        if result and result.get('success'):
             # Сохраняем информацию об отправленном посте
             if request.card_id not in scheduled_posts:
                 scheduled_posts[request.card_id] = {}
@@ -205,17 +303,19 @@ async def send_post(request: PostSendRequest):
                 "sent": True,
                 "sent_at": moscow_now().isoformat(),
                 "message_id": result.get('message_id') or result.get('post_id'),
-                "executor_name": executor_name
+                "executor_name": executor_name,
+                "images_count": len(downloaded_images)
             }
             
-            logger.info(f"Post sent successfully for card {request.card_id}, client {request.client_key}")
+            logger.info(f"Post sent successfully for card {request.card_id}, client {request.client_key}, images: {len(downloaded_images)}")
             return {
                 "success": True, 
                 "message_id": result.get('message_id') or result.get('post_id')
             }
         else:
-            logger.error(f"Failed to send post: {result.get('error')}")
-            return {"success": False, "error": result.get('error')}
+            error_msg = result.get('error') if result else 'Unknown error'
+            logger.error(f"Failed to send post: {error_msg}")
+            return {"success": False, "error": error_msg}
             
     except Exception as e:
         logger.error(f"Error sending post: {e}", exc_info=True)
