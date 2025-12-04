@@ -12,8 +12,9 @@ from modules.api_client import executors_api
 from modules.constants import ApiEndpoints
 from datetime import datetime
 from modules.json_get import open_settings
+from modules.logs import brain_logger as logger
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
 async def send_card_deadline_reminder(card: Card, **kwargs):

@@ -92,12 +92,12 @@ async def update_scene(scene_data: SceneUpdate):
         update_data['data'] = scene_data.data
     
     # Сравниваем старые и новые данные, выводим изменения
-    changes = {key: new_value for key, new_value in update_data.items() if getattr(scene, key) != new_value}
+    # changes = {key: new_value for key, new_value in update_data.items() if getattr(scene, key) != new_value}
 
-    if changes:
-        print(f"Changes for user {scene_data.user_id}: {changes.keys()}")
-    else:
-        print(f"No changes for user {scene_data.user_id}")
+    # if changes:
+    #     print(f"Changes for user {scene_data.user_id}: {changes.keys()}")
+    # else:
+    #     print(f"No changes for user {scene_data.user_id}")
 
     try:
         await scene.update(**update_data)

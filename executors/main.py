@@ -11,7 +11,7 @@ async def api_start():
     config = uvicorn.Config(app, 
                             host="0.0.0.0", 
                             port=8003, 
-                            log_level="info"
+                            # log_level="info"
                             )
     server = uvicorn.Server(config)
     await server.serve()

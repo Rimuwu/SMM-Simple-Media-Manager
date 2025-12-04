@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from tg.oms.manager import scene_manager
+from modules.logs import executors_logger as logger
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -18,6 +19,7 @@ async def executor_changed(event: ExecutorChangeEvent):
     Обработчик события смены исполнителя.
     Ищет все активные сцены, связанные с этой задачей, уведомляет пользователей и закрывает сцены.
     """
+    logger.info(f"Событие смены исполнителя для задачи {event.task_id}. Новый: {event.new_executor_id}, Старый: {event.old_executor_id}")
 
     active_scenes = list(scene_manager._instances.values())
     count = 0
@@ -48,6 +50,7 @@ async def executor_changed(event: ExecutorChangeEvent):
 
             # End scene
             await scene.end()
+            logger.info(f"Сцена пользователя {scene.user_id} закрыта из-за смены исполнителя")
 
     return {"status": "ok", "processed_scenes": count}
 
@@ -57,11 +60,13 @@ async def close_scene(user_id: int):
     """
     Закрывает все активные сцены для указанного пользователя.
     """
+    logger.info(f"Запрос на закрытие сцен для пользователя {user_id}")
     active_scenes = list(scene_manager._instances.values())
 
     for scene in active_scenes:
         if scene.user_id == user_id:
             await scene.end()
+            logger.info(f"Сцена пользователя {user_id} закрыта принудительно")
 
     return {"status": "ok", "closed_scenes": len([s for s in active_scenes if s.user_id == user_id])}
 
@@ -137,6 +142,7 @@ async def notify_user(event: NotifyUserEvent):
     Отправляет уведомление пользователю с кнопкой удаления.
     Если указаны task_id и skip_if_page, проверяет, не находится ли пользователь на этой странице.
     """
+    logger.info(f"Отправка уведомления пользователю {event.user_id}: {event.message[:50]}...")
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from tg.oms.manager import scene_manager
     

@@ -1,5 +1,4 @@
 from datetime import datetime
-from pprint import pprint
 from typing import Optional
 from uuid import UUID as _UUID
 from os import getenv
@@ -11,7 +10,7 @@ from database.connection import session_factory
 from global_modules.classes.enums import CardType, ChangeType, UserRole
 from modules.kaiten import kaiten
 from modules.properties import multi_properties
-from modules.json_get import open_settings
+from modules.json_get import open_settings, open_properties
 from models.Card import Card, CardStatus
 from models.User import User
 from modules.api_client import executors_api
@@ -25,6 +24,7 @@ from modules.card_service import (
     notify_executor, get_kaiten_user_name, add_kaiten_comment, 
     update_kaiten_card_field
 )
+from modules.logs import brain_logger as logger
 
 
 # Создаём роутер
@@ -54,16 +54,18 @@ class CardCreate(BaseModel):
 
 @router.post("/create")
 async def create_card(card_data: CardCreate):
+    logger.info(f"Запрос на создание карточки: {card_data.title}, Дедлайн: {card_data.deadline}, Исполнитель: {card_data.executor_id}")
 
     # Преобразовываем текстомвые ключи в id свойств
     channels = []
+    properties_data = open_properties()
     if card_data.channels:
         for channel in card_data.channels:
             if channel.isdigit():
                 channels.append(int(channel))
             else:
                 channels.append(
-                    settings['properties'][PropertyNames.CHANNELS]['values'][channel]['id']
+                    properties_data[PropertyNames.CHANNELS]['values'][channel]['id']
             )
 
     tags = []
@@ -73,7 +75,7 @@ async def create_card(card_data: CardCreate):
                 tags.append(int(tag))
             else:
                 tags.append(
-                    settings['properties'][PropertyNames.TAGS]['values'][tag]['id']
+                    properties_data[PropertyNames.TAGS]['values'][tag]['id']
                 )
 
     card_type = settings['card-types'][card_data.type_id]
@@ -103,7 +105,7 @@ async def create_card(card_data: CardCreate):
 
             card_id = res.id
     except Exception as e:
-        print(f"Error in kaiten create card: {e}")
+        logger.error(f"Ошибка при создании карточки в Kaiten: {e}")
         card_id = 0
 
     card = await Card.create(
@@ -118,6 +120,8 @@ async def create_card(card_data: CardCreate):
         customer_id=card_data.customer_id,
         executor_id=card_data.executor_id,
     )
+    
+    logger.info(f"Карточка создана в БД: {card.card_id} (Kaiten ID: {card_id})")
 
     if card_data.type_id == CardType.public:
 
@@ -175,7 +179,6 @@ async def create_card(card_data: CardCreate):
         message_text = f"{Messages.NEW_TASK}\n\n📝 {card_data.title}{deadline_str}\n\n{card_data.description}"
         await notify_executor(card_data.executor_id, message_text)
 
-    # Планируем уведомления для карточки с дедлайном
     if card_data.deadline:
         try:
             async with session_factory() as session:
@@ -281,15 +284,20 @@ class CardUpdate(BaseModel):
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
-    print(card_data.__dict__)
+    # print(card_data.__dict__)
 
     card = await Card.get_by_key('card_id', card_data.card_id)
     if not card:
+        logger.warning(f"Попытка обновления несуществующей карточки: {card_data.card_id}")
         raise HTTPException(
             status_code=404, detail="Card not found")
 
     data = card_data.model_dump(exclude={'card_id'})
     data = {k: v for k, v in data.items() if v is not None}
+    
+    # Логируем только ключи, которые меняются (без бинарных данных)
+    log_data = {k: v for k, v in data.items() if k != 'post_image'}
+    logger.info(f"Обновление карточки {card.card_id}: {log_data}")
 
     # Преобразуем hex-строку в bytes для post_image
     if 'post_image' in data and data['post_image']:
@@ -324,6 +332,7 @@ async def update_card(card_data: CardUpdate):
                 raise HTTPException(status_code=400, detail=f"Invalid UUID format for {key}")
 
     if 'status' in data and data['status'] != card.status:
+        logger.info(f"Изменение статуса карточки {card.card_id}: {card.status} -> {data['status']}")
 
         # Если статус изменился на review (ждет проверки)
         if data['status'] == CardStatus.review:
@@ -471,21 +480,9 @@ async def update_card(card_data: CardUpdate):
                     "data_key": "task_id",
                     "data_value": str(card.card_id)
                 }
-                # Используем специальный метод для закрытия сцен, если он есть, или просто обновляем, 
-                # а логика закрытия будет в самой сцене. Но пользователь просил "закрываться".
-                # В events.py есть close_scene, но он по user_id.
-                # Мы можем отправить событие executor_changed, оно закрывает сцены. Но это хак.
-                # Лучше добавить обработку статуса sent в сцены или отправить специальное событие.
-                # Пока просто обновим сцены, а в TaskDetailPage добавим проверку статуса sent.
-                # Но для user-task (редактирование) нужно именно закрыть.
-                # Отправим уведомление пользователю, что задача отправлена и сцена закрывается.
-                
-                # В events.py есть executor_changed, который закрывает сцену.
-                # Можно добавить новое событие task_completed.
-                # Но пока используем update_scenes, а в сценах добавим реакцию на статус sent.
-                
+
                 await executors_api.post(ApiEndpoints.UPDATE_SCENES, data=update_data_user)
-                
+
                 # Обновляем сцены просмотра (task-detail)
                 update_data_view = {
                     "scene_name": "task-detail",
@@ -498,6 +495,7 @@ async def update_card(card_data: CardUpdate):
                 print(f"Error closing scenes: {e}")
 
     if 'executor_id' in data and data['executor_id'] != card.executor_id:
+        logger.info(f"Изменение исполнителя карточки {card.card_id}: {card.executor_id} -> {data['executor_id']}")
 
         user = await User.get_by_key(
             'user_id', data['executor_id']
@@ -515,77 +513,48 @@ async def update_card(card_data: CardUpdate):
 
     # Обработка изменения каналов (clients)
     if 'clients' in data and card.task_id and card.task_id != 0:
-        # Получаем новые значения каналов
+        props = open_properties()
         new_channels = []
         if data['clients']:
-            for channel_id in data['clients']:
-                # Ищем канал в настройках по ID или используем как есть
-                # В create_card мы преобразовывали ключи в ID. Здесь предполагаем, что приходят уже ID или ключи.
-                # Kaiten требует ID свойств.
-                # В settings['properties'][PropertyNames.CHANNELS]['values'] ключи - это то, что мы храним в card.clients?
-                # Card.clients хранит список строк (ключей или ID).
-                # Если мы меняем каналы, нам нужно обновить свойство в Kaiten.
-                
-                # Попробуем найти ID свойства для каждого канала
-                prop_id = None
-                # Проходим по всем значениям свойства CHANNELS
-                channels_prop = settings['properties'][PropertyNames.CHANNELS]
-                for key, val in channels_prop['values'].items():
-                    if str(val['id']) == str(channel_id) or key == str(channel_id):
-                        prop_id = val['id']
-                        break
-                
-                if prop_id:
-                    new_channels.append(prop_id)
-                elif str(channel_id).isdigit():
-                     new_channels.append(int(channel_id))
+            for channel in data['clients']:
+                if str(channel).isdigit():
+                    new_channels.append(int(channel))
+                else:
+                    new_channels.append(
+                        props[PropertyNames.CHANNELS]['values'][channel]['id']
+                    )
 
-        # Обновляем свойство в Kaiten
-        # ID свойства каналов
-        channels_prop_id = settings['properties'][PropertyNames.CHANNELS]['id']
-        
         try:
             async with kaiten as client:
-                # Для обновления свойств нужно передать словарь properties
-                # Но update_card в kaiten.py принимает именованные аргументы.
-                # Проверим метод update_card в kaiten.py (через контекст его не видно, но предположим стандартный)
-                # Обычно update_card(card_id, properties={...})
-                
                 await client.update_card(
                     card.task_id,
-                    properties={
-                        channels_prop_id: new_channels
-                    }
+                    properties=multi_properties(
+                        channels=new_channels
+                    )
                 )
         except Exception as e:
             print(f"Error updating channels in Kaiten: {e}")
 
     # Обработка изменения тегов (tags)
     if 'tags' in data and card.task_id and card.task_id != 0:
+        props = open_properties()
         new_tags = []
         if data['tags']:
-            tags_prop = settings['properties'][PropertyNames.TAGS]
-            for tag_id in data['tags']:
-                prop_id = None
-                for key, val in tags_prop['values'].items():
-                    if str(val['id']) == str(tag_id) or key == str(tag_id):
-                        prop_id = val['id']
-                        break
-                
-                if prop_id:
-                    new_tags.append(prop_id)
-                elif str(tag_id).isdigit():
-                    new_tags.append(int(tag_id))
-        
-        tags_prop_id = settings['properties'][PropertyNames.TAGS]['id']
-        
+            for tag in data['tags']:
+                if str(tag).isdigit():
+                    new_tags.append(int(tag))
+                else:
+                    new_tags.append(
+                        props[PropertyNames.TAGS]['values'][tag]['id']
+                    )
+
         try:
             async with kaiten as client:
                 await client.update_card(
                     card.task_id,
-                    properties={
-                        tags_prop_id: new_tags
-                    }
+                    properties=multi_properties(
+                        tags=new_tags
+                    )
                 )
         except Exception as e:
             print(f"Error updating tags in Kaiten: {e}")
@@ -609,6 +578,7 @@ async def update_card(card_data: CardUpdate):
     # Обработка изменения deadline
     deadline_changed = False
     if 'deadline' in data and card.task_id and card.task_id != 0:
+        logger.info(f"Изменение дедлайна карточки {card.card_id}: {data['deadline']}")
         deadline_changed = True
         comment = Messages.DEADLINE_CHANGED
         if card_data.old_value and card_data.new_value:
@@ -751,8 +721,10 @@ async def delete_executor(card_id: str):
 
 @router.delete("/delete/{card_id}")
 async def delete_card(card_id: str):
+    logger.info(f"Запрос на удаление карточки {card_id}")
     card = await Card.get_by_key('card_id', card_id)
     if not card:
+        logger.warning(f"Попытка удаления несуществующей карточки: {card_id}")
         raise HTTPException(
             status_code=404, detail="Card not found")
 
@@ -761,7 +733,7 @@ async def delete_card(card_id: str):
         async with session_factory() as session:
             await cancel_card_tasks(session, card_id)
     except Exception as e:
-        print(f"Error canceling card tasks: {e}")
+        logger.error(f"Ошибка при отмене задач карточки {card_id}: {e}")
 
     await card.delete()
 
@@ -769,12 +741,14 @@ async def delete_card(card_id: str):
         try:
             await client.delete_card(card.task_id)
         except Exception as e:
+            logger.error(f"Ошибка удаления карточки {card_id} из Kaiten: {e}")
             return {"detail": f"Card deleted from DB, but failed to delete from Kaiten: {e}"}
 
     try:
         if card.calendar_id:
             await delete_calendar_event(card.calendar_id)
     except Exception as e:
+        logger.error(f"Ошибка удаления события календаря для карточки {card_id}: {e}")
         return {"detail": f"Card deleted from DB, but failed to delete from Calendar: {e}"}
 
     if card.forum_message_id:
@@ -783,8 +757,10 @@ async def delete_card(card_id: str):
             )
 
         if not forum_res.get('success', False):
+            logger.error(f"Ошибка удаления сообщения форума для карточки {card_id}")
             return {"detail": "Card deleted from DB, but failed to delete forum message"}
-
+    
+    logger.info(f"Карточка {card_id} успешно удалена")
     return {"detail": "Card deleted successfully"}
 
 class CommentAdd(BaseModel):
@@ -795,6 +771,7 @@ class CommentAdd(BaseModel):
 @router.post("/add-comment")
 async def add_comment(note_data: CommentAdd):
     """Добавить комментарий к карточке (обычный комментарий)"""
+    logger.info(f"Добавление комментария к карточке {note_data.card_id} от {note_data.author}")
     card = await Card.get_by_key('card_id', note_data.card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -812,7 +789,7 @@ async def add_comment(note_data: CommentAdd):
             
             await add_kaiten_comment(card.task_id, comment_text)
         except Exception as e:
-            print(f"Error adding comment to Kaiten: {e}")
+            logger.error(f"Ошибка добавления комментария в Kaiten: {e}")
     
     # Отправляем уведомление исполнителю
     if card.executor_id:
@@ -836,6 +813,7 @@ class EditorNoteAdd(BaseModel):
 @router.post("/add-editor-note")
 async def add_editor_note(note_data: EditorNoteAdd):
     """Добавить комментарий редактора к карточке"""
+    logger.info(f"Добавление комментария редактора к карточке {note_data.card_id} от {note_data.author}")
     card = await Card.get_by_key('card_id', note_data.card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -866,7 +844,7 @@ async def add_editor_note(note_data: EditorNoteAdd):
             comment_text = f"💬 Комментарий от {author_name}:\n{note_data.content}"
             await add_kaiten_comment(card.task_id, comment_text)
         except Exception as e:
-            print(f"Error adding comment to Kaiten: {e}")
+            logger.error(f"Ошибка добавления комментария в Kaiten: {e}")
     
     # Обновляем все открытые сцены с этой карточкой
     try:
@@ -877,7 +855,7 @@ async def add_editor_note(note_data: EditorNoteAdd):
         }
         await executors_api.post(ApiEndpoints.UPDATE_SCENES, data=update_data)
     except Exception as e:
-        print(f"Error updating scenes: {e}")
+        logger.error(f"Ошибка обновления сцен: {e}")
     
     # Отправляем уведомление исполнителю, если он не автор
     if card.executor_id and str(card.executor_id) != str(note_data.author):

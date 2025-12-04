@@ -2,6 +2,7 @@ from tg.oms import Page
 from modules.api_client import update_card, get_cards
 from global_modules.classes.enums import CardStatus
 from tg.oms.utils import callback_generator
+from modules.logs import executors_logger as logger
 
 class StatusSetterPage(Page):
     
@@ -64,6 +65,7 @@ class StatusSetterPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
         
         if task_id:
+            logger.info(f"Пользователь {self.scene.user_id} перевел задачу {task_id} в статус 'В работе'")
             await update_card(card_id=task_id, status=CardStatus.edited)
             await self.scene.update_key('scene', 'status', '✏️ В работе')
             await callback.answer('✅ Статус изменен на "В работе"', show_alert=True)
@@ -77,6 +79,7 @@ class StatusSetterPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
         
         if task_id:
+            logger.info(f"Пользователь {self.scene.user_id} отправил задачу {task_id} на проверку")
             await update_card(card_id=task_id, status=CardStatus.review)
             await self.scene.update_key('scene', 'status', '🔍 На проверке')
             await callback.answer('✅ Статус изменен на "На проверке"', show_alert=True)
@@ -90,6 +93,7 @@ class StatusSetterPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
         
         if task_id:
+            logger.info(f"Пользователь {self.scene.user_id} завершил задачу {task_id} (статус 'Готова')")
             await update_card(card_id=task_id, status=CardStatus.ready)
             await self.scene.update_key('scene', 'status', '✅ Готова')
             await callback.answer('✅ Задача завершена!', show_alert=True)

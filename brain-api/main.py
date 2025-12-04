@@ -33,9 +33,9 @@ async def lifespan(app: FastAPI):
     global scheduler
     
     # Startup
-    brain_logger.info("API is starting up...")
-    brain_logger.info("Creating missing tables on startup...")
+    brain_logger.info("Апи запускается...")
     await create_tables()
+    brain_logger.info("Таблицы в базе данных созданы или уже существуют.")
     await create_superuser()
 
     # await kaiten_check()
@@ -43,7 +43,6 @@ async def lifespan(app: FastAPI):
     await sync_kaiten_settings()
 
     # Запуск планировщика задач
-    brain_logger.info("Starting task scheduler...")
     scheduler = TaskScheduler(session_factory=session_factory, check_interval=10)
     scheduler_task = asyncio.create_task(scheduler.start())
 
@@ -74,9 +73,9 @@ app = get_fastapi_app(
         kaiten_router, kaiten_files_router, user_router,
         scene_router
     ],
-    api_logger=brain_logger
+    # api_logger=brain_logger
 )
-app.add_middleware(RequestLoggingMiddleware, logger=brain_logger)
+# app.add_middleware(RequestLoggingMiddleware, logger=brain_logger)
 
 async def kaiten_check():
 

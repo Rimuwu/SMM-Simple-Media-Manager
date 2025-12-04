@@ -19,8 +19,9 @@ import logging
 from models.ScheduledTask import ScheduledTask
 from models.Card import Card
 from global_modules.timezone import now_naive as moscow_now
+from modules.logs import brain_logger as logger
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
 class TaskScheduler:

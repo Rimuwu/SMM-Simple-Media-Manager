@@ -3,6 +3,7 @@ from tg.oms import Page
 from modules.api_client import get_cards, get_user_role
 from modules.constants import SETTINGS
 from global_modules.classes.enums import CardStatus
+from modules.logs import executors_logger as logger
 
 class MainPage(Page):
     
@@ -58,6 +59,7 @@ class MainPage(Page):
                 
                 # Если статус "Отправлено", закрываем сцену
                 if card.get('status') == CardStatus.sent.value:
+                    logger.info(f"Сцена редактирования задачи {task_id} закрыта для пользователя {self.scene.user_id} (статус 'Отправлено')")
                     await self.scene.bot.send_message(
                         chat_id=self.scene.user_id,
                         text="🚀 Задача была отправлена и закрыта для редактирования."

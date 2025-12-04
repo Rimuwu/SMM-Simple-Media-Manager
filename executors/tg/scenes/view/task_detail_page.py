@@ -11,6 +11,7 @@ from tg.oms import Scene
 from modules.constants import SETTINGS
 from tg.oms.common_pages import UserSelectorPage
 from tg.utils.viewers import viewers_manager
+from modules.logs import executors_logger as logger
 
 
 class TaskDetailPage(Page):
@@ -322,12 +323,15 @@ class TaskDetailPage(Page):
             card_id = task.get('card_id')
             if not card_id:
                 return
+            
+            logger.info(f"Пользователь {self.scene.user_id} запросил удаление задачи {card_id}")
 
             res, status = await brain_api.delete(
                 f'/card/delete/{card_id}',
             )
 
             if status == 200:
+                logger.info(f"Задача {card_id} успешно удалена пользователем {self.scene.user_id}")
                 await self.scene.update_key(
                     'scene', 'selected_task', None)
                 await self.scene.update_page('task-list')
@@ -335,6 +339,7 @@ class TaskDetailPage(Page):
                 await callback.answer("Задача успешно удалена.", show_alert=True)
 
             else:
+                logger.error(f"Ошибка при удалении задачи {card_id} пользователем {self.scene.user_id}: {res}")
                 await callback.answer("Ошибка при удалении задачи.", show_alert=True)
         
         elif action == 'return_to_work':

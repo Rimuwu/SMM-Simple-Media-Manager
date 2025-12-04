@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from models.User import User
 from modules.api_client import executors_api
+from modules.logs import brain_logger as logger
 
 router = APIRouter(prefix='/user')
 
@@ -43,6 +44,7 @@ async def create(user_data: UserCreate):
     try:
         existing_user = await User.get_by_key('telegram_id', user_data.telegram_id)
         if existing_user:
+            logger.warning(f"Попытка создания существующего пользователя: {user_data.telegram_id}")
             return {'error': 'User with this telegram_id already exists'}
 
         user = await User.create(
@@ -55,10 +57,11 @@ async def create(user_data: UserCreate):
             task_per_month=0,
             tasks=0
         )
+        logger.info(f"Создан новый пользователь: {user.telegram_id}, роль: {user.role}")
         return user.to_dict()
 
     except Exception as e:
-        print(f"Error in user.create: {e}")
+        logger.error(f"Ошибка при создании пользователя: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 class UserUpdate(BaseModel):
@@ -75,11 +78,13 @@ async def update(user_data: UserUpdate):
         )
 
     if not user:
+        logger.warning(f"Попытка обновления несуществующего пользователя: {user_data.telegram_id}")
         return {'error': 'User not found'}
 
     update_data = {}
     if user_data.role is not None:
         if user_data.role != user.role:
+            logger.info(f"Изменение роли пользователя {user.telegram_id}: {user.role} -> {user_data.role}")
             await executors_api.post(
                 '/events/close_scene/' + str(user.telegram_id)
             )
@@ -96,8 +101,12 @@ async def update(user_data: UserUpdate):
         update_data['about'] = user_data.about
 
     try:
-        await user.update(**update_data)
-        return user.to_dict()
+            await user.update(**update_data)
+            logger.info(f"Пользователь {user.telegram_id} обновлен: {update_data}")
+            return user.to_dict()
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении пользователя {user.telegram_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     except Exception as e:
         print(f"Error in user.update: {e}")
         raise HTTPException(status_code=500, 

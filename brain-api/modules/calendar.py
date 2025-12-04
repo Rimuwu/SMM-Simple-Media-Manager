@@ -1,6 +1,7 @@
 from .api_client import calendar_api
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from modules.logs import brain_logger as logger
 
 
 async def create_calendar_event(
@@ -43,7 +44,12 @@ async def create_calendar_event(
         "color_id": color_id
     }
     
+    logger.info(f"Создание события в календаре: {title}, Начало: {start_time}")
     response, status = await calendar_api.post("/calendar/events", data=event_data)
+    
+    if status != 200:
+        logger.error(f"Ошибка создания события в календаре: {response}")
+        
     return {"response": response, "status": status}
 
 
@@ -86,7 +92,12 @@ async def update_calendar_event(
     if attendees is not None:
         update_data["attendees"] = attendees
     
+    logger.info(f"Обновление события в календаре {event_id}: {update_data}")
     response, status = await calendar_api.put(f"/calendar/events/{event_id}", data=update_data)
+    
+    if status != 200:
+        logger.error(f"Ошибка обновления события в календаре {event_id}: {response}")
+        
     return {"response": response, "status": status}
 
 
@@ -146,7 +157,12 @@ async def delete_calendar_event(event_id: str) -> Dict[str, Any]:
     Returns:
         Dict с результатом удаления
     """
+    logger.info(f"Удаление события из календаря: {event_id}")
     response, status = await calendar_api.delete(f"/calendar/events/{event_id}")
+    
+    if status != 200:
+        logger.error(f"Ошибка удаления события из календаря {event_id}: {response}")
+        
     return {"response": response, "status": status}
 
 
