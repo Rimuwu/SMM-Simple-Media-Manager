@@ -13,6 +13,9 @@ class PreviewPage(Page):
     
     __page_name__ = 'post-preview'
     
+    # Кэш скачанных изображений (для одной сессии страницы)
+    _cached_images: dict = {}
+    
     async def data_preparate(self):
         """Подготовка данных перед отображением"""
         card = await self.scene.get_card_data()
@@ -23,6 +26,15 @@ class PreviewPage(Page):
         
         clients = card.get('clients', [])
         await self.scene.update_key(self.__page_name__, 'clients', clients)
+        
+        # Предварительно скачиваем изображения если есть
+        post_images = card.get('post_images') or []
+        task_id = card.get('task_id')
+        cache_key = f"{task_id}:{','.join(post_images)}"
+        
+        if post_images and task_id and cache_key not in self._cached_images:
+            downloaded = await self.download_kaiten_images(task_id, post_images)
+            self._cached_images[cache_key] = downloaded
     
     async def content_worker(self) -> str:
         """Возвращает текст сообщения"""
@@ -153,7 +165,7 @@ class PreviewPage(Page):
         
         content = card.get('content', '')
         tags = card.get('tags', [])
-        post_images = card.get('post_images') or []  # Теперь list[str] - имена файлов
+        post_images = card.get('post_images') or []  # list[str] - имена файлов
         task_id = card.get('task_id')
         
         # Генерируем текст поста с тегом клиента
@@ -165,10 +177,15 @@ class PreviewPage(Page):
         ])
         
         try:
-            # Скачиваем изображения из Kaiten если есть
+            # Используем кэш или скачиваем изображения из Kaiten
             downloaded_images = []
             if post_images and task_id:
-                downloaded_images = await self.download_kaiten_images(task_id, post_images)
+                cache_key = f"{task_id}:{','.join(post_images)}"
+                if cache_key in self._cached_images:
+                    downloaded_images = self._cached_images[cache_key]
+                else:
+                    downloaded_images = await self.download_kaiten_images(task_id, post_images)
+                    self._cached_images[cache_key] = downloaded_images
             
             if downloaded_images:
                 if len(downloaded_images) == 1:

@@ -87,8 +87,8 @@ class PostScheduleRequest(BaseModel):
     content: str  # Сырой контент
     tags: Optional[list[str]] = None
     send_time: Optional[str] = None  # ISO 8601 format
-    image: Optional[str] = None  # Hex-encoded binary data (устарело, для совместимости)
-    post_images: Optional[list[dict]] = None  # Список фото с file_id из Telegram
+    task_id: Optional[int] = None  # ID карточки в Kaiten для скачивания файлов
+    post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten
 
 
 class PostSendRequest(BaseModel):
@@ -177,12 +177,41 @@ async def schedule_post(request: PostScheduleRequest):
         except ValueError:
             chat_id = client_id
         
+        # Загружаем фото с Kaiten, если есть
+        photos = []
+        if request.task_id and request.post_images:
+            photos = await download_kaiten_files(request.task_id, request.post_images)
+        
         # Отправляем запланированное сообщение
-        result = await executor.schedule_message(
-            chat_id=chat_id,
-            text=post_text,
-            schedule_date=send_time
-        )
+        if photos:
+            # Планируем фото
+            if hasattr(executor, 'schedule_media_group') and len(photos) > 1:
+                result = await executor.schedule_media_group(
+                    chat_id=chat_id,
+                    media=photos,
+                    schedule_date=send_time,
+                    caption=post_text
+                )
+            elif hasattr(executor, 'schedule_photo'):
+                result = await executor.schedule_photo(
+                    chat_id=chat_id,
+                    photo=photos[0],
+                    schedule_date=send_time,
+                    caption=post_text
+                )
+            else:
+                logger.warning(f"Executor {executor_name} does not support scheduled photos, sending text only")
+                result = await executor.schedule_message(
+                    chat_id=chat_id,
+                    text=post_text,
+                    schedule_date=send_time
+                )
+        else:
+            result = await executor.schedule_message(
+                chat_id=chat_id,
+                text=post_text,
+                schedule_date=send_time
+            )
         
         if result.get('success'):
             # Сохраняем информацию о запланированном посте
@@ -258,10 +287,47 @@ async def send_post(request: PostSendRequest):
             logger.info(f"Downloaded {len(downloaded_images)} images from Kaiten for card {request.card_id}")
         
         if executor_type == "vk":
-            # Для VK используем create_wall_post
+            # Для VK - загружаем фото и создаём пост
+            attachments = []
+            if downloaded_images:
+                import tempfile
+                import os as os_module
+                for idx, img_data in enumerate(downloaded_images):
+                    # Сохраняем во временный файл для загрузки
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+                        tmp_file.write(img_data)
+                        tmp_path = tmp_file.name
+                    try:
+                        upload_result = await executor.upload_photo_to_wall(tmp_path)
+                        if upload_result.get('success') and upload_result.get('attachment'):
+                            attachments.append(upload_result['attachment'])
+                    finally:
+                        os_module.unlink(tmp_path)
+            
             result = await executor.create_wall_post(
-                text=post_text
+                text=post_text,
+                attachments=attachments if attachments else None
             )
+        elif executor_type == "telegram_pyrogram":
+            # Для Telegram Pyrogram (TP)
+            if downloaded_images:
+                if len(downloaded_images) == 1:
+                    result = await executor.send_photo(
+                        chat_id=chat_id,
+                        photo=downloaded_images[0],
+                        caption=post_text
+                    )
+                else:
+                    result = await executor.send_media_group(
+                        chat_id=chat_id,
+                        media=downloaded_images,
+                        caption=post_text
+                    )
+            else:
+                result = await executor.send_message(
+                    chat_id=chat_id,
+                    text=post_text
+                )
         elif executor_type == "telegram":
             # Для Telegram - проверяем наличие фото
             if downloaded_images:

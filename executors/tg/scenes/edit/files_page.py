@@ -93,11 +93,10 @@ class FilesPage(Page):
         files = self.scene.get_key(self.__page_name__, 'files') or []
         selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
         
-        # Кнопки для файлов из Kaiten (toggle выбора по имени)
+        # Кнопки для файлов из Kaiten (просмотр и toggle выбора)
         for file in files:
             file_id = file.get('id')
             file_name = file.get('name', 'Без названия')
-            full_name = file_name  # Сохраняем полное имя для callback
             
             # Проверяем выбран ли файл
             is_selected = file_name in selected_files
@@ -110,21 +109,9 @@ class FilesPage(Page):
                 'text': f"{mark} {display_name}",
                 'callback_data': callback_generator(
                     self.scene.__scene_name__,
-                    'toggle_kaiten',
-                    str(file_id)  # Используем ID для идентификации
+                    'select_file',  # Нажатие показывает превью файла
+                    str(file_id)
                 )
-            })
-        
-        # Кнопка просмотра выбранного файла
-        if files:
-            buttons.append({
-                'text': '👁 Просмотр файла',
-                'callback_data': callback_generator(
-                    self.scene.__scene_name__,
-                    'select_file',
-                    str(files[0].get('id', 0)) if files else '0'
-                ),
-                'ignore_row': True
             })
         
         # Кнопка сохранения выбранных файлов в карточку
@@ -149,45 +136,6 @@ class FilesPage(Page):
             })
         
         return buttons
-    
-    @Page.on_callback('toggle_kaiten')
-    async def toggle_kaiten_handler(self, callback: CallbackQuery, args: list):
-        """Toggle выбора файла из Kaiten по ID"""
-        if len(args) < 2:
-            await callback.answer('❌ Ошибка')
-            return
-        
-        try:
-            file_id = args[1]
-            files = self.scene.get_key(self.__page_name__, 'files') or []
-            selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
-            
-            # Находим файл по ID
-            target_file = next((f for f in files if str(f.get('id')) == file_id), None)
-            if not target_file:
-                await callback.answer('❌ Файл не найден')
-                return
-            
-            file_name = target_file.get('name')
-            
-            if file_name in selected_files:
-                # Убираем из выбранных
-                selected_files.remove(file_name)
-                await callback.answer(f'❌ Убран: {file_name[:30]}')
-            else:
-                # Добавляем в выбранные
-                if len(selected_files) >= self.max_files:
-                    await callback.answer(f'❌ Максимум {self.max_files} файлов')
-                    return
-                selected_files.append(file_name)
-                await callback.answer(f'✅ Добавлен: {file_name[:30]}')
-            
-            await self.scene.update_key(self.__page_name__, 'selected_files', selected_files)
-            await self.scene.update_message()
-            
-        except Exception as e:
-            print(f"Error toggling kaiten file: {e}")
-            await callback.answer(f'❌ Ошибка: {str(e)}')
     
     @Page.on_callback('clear_selected')
     async def clear_selected_handler(self, callback: CallbackQuery, args: list):
@@ -291,7 +239,7 @@ class FilesPage(Page):
         await self.show_file_preview(callback, file_id)
     
     async def show_file_preview(self, callback: CallbackQuery, file_id: str):
-        """Показывает превью файла с кнопками"""
+        """Показывает превью файла с кнопками добавить/убрать"""
         from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton
         from tg.oms.utils import callback_generator
         
@@ -302,6 +250,17 @@ class FilesPage(Page):
             return
         
         task_id = card.get('task_id')
+        files = self.scene.get_key(self.__page_name__, 'files') or []
+        selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
+        
+        # Находим файл по ID чтобы получить имя
+        target_file = next((f for f in files if str(f.get('id')) == file_id), None)
+        if not target_file:
+            await callback.answer("❌ Файл не найден")
+            return
+        
+        file_name = target_file.get('name', 'Без имени')
+        is_selected = file_name in selected_files
         
         try:
             # Получаем бинарные данные файла
@@ -312,21 +271,27 @@ class FilesPage(Page):
             )
             
             if status == 200 and isinstance(file_data, bytes):
-                # Сохраняем file_id во временные данные страницы
-                await self.scene.update_key(self.__page_name__, 'preview_file_id', file_id)
-                await self.scene.update_key(self.__page_name__, 'preview_file_data', file_data.hex())
+                # Определяем текст и callback кнопки в зависимости от состояния
+                if is_selected:
+                    toggle_text = "❌ Убрать из выбранных"
+                    toggle_action = "toggle_remove"
+                else:
+                    toggle_text = "✅ Добавить к выбранным"
+                    toggle_action = "toggle_add"
                 
                 # Создаем кнопки
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text="✅ Установить",
+                            text=toggle_text,
                             callback_data=callback_generator(
                                 self.scene.__scene_name__,
-                                'confirm_file',
+                                toggle_action,
                                 file_id
                             )
-                        ),
+                        )
+                    ],
+                    [
                         InlineKeyboardButton(
                             text="🗑 Удалить сообщение",
                             callback_data="delete_message"
@@ -336,9 +301,10 @@ class FilesPage(Page):
                 
                 # Отправляем фото
                 photo = BufferedInputFile(file_data, filename="preview.jpg")
+                status_text = "✅ Выбран" if is_selected else "⬜️ Не выбран"
                 await callback.message.answer_photo(
                     photo=photo,
-                    caption="📷 Предпросмотр изображения\n\nУстановить это изображение для поста?",
+                    caption=f"📷 {file_name}\n\nСтатус: {status_text}",
                     reply_markup=keyboard
                 )
                 await callback.answer()
@@ -349,18 +315,90 @@ class FilesPage(Page):
             print(f"Error showing preview: {e}")
             await callback.answer("❌ Произошла ошибка")
     
+    @Page.on_callback('toggle_add')
+    async def toggle_add_handler(self, callback: CallbackQuery, args: list):
+        """Добавить файл к выбранным"""
+        if len(args) < 2:
+            await callback.answer("❌ Ошибка")
+            return
+        
+        file_id = args[1]
+        files = self.scene.get_key(self.__page_name__, 'files') or []
+        selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
+        
+        target_file = next((f for f in files if str(f.get('id')) == file_id), None)
+        if not target_file:
+            await callback.answer("❌ Файл не найден")
+            return
+        
+        file_name = target_file.get('name')
+        
+        if file_name in selected_files:
+            await callback.answer("⚠️ Уже добавлен")
+            return
+        
+        if len(selected_files) >= self.max_files:
+            await callback.answer(f"❌ Максимум {self.max_files} файлов")
+            return
+        
+        selected_files.append(file_name)
+        await self.scene.update_key(self.__page_name__, 'selected_files', selected_files)
+        await callback.answer(f"✅ Добавлен: {file_name[:30]}")
+        
+        # Удаляем сообщение с превью
+        try:
+            await callback.message.delete()
+        except:
+            pass
+        await self.scene.update_message()
+    
+    @Page.on_callback('toggle_remove')
+    async def toggle_remove_handler(self, callback: CallbackQuery, args: list):
+        """Убрать файл из выбранных"""
+        if len(args) < 2:
+            await callback.answer("❌ Ошибка")
+            return
+        
+        file_id = args[1]
+        files = self.scene.get_key(self.__page_name__, 'files') or []
+        selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
+        
+        target_file = next((f for f in files if str(f.get('id')) == file_id), None)
+        if not target_file:
+            await callback.answer("❌ Файл не найден")
+            return
+        
+        file_name = target_file.get('name')
+        
+        if file_name not in selected_files:
+            await callback.answer("⚠️ Не был добавлен")
+            return
+        
+        selected_files.remove(file_name)
+        await self.scene.update_key(self.__page_name__, 'selected_files', selected_files)
+        await callback.answer(f"❌ Убран: {file_name[:30]}")
+        
+        # Удаляем сообщение с превью
+        try:
+            await callback.message.delete()
+        except:
+            pass
+        await self.scene.update_message()
+
     @Page.on_callback('confirm_file')
     async def confirm_file_handler(self, callback: CallbackQuery, args: list):
-        """Обработчик подтверждения установки файла"""
+        """Обработчик подтверждения установки файла (устарело)"""
         if len(args) < 2:
             await callback.answer("❌ Ошибка: не указан ID файла")
             return
         
         file_id = args[1]
-        await self.confirm_file(callback, file_id)
+        await self.toggle_add_handler(callback, args)  # Используем toggle_add
     
-    async def confirm_file(self, callback: CallbackQuery, file_id: str):
-        """Устанавливает файл в карточку после подтверждения"""
+    @Page.on_callback('toggle_kaiten')
+    async def toggle_kaiten_handler(self, callback: CallbackQuery, args: list):
+        """Toggle выбора файла из Kaiten - теперь открывает превью"""
+        await self.select_file_handler(callback, args)
         card = await self.scene.get_card_data()
         
         if not card:
