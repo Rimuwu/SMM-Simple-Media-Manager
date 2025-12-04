@@ -141,12 +141,8 @@ async def create_card(card_data: CardCreate):
     try:
         deadline_datetime = datetime.fromisoformat(card_data.deadline) if card_data.deadline else None
 
-        # Формируем ссылку на задание в Telegram боте
-        bot_username = getenv('BOT_USERNAME', 'your_bot')
-        task_link = f"https://t.me/{bot_username}?start=task_{card.card_id}"
-        
         # Добавляем ссылку в описание
-        calendar_description = f"{card_data.description}\n\n📎 Ссылка на задание: {task_link}"
+        calendar_description = f"{card_data.description}"
 
         data = await create_calendar_event(
             card_data.title,
@@ -425,9 +421,13 @@ async def update_card(card_data: CardUpdate):
             except Exception as e:
                 print(f"Error updating executor scene: {e}")
             
+            # Сначала сохраняем executor_id в базу, чтобы форум показал исполнителя
+            if 'executor_id' in data:
+                await card.update(executor_id=data['executor_id'])
+                await card.refresh()
+            
             # Обновляем сообщение на форуме
             try:
-                await card.refresh()
                 forum_res, _ = await executors_api.post(
                     ApiEndpoints.FORUM_UPDATE_MESSAGE,
                     data={"card_id": str(card.card_id), "status": CardStatus.edited.value}
@@ -468,6 +468,20 @@ async def update_card(card_data: CardUpdate):
                     print(f"Scheduled post tasks for card {card.card_id}")
             except Exception as e:
                 print(f"Error scheduling post tasks: {e}")
+            
+            # Обновляем сообщение на форуме со статусом ready
+            try:
+                await card.refresh()
+                forum_res, _ = await executors_api.post(
+                    ApiEndpoints.FORUM_UPDATE_MESSAGE,
+                    data={"card_id": str(card.card_id), "status": CardStatus.ready.value}
+                )
+                message_id = forum_res.get("message_id")
+                if message_id:
+                    await card.update(forum_message_id=message_id)
+                forum_already_updated = True
+            except Exception as e:
+                print(f"Error updating forum message for ready: {e}")
         
         # Уведомляем об изменении статуса, чтобы обновить сцены
         try:
