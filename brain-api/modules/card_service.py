@@ -5,19 +5,25 @@ from modules.api_client import executors_api
 from modules.kaiten import kaiten
 from modules.constants import ApiEndpoints
 
-async def notify_executor(executor_id: str, message: str):
+async def notify_executor(executor_id: str, message: str, task_id: Optional[str] = None, skip_if_page: Optional[str] = None):
     """
     Отправляет уведомление исполнителю в Telegram.
     """
     try:
         executor = await User.get_by_key('user_id', executor_id)
         if executor:
+            data = {
+                "user_id": executor.telegram_id,
+                "message": message
+            }
+            if task_id:
+                data["task_id"] = task_id
+            if skip_if_page:
+                data["skip_if_page"] = skip_if_page
+
             await executors_api.post(
                 ApiEndpoints.NOTIFY_USER,
-                data={
-                    "user_id": executor.telegram_id,
-                    "message": message
-                }
+                data=data
             )
     except Exception as e:
         print(f"Error notifying executor {executor_id}: {e}")

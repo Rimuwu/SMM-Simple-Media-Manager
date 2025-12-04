@@ -1,4 +1,5 @@
 from os import getenv
+from datetime import datetime
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.api_client import get_cards, brain_api, delete_scene, get_users, get_kaiten_users_dict
@@ -9,6 +10,7 @@ from modules.api_client import get_user_role
 from tg.oms import Scene
 from modules.constants import SETTINGS
 from tg.oms.common_pages import UserSelectorPage
+from tg.utils.viewers import viewers_manager
 
 
 class TaskDetailPage(Page):
@@ -22,6 +24,22 @@ class TaskDetailPage(Page):
             telegram_id = self.scene.user_id
             user_role = await get_user_role(telegram_id)
             await self.scene.update_key('scene', 'user_role', user_role or None)
+
+        # Регистрируем просмотр
+        task_id = self.scene.data['scene'].get('selected_task')
+        if task_id:
+            user_name = self.scene.data['scene'].get('user_name', f"User {self.scene.user_id}")
+            # Пытаемся получить имя пользователя из сцены или API, если его нет
+            if 'user_name' not in self.scene.data['scene']:
+                 # Можно добавить логику получения имени, если критично
+                 pass
+            
+            # Используем имя из Telegram события, если доступно (обычно доступно в хендлерах, но здесь Page)
+            # В данном контексте просто используем ID если нет имени, или можно передать имя при входе в сцену
+            # Для простоты пока оставим ID или заглушку, если имя не сохранено
+            
+            user_name = self.scene.data['scene'].get('user_name', f"User {self.scene.user_id}")
+            viewers_manager.update_viewer(str(task_id), self.scene.user_id, user_name)
 
         await self.load_task_details()
 
@@ -160,6 +178,12 @@ class TaskDetailPage(Page):
         # Сохраняем данные задачи в сцену для использования в других методах
         await self.scene.update_key('scene', 'current_task_data', task)
 
+        # Получаем список просматривающих
+        viewers = viewers_manager.get_viewers(str(task_id), exclude_user_id=self.scene.user_id)
+        viewers_str = ', '.join(viewers) if viewers else 'Никого'
+
+        add_vars['viewers'] = viewers_str
+
         self.content = self.append_variables(**add_vars)
         self.content = self.content.replace('None', '➖')
 
@@ -182,6 +206,31 @@ class TaskDetailPage(Page):
             action_buttons.extend([
                 ('open_task', '📂 Открыть задачу')
             ])
+        
+        # Кнопки для статуса Ready (Админы и Редакторы)
+        current_task = self.scene.data['scene'].get('current_task_data', {})
+        task_status = current_task.get('status')
+        
+        # Кнопка "Вернуть в работу" для исполнителя, если задача завершена (ready)
+        is_executor = False
+        if role == UserRole.copywriter:
+             # Проверяем, является ли текущий пользователь исполнителем этой задачи
+             executor_data = current_task.get('executor')
+             if executor_data and str(executor_data.get('telegram_id')) == str(self.scene.user_id):
+                 is_executor = True
+
+        if (is_admin or role == UserRole.editor or is_executor) and task_status == CardStatus.ready:
+             # Проверяем, нет ли уже этой кнопки (чтобы не дублировать для админа/редактора, который может быть и исполнителем)
+             if not any(b[0] == 'return_to_work' for b in action_buttons):
+                 action_buttons.extend([
+                    ('return_to_work', '↩️ Вернуть в работу')
+                ])
+        
+        if (is_admin or role == UserRole.editor) and task_status == CardStatus.ready:
+             if not any(b[0] == 'send_now' for b in action_buttons):
+                 action_buttons.extend([
+                    ('send_now', '🚀 Отправить сейчас')
+                ])
 
         if role == UserRole.customer or is_admin:
             action_buttons.extend([
@@ -271,3 +320,62 @@ class TaskDetailPage(Page):
 
             else:
                 await callback.answer("Ошибка при удалении задачи.", show_alert=True)
+        
+        elif action == 'return_to_work':
+            task = self.scene.data['scene'].get('current_task_data')
+            if not task: return
+
+            card_id = task.get('card_id')
+            
+            # Возвращаем в статус edited (В работе)
+            res, status = await brain_api.post(
+                '/card/update',
+                data={
+                    'card_id': card_id,
+                    'status': CardStatus.edited
+                }
+            )
+            
+            if status == 200:
+                # Отменяем все запланированные задачи (уведомления и т.д.)
+                # Это делается автоматически в brain-api при смене статуса или удалении, 
+                # но если нужно явно "убрать все таски", то это может означать удаление напоминаний.
+                # В brain-api/routers/card.py нет явного удаления тасков при смене статуса на edited,
+                # кроме перепланирования при смене дедлайна.
+                # Но пользователь просил "убрать все таски".
+                # Добавим вызов cancel_card_tasks через API, если такой эндпоинт есть, или добавим его.
+                # В brain-api есть cancel_card_tasks, но он не экспортирован в API явно как отдельный метод,
+                # кроме как при удалении карты.
+                # Однако, при смене статуса на edited, логично, что задачи публикации (если были) должны быть отменены?
+                # Или задачи напоминания?
+                # Предположим, что речь о задачах публикации, если задача была ready.
+                # В brain-api при смене статуса на ready создаются задачи. При возврате - надо удалять.
+                # Добавим логику в brain-api/routers/card.py для удаления задач при смене статуса с ready на другой.
+                
+                await callback.answer("Задача возвращена в работу.", show_alert=True)
+                await self.load_task_details()
+                await self.scene.update_page('task-detail')
+            else:
+                await callback.answer("Ошибка при обновлении статуса.", show_alert=True)
+
+        elif action == 'send_now':
+            task = self.scene.data['scene'].get('current_task_data')
+            if not task: return
+
+            card_id = task.get('card_id')
+            
+            # Устанавливаем время отправки на сейчас
+            res, status = await brain_api.post(
+                '/card/update',
+                data={
+                    'card_id': card_id,
+                    'send_time': datetime.now().isoformat()
+                }
+            )
+            
+            if status == 200:
+                await callback.answer("Время отправки установлено на сейчас.", show_alert=True)
+                await self.load_task_details()
+                await self.scene.update_page('task-detail')
+            else:
+                await callback.answer("Ошибка при обновлении времени отправки.", show_alert=True)

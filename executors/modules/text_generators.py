@@ -55,7 +55,7 @@ async def text_getter(card: dict, tag: str,
                       client_executor: TelegramExecutor) -> str:
 
     name = card.get("name", "No Title")
-    description = card.get("description", "No Description")
+    description = card.get("description") or "No Description"
     deadline = card.get("deadline", "Без дедлайна")
     tags = card.get("tags", []) if card.get("tags", []) else ["Без тегов"]
     need_check = "✅" if card.get("need_check", False) else "❌"
@@ -134,7 +134,6 @@ async def forum_message(card_id: str, status: str):
         ]
 
     elif status == CardStatus.edited.value:
-
         tag = edited_tag
 
         markup = [
@@ -145,18 +144,16 @@ async def forum_message(card_id: str, status: str):
         ]
     
     elif status == CardStatus.review.value:
-
         tag = checked_tag
 
         markup = [
             {
-                "text": "Задание проверяется",
+                "text": "Задание на проверке",
                 "callback_data": " "
             }
         ]
-    
-    elif status == CardStatus.ready.value:
 
+    elif status == CardStatus.ready.value:
         tag = done_tag
 
         markup = [

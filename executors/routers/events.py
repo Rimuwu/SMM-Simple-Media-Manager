@@ -127,17 +127,32 @@ async def update_scenes(event: UpdateScenesEvent):
 class NotifyUserEvent(BaseModel):
     user_id: int
     message: str
+    task_id: Optional[str] = None
+    skip_if_page: Optional[str] = None
 
 
 @router.post("/notify_user")
 async def notify_user(event: NotifyUserEvent):
     """
-    Отправляет уведомление пользователю с кнопкой удаления
+    Отправляет уведомление пользователю с кнопкой удаления.
+    Если указаны task_id и skip_if_page, проверяет, не находится ли пользователь на этой странице.
     """
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from tg.oms.manager import scene_manager
     
     try:
+        # Проверяем, нужно ли пропускать уведомление
+        if event.task_id and event.skip_if_page:
+            active_scenes = list(scene_manager._instances.values())
+            for scene in active_scenes:
+                if scene.user_id == event.user_id:
+                    # Проверяем текущую страницу
+                    if scene.current_page == event.skip_if_page:
+                        # Проверяем task_id в данных сцены
+                        scene_task_id = scene.data.get('scene', {}).get('task_id')
+                        if str(scene_task_id) == str(event.task_id):
+                            return {"status": "skipped", "reason": "User is on the page"}
+
         # Получаем бот из любой активной сцены или создаем новый экземпляр
         bot = None
         active_scenes = list(scene_manager._instances.values())

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from database.connection import session_factory
-from global_modules.classes.enums import CardType, ChangeType
+from global_modules.classes.enums import CardType, ChangeType, UserRole
 from modules.kaiten import kaiten
 from modules.properties import multi_properties
 from modules.json_get import open_settings
@@ -16,7 +16,7 @@ from models.Card import Card, CardStatus
 from models.User import User
 from modules.api_client import executors_api
 from modules.calendar import create_calendar_event, delete_calendar_event, update_calendar_event
-from modules.scheduler import schedule_card_notifications, cancel_card_tasks, reschedule_card_notifications
+from modules.scheduler import reschedule_post_tasks, schedule_card_notifications, cancel_card_tasks, reschedule_card_notifications, schedule_post_tasks
 from modules.constants import (
     KaitenBoardNames, PropertyNames, ApiEndpoints, 
     SceneNames, Messages
@@ -305,6 +305,16 @@ async def update_card(card_data: CardUpdate):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format for deadline")
 
+    # Преобразуем send_time
+    if 'send_time' in data:
+        if data['send_time'] == 'reset':
+            data['send_time'] = None
+        elif isinstance(data['send_time'], str):
+            try:
+                data['send_time'] = datetime.fromisoformat(data['send_time'])
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format for send_time")
+
     # Преобразуем UUID поля
     for key in ['executor_id', 'customer_id']:
         if key in data and isinstance(data[key], str):
@@ -315,7 +325,47 @@ async def update_card(card_data: CardUpdate):
 
     if 'status' in data and data['status'] != card.status:
 
+        # Если статус изменился на review (ждет проверки)
+        if data['status'] == CardStatus.review:
+            # Уведомляем админов и редакторов
+            recipients = []
+            admins = await User.filter_by(role=UserRole.admin)
+            editors = await User.filter_by(role=UserRole.editor)
+            if admins: recipients.extend(admins)
+            if editors: recipients.extend(editors)
+            
+            # Убираем дубликаты
+            recipients = list({u.user_id: u for u in recipients}.values())
+            
+            msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус (вернуть в работу или завершить)."
+            
+            for recipient in recipients:
+                try:
+                    await executors_api.post(
+                        ApiEndpoints.NOTIFY_USER,
+                        data={
+                            "user_id": recipient.telegram_id,
+                            "message": msg
+                        }
+                    )
+                except Exception as e:
+                    print(f"Error notifying recipient {recipient.telegram_id}: {e}")
+
         if data['status'] == CardStatus.edited:
+            # Если статус меняется на edited (в работе), удаляем запланированные задачи публикации (если были)
+            if card.status == CardStatus.ready:
+                try:
+                    async with session_factory() as session:
+                        await cancel_card_tasks(session, str(card.card_id))
+                        print(f"Cancelled tasks for card {card.card_id} due to status change to edited")
+                        
+                        # Восстанавливаем напоминания (дедлайны и т.д.), так как cancel_card_tasks удаляет всё
+                        await card.refresh()
+                        await schedule_card_notifications(session, card)
+                        print(f"Restored notifications for card {card.card_id}")
+                except Exception as e:
+                    print(f"Error canceling tasks: {e}")
+
             board_id = settings['space'][
                 'boards'][KaitenBoardNames.IN_PROGRESS]['id']
             column_id = settings['space'][
@@ -345,6 +395,26 @@ async def update_card(card_data: CardUpdate):
                     print(f"Scheduled post tasks for card {card.card_id}")
             except Exception as e:
                 print(f"Error scheduling post tasks: {e}")
+        
+        # Уведомляем об изменении статуса, чтобы обновить сцены
+        try:
+            update_data = {
+                "scene_name": "task-detail", # Или view-tasks, или где отображается задача
+                "data_key": "selected_task",
+                "data_value": str(card.card_id)
+            }
+            # Также обновляем user-task сцены (для исполнителя)
+            await executors_api.post(ApiEndpoints.UPDATE_SCENES, data=update_data)
+            
+            update_data_user = {
+                "scene_name": "user-task",
+                "data_key": "task_id",
+                "data_value": str(card.card_id)
+            }
+            await executors_api.post(ApiEndpoints.UPDATE_SCENES, data=update_data_user)
+
+        except Exception as e:
+            print(f"Error updating scenes on status change: {e}")
 
     if 'executor_id' in data and data['executor_id'] != card.executor_id:
 
@@ -589,7 +659,12 @@ async def add_comment(note_data: CommentAdd):
     # Отправляем уведомление исполнителю
     if card.executor_id:
         message_text = f"{Messages.NEW_COMMENT}\n\n📝 {card.name}\n\n{note_data.content}"
-        await notify_executor(str(card.executor_id), message_text)
+        await notify_executor(
+            str(card.executor_id), 
+            message_text, 
+            task_id=str(card.card_id), 
+            skip_if_page="editor-notes"
+        )
     
     return {
         "detail": "Comment added successfully"
@@ -646,6 +721,16 @@ async def add_editor_note(note_data: EditorNoteAdd):
     except Exception as e:
         print(f"Error updating scenes: {e}")
     
+    # Отправляем уведомление исполнителю, если он не автор
+    if card.executor_id and str(card.executor_id) != str(note_data.author):
+        message_text = f"💬 Новый комментарий редактора\n\n📝 {card.name}\n\n{note_data.content}"
+        await notify_executor(
+            str(card.executor_id), 
+            message_text, 
+            task_id=str(card.card_id), 
+            skip_if_page="editor-notes"
+        )
+
     return {
         "detail": "Note added successfully",
         "note": new_note,

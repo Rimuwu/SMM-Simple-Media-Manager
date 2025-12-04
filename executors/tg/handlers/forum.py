@@ -65,10 +65,10 @@ async def take_task(callback: CallbackQuery):
             "Не удалось взять задание в работу.", show_alert=True)
         return
 
-    await forum_message(
-        card_id=card_id,
-        status=CardStatus.edited.value
-    )
+    # await forum_message(
+    #     card_id=card_id,
+    #     status=CardStatus.edited.value
+    # )
 
     await callback.answer(
         "Вы успешно взяли задание в работу.", show_alert=True)

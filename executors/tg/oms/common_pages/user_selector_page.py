@@ -23,6 +23,7 @@ class UserSelectorPage(RadioTypeScene):
     allow_reset: bool = True
     on_success_callback: Optional[Callable] = None
     filter_department: Optional[str] = None
+    filter_roles: Optional[list[str]] = None
     
     users_data = []
     kaiten_users = {}
@@ -50,6 +51,12 @@ class UserSelectorPage(RadioTypeScene):
             if self.filter_department:
                 user_department = user.get('department')
                 if user_department != self.filter_department:
+                    continue
+            
+            # Применяем фильтр по ролям если указан
+            if self.filter_roles:
+                user_role = user.get('role')
+                if user_role not in self.filter_roles:
                     continue
             
             user_id = str(user['user_id'])
