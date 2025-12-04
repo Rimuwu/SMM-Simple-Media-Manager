@@ -32,7 +32,7 @@ router = APIRouter(prefix='/card')
 settings = open_settings() or {}
 
 BOARD_ID = settings['space']['boards'][KaitenBoardNames.QUEUE]['id']
-COLUMN_ID = settings['space']['boards'][KaitenBoardNames.QUEUE]['columns'][1]['id']
+COLUMN_ID = settings['space']['boards'][KaitenBoardNames.QUEUE]['columns'][0]['id']
 
 # Модель данных для создания карты
 class CardCreate(BaseModel):
@@ -418,6 +418,37 @@ async def update_card(card_data: CardUpdate):
 
         # Обработка изменения статуса на sent (отправлено)
         if data['status'] == CardStatus.sent:
+            # Перемещаем карточку в Kaiten в колонку "Готово"
+            try:
+                board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
+                # ID колонки "Готово" - 3-я колонка (индекс 2)
+                column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
+                
+                if card.task_id != 0:
+                    async with kaiten as client:
+                        await client.update_card(
+                            card.task_id,
+                            board_id=board_id,
+                            column_id=column_id
+                        )
+                        await client.add_comment(
+                            card.task_id,
+                            "🚀 Задача выполнена и отправлена!"
+                        )
+            except Exception as e:
+                print(f"Error moving card in Kaiten: {e}")
+
+            # Удаляем сообщение с форума
+            if card.forum_message_id:
+                try:
+                    await executors_api.post(
+                        ApiEndpoints.FORUM_DELETE_MESSAGE.format(card.forum_message_id)
+                    )
+                    # Обнуляем ID сообщения, так как оно удалено
+                    await card.update(forum_message_id=None)
+                except Exception as e:
+                    print(f"Error deleting forum message: {e}")
+
             # Увеличиваем счетчик выполненных задач у исполнителя
             if card.executor_id:
                 try:

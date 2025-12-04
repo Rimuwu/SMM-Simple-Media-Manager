@@ -227,6 +227,17 @@ async def schedule_card_notifications(session: AsyncSession, card: Card) -> None
         session.add(task)
         logger.info(f"Создана задача уведомления админов для карточки {card.card_id} на {one_day_before}")
     
+    # Задача: уведомление на форум о просроченном дедлайне (в момент дедлайна)
+    if card.deadline > now:
+        task = ScheduledTask(
+            card_id=card_uuid,
+            function_path="modules.notifications.send_forum_deadline_passed",
+            execute_at=card.deadline,
+            arguments={"card_id": str(card.card_id)}
+        )
+        session.add(task)
+        logger.info(f"Создана задача уведомления о дедлайне для карточки {card.card_id} на {card.deadline}")
+
     await session.commit()
 
 

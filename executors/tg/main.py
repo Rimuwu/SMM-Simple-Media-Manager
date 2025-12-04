@@ -31,7 +31,7 @@ class TelegramExecutor(BaseExecutor):
                 reply_to_message_id: Optional[int] = None,
                 list_markup: Optional[list] = None,
                 row_width: int = 3,
-                parse_mode: Optional[str] = None
+                parse_mode: Optional[str] = 'HTML'
                            ) -> dict:
         """Отправить сообщение"""
         markup = list_to_inline(list_markup or [], row_width=row_width)
@@ -67,7 +67,7 @@ class TelegramExecutor(BaseExecutor):
                            chat_id: str, 
                            message_id: str, 
                            text: str,
-                           parse_mode: Optional[str] = None,
+                           parse_mode: Optional[str] = 'HTML',
                            list_markup: Optional[list] = None,
                            row_width: int = 3
                            ) -> dict:

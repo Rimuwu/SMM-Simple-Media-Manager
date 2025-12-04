@@ -470,7 +470,7 @@ class FilesPage(Page):
                 'duration': video.duration
             }
         elif message.photo:
-            # Обработано в photo_handler
+            await self.photo_handler(message)
             return
 
         if file_info:

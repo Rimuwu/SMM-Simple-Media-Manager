@@ -11,6 +11,7 @@ from global_modules.classes.enums import UserRole
 from modules.api_client import executors_api
 from modules.constants import ApiEndpoints
 from datetime import datetime
+from modules.json_get import open_settings
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,78 @@ async def send_card_deadline_reminder(card: Card, **kwargs):
         logger.error(f"Ошибка отправки напоминания для карточки {card.card_id}: {e}", exc_info=True)
 
 
+async def send_forum_deadline_passed(card: Card, **kwargs):
+    """
+    Отправить сообщение на форум о том, что дедлайн прошел.
+    """
+    logger.info(f"Отправка сообщения о просроченном дедлайне для карточки {card.card_id}")
+    
+    # Если задача уже выполнена или отправлена, не отправляем
+    if card.status in [CardStatus.ready, CardStatus.sent]:
+        return
+
+    try:
+        settings = open_settings()
+        group_forum = settings.get('group_forum')
+        
+        if not group_forum:
+            logger.warning("ID форума не найден в настройках")
+            return
+
+        # Формируем сообщение
+        message_text = f"⏰ Дедлайн прошел!\n\n📝 Задача: {card.name}\n\nЗадача просрочена!"
+        
+        await executors_api.post(
+            ApiEndpoints.NOTIFY_USER,
+            data={
+                "user_id": group_forum,
+                "message": message_text
+            }
+        )
+        
+        logger.info(f"Сообщение о просроченном дедлайне для карточки {card.card_id} отправлено на форум")
+        
+    except Exception as e:
+        logger.error(f"Ошибка отправки сообщения на форум для карточки {card.card_id}: {e}", exc_info=True)
+
+
+async def send_forum_no_executor_alert(card: Card, **kwargs):
+    """
+    Отправить сообщение на форум за 1 день до дедлайна, если нет исполнителя.
+    """
+    logger.info(f"Проверка наличия исполнителя для карточки {card.card_id} (форум)")
+    
+    # Проверяем наличие исполнителя
+    if card.executor_id:
+        return
+    
+    try:
+        settings = open_settings()
+        group_forum = settings.get('group_forum')
+        
+        if not group_forum:
+            return
+        
+        # Форматируем дедлайн
+        deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
+        
+        # Формируем сообщение
+        message_text = f"⚠️ Внимание! Карточка без исполнителя\n\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\n❗ До дедлайна остался 1 день, но исполнитель не назначен!"
+        
+        await executors_api.post(
+            ApiEndpoints.NOTIFY_USER,
+            data={
+                "user_id": group_forum,
+                "message": message_text
+            }
+        )
+        
+        logger.info(f"Уведомление об отсутствии исполнителя для карточки {card.card_id} отправлено на форум")
+        
+    except Exception as e:
+        logger.error(f"Ошибка отправки уведомления на форум для карточки {card.card_id}: {e}", exc_info=True)
+
+
 async def send_admin_no_executor_alert(card: Card, **kwargs):
     """
     Отправить уведомление всем админам о том, что у карточки нет исполнителя (за 1 день до дедлайна).
@@ -111,6 +184,9 @@ async def send_admin_no_executor_alert(card: Card, **kwargs):
                 logger.info(f"Уведомление о карточке {card.card_id} отправлено админу {admin.telegram_id}")
             except Exception as e:
                 logger.error(f"Ошибка отправки уведомления админу {admin.telegram_id}: {e}")
+        
+        # Также отправляем на форум
+        await send_forum_no_executor_alert(card, **kwargs)
         
         logger.info(f"Уведомления о карточке {card.card_id} отправлены всем админам")
         
