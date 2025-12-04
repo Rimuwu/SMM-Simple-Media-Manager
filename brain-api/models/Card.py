@@ -52,7 +52,7 @@ class Card(Base, AsyncCRUDMixin):
 
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    editor_notes: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
+    editor_notes: Mapped[Optional[list[dict]]] = mapped_column(JSON, nullable=True, default=[])
 
 
     def __repr__(self) -> str:

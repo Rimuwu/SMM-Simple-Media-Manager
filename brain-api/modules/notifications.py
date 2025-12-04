@@ -9,6 +9,8 @@ from models.Card import Card, CardStatus
 from models.User import User
 from global_modules.classes.enums import UserRole
 from modules.api_client import executors_api
+from modules.constants import ApiEndpoints
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +51,7 @@ async def send_card_deadline_reminder(card: Card, **kwargs):
         
         # Отправляем уведомление
         await executors_api.post(
-            "/events/notify_user",
+            ApiEndpoints.NOTIFY_USER,
             data={
                 "user_id": executor.telegram_id,
                 "message": message_text
@@ -100,7 +102,7 @@ async def send_admin_no_executor_alert(card: Card, **kwargs):
         for admin in admins:
             try:
                 await executors_api.post(
-                    "/events/notify_user",
+                    ApiEndpoints.NOTIFY_USER,
                     data={
                         "user_id": admin.telegram_id,
                         "message": message_text

@@ -1,5 +1,6 @@
 from tg.oms.common_pages.update_text_page import UpdateTextPage
 from modules.api_client import brain_api
+from global_modules.classes.enums import ChangeType
 
 
 class ChangeNamePage(UpdateTextPage):
@@ -40,7 +41,7 @@ class ChangeNamePage(UpdateTextPage):
                 "card_id": str(card_id),
                 "name": value,
                 "notify_executor": True,
-                "change_type": "name",
+                "change_type": ChangeType.NAME.value,
                 "old_value": old_name,
                 "new_value": value
             }

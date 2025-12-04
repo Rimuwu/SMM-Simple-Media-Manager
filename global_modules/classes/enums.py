@@ -53,3 +53,11 @@ class CardType(str, Enum):
 
     public = "public"
     private = "private"
+
+class ChangeType(str, Enum):
+    """Типы изменений в карточке"""
+    
+    DEADLINE = "deadline"
+    COMMENT = "comment"
+    NAME = "name"
+    DESCRIPTION = "description"
