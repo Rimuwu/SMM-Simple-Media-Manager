@@ -156,6 +156,112 @@ class TelegramPyrogramExecutor(BaseExecutor):
             logger.error(f"Error forwarding message: {e}")
             return {"success": False, "error": str(e)}
 
+    async def send_photo(self, chat_id: str, photo: bytes, caption: str = None, **kwargs) -> dict:
+        """
+        Отправить фото.
+        
+        Args:
+            chat_id: ID чата
+            photo: bytes данные фото
+            caption: Подпись
+        """
+        import tempfile
+        import os as os_module
+        
+        try:
+            if not self.client or not await self.client.get_me():
+                return {"success": False, "error": "Client not initialized or not authorized"}
+
+            try:
+                chat_id = int(chat_id)
+            except ValueError:
+                pass
+
+            # Сохраняем bytes во временный файл
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+                tmp_file.write(photo)
+                tmp_path = tmp_file.name
+
+            try:
+                message = await self.client.send_photo(
+                    chat_id=chat_id,
+                    photo=tmp_path,
+                    caption=caption,
+                    **kwargs
+                )
+                return {"success": True, "message_id": message.id}
+            finally:
+                # Удаляем временный файл
+                os_module.unlink(tmp_path)
+
+        except FloodWait as e:
+            logger.warning(f"FloodWait: waiting {e.value} seconds")
+            return {"success": False, "error": f"FloodWait: {e.value} seconds"}
+        except Exception as e:
+            logger.error(f"Error sending photo: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_media_group(self, chat_id: str, media: list, caption: str = None, **kwargs) -> dict:
+        """
+        Отправить группу медиа.
+        
+        Args:
+            chat_id: ID чата
+            media: Список bytes данных фото
+            caption: Подпись для первого фото
+        """
+        import tempfile
+        import os as os_module
+        from pyrogram.types import InputMediaPhoto
+        
+        try:
+            if not self.client or not await self.client.get_me():
+                return {"success": False, "error": "Client not initialized or not authorized"}
+
+            try:
+                chat_id = int(chat_id)
+            except ValueError:
+                pass
+
+            # Сохраняем все фото во временные файлы
+            tmp_paths = []
+            media_group = []
+            
+            for idx, photo_data in enumerate(media):
+                if isinstance(photo_data, bytes):
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+                        tmp_file.write(photo_data)
+                        tmp_paths.append(tmp_file.name)
+                    
+                    # Подпись только для первого
+                    photo_caption = caption if idx == 0 else None
+                    media_group.append(InputMediaPhoto(tmp_paths[-1], caption=photo_caption))
+
+            if not media_group:
+                return {"success": False, "error": "No valid media items"}
+
+            try:
+                messages = await self.client.send_media_group(
+                    chat_id=chat_id,
+                    media=media_group
+                )
+                first_msg_id = messages[0].id if messages else None
+                return {"success": True, "message_id": first_msg_id, "messages_count": len(messages)}
+            finally:
+                # Удаляем все временные файлы
+                for tmp_path in tmp_paths:
+                    try:
+                        os_module.unlink(tmp_path)
+                    except:
+                        pass
+
+        except FloodWait as e:
+            logger.warning(f"FloodWait: waiting {e.value} seconds")
+            return {"success": False, "error": f"FloodWait: {e.value} seconds"}
+        except Exception as e:
+            logger.error(f"Error sending media group: {e}")
+            return {"success": False, "error": str(e)}
+
     async def schedule_message(self, chat_id: str, text: str, schedule_date: datetime.datetime, **kwargs) -> dict:
         """Запланировать сообщение"""
         try:
@@ -174,6 +280,99 @@ class TelegramPyrogramExecutor(BaseExecutor):
 
         except Exception as e:
             logger.error(f"Error scheduling message: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def schedule_photo(self, chat_id: str, photo: bytes, schedule_date: datetime.datetime, caption: str = None, **kwargs) -> dict:
+        """Запланировать фото"""
+        import tempfile
+        import os as os_module
+        
+        try:
+            if not self.client or not await self.client.get_me():
+                return {"success": False, "error": "Client not initialized or not authorized"}
+
+            try:
+                chat_id = int(chat_id)
+            except ValueError:
+                pass
+
+            # Создаём временный файл
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+                tmp_file.write(photo)
+                tmp_path = tmp_file.name
+
+            try:
+                await self.client.send_photo(
+                    chat_id=chat_id,
+                    photo=tmp_path,
+                    caption=caption,
+                    schedule_date=schedule_date,
+                    **kwargs
+                )
+                return {"success": True}
+            finally:
+                try:
+                    os_module.unlink(tmp_path)
+                except:
+                    pass
+
+        except FloodWait as e:
+            logger.warning(f"FloodWait: waiting {e.value} seconds")
+            return {"success": False, "error": f"FloodWait: {e.value} seconds"}
+        except Exception as e:
+            logger.error(f"Error scheduling photo: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def schedule_media_group(self, chat_id: str, media: list[bytes], schedule_date: datetime.datetime, caption: str = None, **kwargs) -> dict:
+        """Запланировать медиа-группу"""
+        from pyrogram.types import InputMediaPhoto
+        import tempfile
+        import os as os_module
+        
+        try:
+            if not self.client or not await self.client.get_me():
+                return {"success": False, "error": "Client not initialized or not authorized"}
+
+            try:
+                chat_id = int(chat_id)
+            except ValueError:
+                pass
+
+            # Создаём временные файлы для всех фото
+            tmp_paths = []
+            media_list = []
+            
+            for i, photo_bytes in enumerate(media):
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+                    tmp_file.write(photo_bytes)
+                    tmp_paths.append(tmp_file.name)
+                    
+                    media_list.append(InputMediaPhoto(
+                        media=tmp_file.name,
+                        caption=caption if i == 0 else None
+                    ))
+
+            try:
+                await self.client.send_media_group(
+                    chat_id=chat_id,
+                    media=media_list,
+                    schedule_date=schedule_date,
+                    **kwargs
+                )
+                return {"success": True}
+            finally:
+                # Удаляем все временные файлы
+                for tmp_path in tmp_paths:
+                    try:
+                        os_module.unlink(tmp_path)
+                    except:
+                        pass
+
+        except FloodWait as e:
+            logger.warning(f"FloodWait: waiting {e.value} seconds")
+            return {"success": False, "error": f"FloodWait: {e.value} seconds"}
+        except Exception as e:
+            logger.error(f"Error scheduling media group: {e}")
             return {"success": False, "error": str(e)}
 
     async def get_chat_info(self, chat_id: str) -> dict:

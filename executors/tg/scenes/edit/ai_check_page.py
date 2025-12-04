@@ -1,7 +1,5 @@
 from tg.oms import Page
-from global_modules.api_client import APIClient
-
-brain_api = APIClient('http://brain:8000')
+from modules.api_client import brain_api
 
 class AICheckPage(Page):
     

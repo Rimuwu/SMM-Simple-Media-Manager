@@ -12,11 +12,11 @@ from modules.utils import get_telegram_user
 forum_topic = SETTINGS.get('forum_topic', 0)
 group_forum = SETTINGS.get('group_forum', 0)
 
+
 pass_tag = '#НовоеЗадание'
 edited_tag = '#ЗаданиеВыполняется'
-open_chacked_tag = '#ЗаданиеТребуетПроверки'
-chacked_tag = '#ЗаданиеНаПроверке'
-
+checked_tag = '#ЗаданиеНаПроверке'
+done_tag = '#ЗаданиеВыполнено'
 
 
 async def card_deleted(card_id: str):
@@ -55,7 +55,7 @@ async def text_getter(card: dict, tag: str,
                       client_executor: TelegramExecutor) -> str:
 
     name = card.get("name", "No Title")
-    description = card.get("description", "No Description")
+    description = card.get("description") or "No Description"
     deadline = card.get("deadline", "Без дедлайна")
     tags = card.get("tags", []) if card.get("tags", []) else ["Без тегов"]
     need_check = "✅" if card.get("need_check", False) else "❌"
@@ -124,8 +124,8 @@ async def forum_message(card_id: str, status: str):
     else:
         card = cards[0]
 
+    tag = pass_tag
     if status == CardStatus.pass_.value:
-        tag = pass_tag
         markup = [
             {
                 "text": "Забрать задание",
@@ -134,12 +134,31 @@ async def forum_message(card_id: str, status: str):
         ]
 
     elif status == CardStatus.edited.value:
-
         tag = edited_tag
 
         markup = [
             {
                 "text": "Задание взято",
+                "callback_data": " "
+            }
+        ]
+    
+    elif status == CardStatus.review.value:
+        tag = checked_tag
+
+        markup = [
+            {
+                "text": "Задание на проверке",
+                "callback_data": " "
+            }
+        ]
+
+    elif status == CardStatus.ready.value:
+        tag = done_tag
+
+        markup = [
+            {
+                "text": "Задание выполнено",
                 "callback_data": " "
             }
         ]

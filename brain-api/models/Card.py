@@ -1,7 +1,6 @@
-from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, LargeBinary
+from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON, UUID
-from enum import Enum
 from datetime import datetime
 from typing import Optional
 from uuid import UUID as _UUID
@@ -46,13 +45,15 @@ class Card(Base, AsyncCRUDMixin):
 
     image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     prompt_sended: Mapped[bool] = mapped_column(Boolean, default=False)
-    post_image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    
+    # Список имён файлов из Kaiten для публикации
+    post_images: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
 
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    editor_notes: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
+    editor_notes: Mapped[Optional[list[dict]]] = mapped_column(JSON, nullable=True, default=[])
 
 
     def __repr__(self) -> str:

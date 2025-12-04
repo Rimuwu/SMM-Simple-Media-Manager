@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
-from datetime import datetime
+from global_modules.timezone import now_naive as moscow_now
 
 class Logger:
     """
@@ -42,7 +42,7 @@ class Logger:
         self._handlers.append(stream_handler)
 
         # Дата без секунд для имен файлов
-        self.date_str = datetime.now().strftime("%Y.%m.%d_%H-%M")
+        self.date_str = moscow_now().strftime("%Y.%m.%d_%H-%M")
 
         if unicorn_logs:
             for logger_name in ["uvicorn", "uvicorn.error"]:

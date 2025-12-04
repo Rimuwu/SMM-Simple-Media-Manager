@@ -6,6 +6,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-app}
       POSTGRES_USER: ${POSTGRES_USER:-app_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
+      TZ: Europe/Moscow
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -24,6 +25,7 @@ services:
       - ADMIN_ID=${ADMIN_ID}
       - KAITEN_TOKEN=${KAITEN_TOKEN}
       - KAITEN_DOMAIN=${KAITEN_DOMAIN}
+      - TZ=Europe/Moscow
     ports:
       - "8000:8000"
     depends_on:
@@ -49,6 +51,7 @@ services:
       - DEBUG=${DEBUG}
       - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
       - GOOGLE_CALENDAR_ID=${GOOGLE_CALENDAR_ID}
+      - TZ=Europe/Moscow
     ports:
       - "8001:8001"
     depends_on:
@@ -73,6 +76,7 @@ services:
       - TP_PASSWORD=${TP_PASSWORD}
       - DEBUG=${DEBUG}
       - KAITEN_DOMAIN=${KAITEN_DOMAIN}
+      - TZ=Europe/Moscow
     ports:
       - "8003:8003"
     depends_on:

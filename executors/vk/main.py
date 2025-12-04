@@ -1,5 +1,6 @@
 import asyncio
 import random
+import re
 import vk_api
 from vk_api.vk_api import VkApiMethod
 from modules.executor import BaseExecutor
@@ -22,12 +23,17 @@ class VKExecutor(BaseExecutor):
             self.vk_session = None
             self.vk = None
 
+    def _clean_html(self, text: str) -> str:
+        """Удалить HTML теги из текста"""
+        clean = re.compile('<.*?>')
+        return re.sub(clean, '', text)
+
     async def send_message(self, chat_id: str, text: str) -> dict:
         """Отправить сообщение"""
         try:
             result = self.vk.messages.send(
                 user_id=int(chat_id),
-                message=text,
+                message=self._clean_html(text),
                 random_id=random.getrandbits(64)
             )
             return {"success": True, "message_id": result}
@@ -40,7 +46,7 @@ class VKExecutor(BaseExecutor):
             self.vk.messages.edit(
                 peer_id=int(chat_id),
                 message_id=int(message_id),
-                message=text
+                message=self._clean_html(text)
             )
             return {"success": True}
         except Exception as e:
@@ -64,7 +70,7 @@ class VKExecutor(BaseExecutor):
         try:
             params = {
                 "owner_id": -abs(self.group_id),  # Отрицательный ID для сообществ
-                "message": text,
+                "message": self._clean_html(text),
                 "from_group": 1 if from_group else 0,
                 "signed": 1 if signed else 0
             }
@@ -84,7 +90,7 @@ class VKExecutor(BaseExecutor):
             params = {
                 "owner_id": -abs(self.group_id),
                 "post_id": int(post_id),
-                "message": text
+                "message": self._clean_html(text)
             }
             
             if attachments:

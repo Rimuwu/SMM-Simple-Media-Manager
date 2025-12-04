@@ -70,7 +70,6 @@ class SelectKaitenUserPage(RadioTypeScene):
             await self.scene.update_page('user-detail')
 
         else:
-            telegram_id = self.scene.data['scene'].get('new_user_id')
-            role = self.scene.data['scene'].get('new_user_role')
-            await create_user(telegram_id, role, tasker_id)
-            await self.scene.update_page('users-list')
+            await self.scene.update_key('scene',
+                                        'new_user_tasker_id', tasker_id)
+            await self.scene.update_page('select-department')

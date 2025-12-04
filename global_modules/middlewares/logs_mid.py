@@ -1,7 +1,7 @@
 import time
-from datetime import datetime
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+from global_modules.timezone import now_naive as moscow_now
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, logger):
@@ -34,7 +34,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             # Логируем ошибку
             duration_ms = (time.perf_counter() - start_time) * 1000
-            current_time = datetime.now().strftime("%H:%M:%S")
+            current_time = moscow_now().strftime("%H:%M:%S")
             client_ip = request.client.host if request.client else "unknown"
 
             self.logger.error(

@@ -13,6 +13,18 @@ class AssignExecutorPage(UserSelectorPage):
     
     update_to_db = True
     allow_reset = True
+    filter_department = 'smm'  # Фильтруем только пользователей из SMM департамента
+    filter_roles = ['copywriter', 'editor']
+
+    async def data_preparate(self):
+        """Подгружаем текущего исполнителя из данных задачи"""
+        task = self.scene.data['scene'].get('current_task_data')
+        if task:
+            executor_id = task.get('executor_id')
+            if executor_id:
+                await self.scene.update_key('scene', 'executor_id', str(executor_id))
+        
+        await super().data_preparate()
 
     async def update_to_database(self, user_id) -> bool:
         """Обновляем исполнителя в карточке"""

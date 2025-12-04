@@ -4,6 +4,9 @@ from .task_list_page import TaskListPage
 from .task_detail_page import TaskDetailPage
 from .assign_executor_page import AssignExecutorPage
 from .change_deadline_page import ChangeDeadlinePage
+from .add_comment_page import AddCommentPage
+from .change_name_page import ChangeNamePage
+from .change_description_page import ChangeDescriptionPage
 from modules.api_client import insert_scene, load_scene, update_scene, delete_scene
 
 
@@ -15,7 +18,10 @@ class ViewTasksScene(Scene):
         TaskListPage,
         TaskDetailPage,
         AssignExecutorPage,
-        ChangeDeadlinePage
+        ChangeDeadlinePage,
+        AddCommentPage,
+        ChangeNamePage,
+        ChangeDescriptionPage
     ]
 
     # Привязываем функции для работы с БД

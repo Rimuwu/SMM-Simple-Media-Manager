@@ -12,6 +12,7 @@ from aiogram.filters import Command
 from modules.api_client import brain_api as api
 from modules.api_client import get_user_role, get_cards
 from modules.api_client import update_card, get_users
+from tg.oms.manager import scene_manager
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
@@ -19,6 +20,7 @@ bot: Bot = client_executor.bot
 
 @dp.callback_query(F.data == "take_task")
 async def take_task(callback: CallbackQuery):
+    logger.info(f"Пользователь {callback.from_user.id} нажал 'Забрать задание'")
 
     message_id = callback.message.message_id
     users = await get_users(telegram_id=callback.from_user.id)
@@ -64,11 +66,32 @@ async def take_task(callback: CallbackQuery):
         await callback.answer(
             "Не удалось взять задание в работу.", show_alert=True)
         return
-
-    await forum_message(
-        card_id=card_id,
-        status=CardStatus.edited.value
-    )
+    
+    # Сообщение на форуме обновится автоматически из card.py при смене статуса на edited
+    logger.info(f"Пользователь {callback.from_user.id} взял задание {card_id}")
 
     await callback.answer(
         "Вы успешно взяли задание в работу.", show_alert=True)
+    
+    # Открываем сцену редактирования задачи
+    try:
+        from tg.scenes.edit.task_scene import TaskScene
+        
+        # Закрываем существующую сцену если есть
+        if scene_manager.has_scene(callback.from_user.id):
+            old_scene = scene_manager.get_scene(callback.from_user.id)
+            if old_scene:
+                await old_scene.end()
+        
+        # Создаём новую сцену
+        task_scene: TaskScene = scene_manager.create_scene(
+            callback.from_user.id, 
+            TaskScene, 
+            bot
+        )
+        task_scene.set_taskid(card_id)
+        await task_scene.start()
+        
+        logger.info(f"Сцена user-task открыта для пользователя {callback.from_user.id}")
+    except Exception as e:
+        logger.error(f"Ошибка открытия сцены user-task: {e}")

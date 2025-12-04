@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from tg.oms.manager import scene_manager
+from modules.logs import executors_logger as logger
 
 router = APIRouter(prefix="/events", tags=["Events"])
 
@@ -18,6 +19,7 @@ async def executor_changed(event: ExecutorChangeEvent):
     Обработчик события смены исполнителя.
     Ищет все активные сцены, связанные с этой задачей, уведомляет пользователей и закрывает сцены.
     """
+    logger.info(f"Событие смены исполнителя для задачи {event.task_id}. Новый: {event.new_executor_id}, Старый: {event.old_executor_id}")
 
     active_scenes = list(scene_manager._instances.values())
     count = 0
@@ -48,6 +50,7 @@ async def executor_changed(event: ExecutorChangeEvent):
 
             # End scene
             await scene.end()
+            logger.info(f"Сцена пользователя {scene.user_id} закрыта из-за смены исполнителя")
 
     return {"status": "ok", "processed_scenes": count}
 
@@ -57,11 +60,13 @@ async def close_scene(user_id: int):
     """
     Закрывает все активные сцены для указанного пользователя.
     """
+    logger.info(f"Запрос на закрытие сцен для пользователя {user_id}")
     active_scenes = list(scene_manager._instances.values())
 
     for scene in active_scenes:
         if scene.user_id == user_id:
             await scene.end()
+            logger.info(f"Сцена пользователя {user_id} закрыта принудительно")
 
     return {"status": "ok", "closed_scenes": len([s for s in active_scenes if s.user_id == user_id])}
 
@@ -122,3 +127,62 @@ async def update_scenes(event: UpdateScenesEvent):
         "total_active_scenes": len(active_scenes),
         "updated_scenes": updated_count
     }
+
+
+class NotifyUserEvent(BaseModel):
+    user_id: int
+    message: str
+    task_id: Optional[str] = None
+    skip_if_page: Optional[str] = None
+
+
+@router.post("/notify_user")
+async def notify_user(event: NotifyUserEvent):
+    """
+    Отправляет уведомление пользователю с кнопкой удаления.
+    Если указаны task_id и skip_if_page, проверяет, не находится ли пользователь на этой странице.
+    """
+    logger.info(f"Отправка уведомления пользователю {event.user_id}: {event.message[:50]}...")
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    from tg.oms.manager import scene_manager
+    
+    try:
+        # Проверяем, нужно ли пропускать уведомление
+        if event.task_id and event.skip_if_page:
+            active_scenes = list(scene_manager._instances.values())
+            for scene in active_scenes:
+                if scene.user_id == event.user_id:
+                    # Проверяем текущую страницу
+                    if scene.current_page == event.skip_if_page:
+                        # Проверяем task_id в данных сцены
+                        scene_task_id = scene.data.get('scene', {}).get('task_id')
+                        if str(scene_task_id) == str(event.task_id):
+                            return {"status": "skipped", "reason": "User is on the page"}
+
+        # Получаем бот из любой активной сцены или создаем новый экземпляр
+        bot = None
+        active_scenes = list(scene_manager._instances.values())
+        if active_scenes:
+            bot = active_scenes[0].bot
+        
+        if not bot:
+            # Если нет активных сцен, получаем бот из менеджера исполнителей
+            from modules.executors_manager import manager
+            client_executor = manager.get("telegram_executor")
+            bot = client_executor.bot
+        
+        # Создаем клавиатуру с кнопкой удаления
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑️ Удалить", callback_data="delete_message")]
+        ])
+        
+        await bot.send_message(
+            chat_id=event.user_id,
+            text=event.message,
+            reply_markup=keyboard
+        )
+        
+        return {"status": "ok", "sent": True}
+    except Exception as e:
+        print(f"Error sending notification to user {event.user_id}: {e}")
+        return {"status": "error", "error": str(e), "sent": False}

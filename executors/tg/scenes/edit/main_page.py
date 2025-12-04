@@ -3,6 +3,7 @@ from tg.oms import Page
 from modules.api_client import get_cards, get_user_role
 from modules.constants import SETTINGS
 from global_modules.classes.enums import CardStatus
+from modules.logs import executors_logger as logger
 
 class MainPage(Page):
     
@@ -51,9 +52,20 @@ class MainPage(Page):
                     CardStatus.pass_.value: "⏳ Создано",
                     CardStatus.edited.value: "✏️ В работе",
                     CardStatus.review.value: "🔍 На проверке", 
-                    CardStatus.ready.value: "✅ Готова"
+                    CardStatus.ready.value: "✅ Готова",
+                    CardStatus.sent.value: "🚀 Отправлено"
                 }
                 status = status_names.get(card.get('status'), card.get('status', 'Неизвестно'))
+                
+                # Если статус "Отправлено", закрываем сцену
+                if card.get('status') == CardStatus.sent.value:
+                    logger.info(f"Сцена редактирования задачи {task_id} закрыта для пользователя {self.scene.user_id} (статус 'Отправлено')")
+                    await self.scene.bot.send_message(
+                        chat_id=self.scene.user_id,
+                        text="🚀 Задача была отправлена и закрыта для редактирования."
+                    )
+                    await self.scene.end()
+                    return
                 
                 # Форматируем контент для отображения
                 content = card.get('content', 'Не указан')
@@ -100,8 +112,13 @@ class MainPage(Page):
                 user_role = await get_user_role(self.scene.user_id)
                 
                 # Если статус "На проверке" и роль "копирайтер" - оставляем только комментарии
-                if status == CardStatus.review.value and user_role == 'copywriter':
+                if status in [CardStatus.review.value, CardStatus.ready.value] and user_role == 'copywriter':
                     return {k: v for k, v in to_page_buttons.items() if k == 'editor-notes'}
+
+                if status == CardStatus.sent.value and user_role == 'copywriter':
+                    return {}
+
+                
         
         return to_page_buttons
     
@@ -125,5 +142,4 @@ class MainPage(Page):
     async def exit_scene(self, callback, args):
         """Выход из сцены"""
         await self.scene.end()
-        await callback.message.delete()
         await callback.answer('👋 Задача закрыта')
