@@ -66,7 +66,8 @@ class TaskDetailPage(Page):
             CardStatus.pass_: "⏳ Создано",
             CardStatus.edited: "✏️ В работе",
             CardStatus.review: "🔍 На проверке", 
-            CardStatus.ready: "✅ Готова"
+            CardStatus.ready: "✅ Готова",
+            CardStatus.sent: "🚀 Отправлено"
         }
 
         # Получаем пользователей для отображения имен
@@ -211,6 +212,21 @@ class TaskDetailPage(Page):
         current_task = self.scene.data['scene'].get('current_task_data', {})
         task_status = current_task.get('status')
         
+        # Если задача отправлена (sent), то для всех кроме админа кнопок нет (или только выход)
+        # Для админа - только удаление
+        if task_status == CardStatus.sent:
+            if is_admin:
+                return [{
+                    'text': '🗑️ Удалить задачу',
+                    'callback_data': callback_generator(
+                        self.scene.__scene_name__, 
+                        'task_action',
+                        'delete'
+                    )
+                }]
+            else:
+                return [] # Пустой список кнопок (только "Назад" от сцены если есть)
+
         # Кнопка "Вернуть в работу" для исполнителя, если задача завершена (ready)
         is_executor = False
         if role == UserRole.copywriter:

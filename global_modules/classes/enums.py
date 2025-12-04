@@ -17,6 +17,7 @@ class CardStatus(str, Enum):
     edited = "edited"
     review = "review"
     ready = "ready"
+    sent = "sent"
 
 class MessageType(str, Enum):
     """Типы сообщений"""

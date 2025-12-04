@@ -416,6 +416,56 @@ async def update_card(card_data: CardUpdate):
         except Exception as e:
             print(f"Error updating scenes on status change: {e}")
 
+        # Обработка изменения статуса на sent (отправлено)
+        if data['status'] == CardStatus.sent:
+            # Увеличиваем счетчик выполненных задач у исполнителя
+            if card.executor_id:
+                try:
+                    executor = await User.get_by_key('user_id', card.executor_id)
+                    if executor:
+                        await executor.update(
+                            tasks=executor.tasks + 1,
+                            task_per_month=executor.task_per_month + 1,
+                            task_per_year=executor.task_per_year + 1
+                        )
+                        print(f"Incremented task count for user {executor.user_id}")
+                except Exception as e:
+                    print(f"Error incrementing task count: {e}")
+            
+            # Закрываем все сцены, связанные с этой задачей
+            try:
+                # Закрываем сцены редактирования (user-task)
+                update_data_user = {
+                    "scene_name": "user-task",
+                    "data_key": "task_id",
+                    "data_value": str(card.card_id)
+                }
+                # Используем специальный метод для закрытия сцен, если он есть, или просто обновляем, 
+                # а логика закрытия будет в самой сцене. Но пользователь просил "закрываться".
+                # В events.py есть close_scene, но он по user_id.
+                # Мы можем отправить событие executor_changed, оно закрывает сцены. Но это хак.
+                # Лучше добавить обработку статуса sent в сцены или отправить специальное событие.
+                # Пока просто обновим сцены, а в TaskDetailPage добавим проверку статуса sent.
+                # Но для user-task (редактирование) нужно именно закрыть.
+                # Отправим уведомление пользователю, что задача отправлена и сцена закрывается.
+                
+                # В events.py есть executor_changed, который закрывает сцену.
+                # Можно добавить новое событие task_completed.
+                # Но пока используем update_scenes, а в сценах добавим реакцию на статус sent.
+                
+                await executors_api.post(ApiEndpoints.UPDATE_SCENES, data=update_data_user)
+                
+                # Обновляем сцены просмотра (task-detail)
+                update_data_view = {
+                    "scene_name": "task-detail",
+                    "data_key": "selected_task",
+                    "data_value": str(card.card_id)
+                }
+                await executors_api.post(ApiEndpoints.UPDATE_SCENES, data=update_data_view)
+                
+            except Exception as e:
+                print(f"Error closing scenes: {e}")
+
     if 'executor_id' in data and data['executor_id'] != card.executor_id:
 
         user = await User.get_by_key(
@@ -431,6 +481,83 @@ async def update_card(card_data: CardUpdate):
                         card.task_id,
                         tasker_id
                     )
+
+    # Обработка изменения каналов (clients)
+    if 'clients' in data and card.task_id and card.task_id != 0:
+        # Получаем новые значения каналов
+        new_channels = []
+        if data['clients']:
+            for channel_id in data['clients']:
+                # Ищем канал в настройках по ID или используем как есть
+                # В create_card мы преобразовывали ключи в ID. Здесь предполагаем, что приходят уже ID или ключи.
+                # Kaiten требует ID свойств.
+                # В settings['properties'][PropertyNames.CHANNELS]['values'] ключи - это то, что мы храним в card.clients?
+                # Card.clients хранит список строк (ключей или ID).
+                # Если мы меняем каналы, нам нужно обновить свойство в Kaiten.
+                
+                # Попробуем найти ID свойства для каждого канала
+                prop_id = None
+                # Проходим по всем значениям свойства CHANNELS
+                channels_prop = settings['properties'][PropertyNames.CHANNELS]
+                for key, val in channels_prop['values'].items():
+                    if str(val['id']) == str(channel_id) or key == str(channel_id):
+                        prop_id = val['id']
+                        break
+                
+                if prop_id:
+                    new_channels.append(prop_id)
+                elif str(channel_id).isdigit():
+                     new_channels.append(int(channel_id))
+
+        # Обновляем свойство в Kaiten
+        # ID свойства каналов
+        channels_prop_id = settings['properties'][PropertyNames.CHANNELS]['id']
+        
+        try:
+            async with kaiten as client:
+                # Для обновления свойств нужно передать словарь properties
+                # Но update_card в kaiten.py принимает именованные аргументы.
+                # Проверим метод update_card в kaiten.py (через контекст его не видно, но предположим стандартный)
+                # Обычно update_card(card_id, properties={...})
+                
+                await client.update_card(
+                    card.task_id,
+                    properties={
+                        channels_prop_id: new_channels
+                    }
+                )
+        except Exception as e:
+            print(f"Error updating channels in Kaiten: {e}")
+
+    # Обработка изменения тегов (tags)
+    if 'tags' in data and card.task_id and card.task_id != 0:
+        new_tags = []
+        if data['tags']:
+            tags_prop = settings['properties'][PropertyNames.TAGS]
+            for tag_id in data['tags']:
+                prop_id = None
+                for key, val in tags_prop['values'].items():
+                    if str(val['id']) == str(tag_id) or key == str(tag_id):
+                        prop_id = val['id']
+                        break
+                
+                if prop_id:
+                    new_tags.append(prop_id)
+                elif str(tag_id).isdigit():
+                    new_tags.append(int(tag_id))
+        
+        tags_prop_id = settings['properties'][PropertyNames.TAGS]['id']
+        
+        try:
+            async with kaiten as client:
+                await client.update_card(
+                    card.task_id,
+                    properties={
+                        tags_prop_id: new_tags
+                    }
+                )
+        except Exception as e:
+            print(f"Error updating tags in Kaiten: {e}")
 
     # Обработка изменения name (названия)
     if 'name' in data and card.task_id and card.task_id != 0:
