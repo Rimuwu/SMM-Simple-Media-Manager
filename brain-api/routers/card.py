@@ -382,7 +382,7 @@ async def update_card(card_data: CardUpdate):
         if data['status'] == CardStatus.edited:
             forum_already_updated = True  # Помечаем что форум обновим здесь
             
-            # Если статус меняется на edited (в работе), удаляем запланированные задачи публикации (если были)
+            # Если статус меняется на edited (в работе), удаляем запланированные задачи публикации и превью
             if card.status == CardStatus.ready:
                 try:
                     async with session_factory() as session:
@@ -395,6 +395,30 @@ async def update_card(card_data: CardUpdate):
                         print(f"Restored notifications for card {card.card_id}")
                 except Exception as e:
                     print(f"Error canceling tasks: {e}")
+                
+                # Удаляем превью из complete_topic
+                try:
+                    complete_message_ids = card.complete_message_id or {}
+                    for client_key, msg_data in complete_message_ids.items():
+                        if isinstance(msg_data, dict):
+                            await executors_api.post(
+                                ApiEndpoints.COMPLETE_DELETE_PREVIEW,
+                                data={
+                                    "post_id": msg_data.get("post_id"),
+                                    "post_ids": msg_data.get("post_ids"),
+                                    "info_id": msg_data.get("info_id")
+                                }
+                            )
+                        else:
+                            await executors_api.post(
+                                ApiEndpoints.COMPLETE_DELETE_PREVIEW,
+                                data={"post_id": msg_data}
+                            )
+                    # Очищаем complete_message_id в карточке
+                    await card.update(complete_message_id={})
+                    print(f"Deleted complete previews for card {card.card_id}")
+                except Exception as e:
+                    print(f"Error deleting complete previews: {e}")
 
             board_id = settings['space'][
                 'boards'][KaitenBoardNames.IN_PROGRESS]['id']
@@ -503,6 +527,7 @@ async def update_card(card_data: CardUpdate):
                     if preview_res.get("success"):
                         complete_message_ids[client_key] = {
                             "post_id": preview_res.get("post_id"),
+                            "post_ids": preview_res.get("post_ids", []),  # Список всех ID для медиа-групп
                             "info_id": preview_res.get("info_id")
                         }
                 
@@ -792,13 +817,14 @@ async def update_card(card_data: CardUpdate):
         except Exception as e:
             print(f"Error rescheduling card notifications: {e}")
     
-    # Перепланируем задачи публикации при изменении send_time
-    if send_time_changed:
+    # Перепланируем задачи публикации при изменении send_time или clients
+    clients_changed = 'clients' in data
+    if send_time_changed or clients_changed:
         try:
             async with session_factory() as session:
                 await card.refresh()
                 await reschedule_post_tasks(session, card)
-                print(f"Rescheduled post tasks for card {card.card_id}")
+                print(f"Rescheduled post tasks for card {card.card_id} (send_time={send_time_changed}, clients={clients_changed})")
         except Exception as e:
             print(f"Error rescheduling post tasks: {e}")
     
@@ -851,6 +877,7 @@ async def update_card(card_data: CardUpdate):
                             ApiEndpoints.COMPLETE_DELETE_PREVIEW,
                             data={
                                 "post_id": msg_data.get("post_id"),
+                                "post_ids": msg_data.get("post_ids"),  # Список всех ID
                                 "info_id": msg_data.get("info_id")
                             }
                         )
@@ -867,9 +894,11 @@ async def update_card(card_data: CardUpdate):
                     # Поддерживаем как новый формат (dict), так и старый (int)
                     if isinstance(msg_data, dict):
                         post_id = msg_data.get("post_id")
+                        post_ids = msg_data.get("post_ids", [])
                         info_id = msg_data.get("info_id")
                     else:
                         post_id = msg_data
+                        post_ids = [msg_data] if msg_data else []
                         info_id = None
                     
                     # Обновляем существующее превью
@@ -879,6 +908,7 @@ async def update_card(card_data: CardUpdate):
                             "card_id": str(card.card_id),
                             "client_key": client_key,
                             "post_id": post_id,
+                            "post_ids": post_ids,  # Передаём все ID для удаления
                             "info_id": info_id
                         }
                     )
@@ -886,6 +916,7 @@ async def update_card(card_data: CardUpdate):
                     if update_res.get("post_id"):
                         complete_message_ids[client_key] = {
                             "post_id": update_res.get("post_id"),
+                            "post_ids": update_res.get("post_ids", []),
                             "info_id": update_res.get("info_id")
                         }
                 else:
@@ -900,6 +931,7 @@ async def update_card(card_data: CardUpdate):
                     if preview_res.get("success"):
                         complete_message_ids[client_key] = {
                             "post_id": preview_res.get("post_id"),
+                            "post_ids": preview_res.get("post_ids", []),
                             "info_id": preview_res.get("info_id")
                         }
             

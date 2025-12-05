@@ -199,9 +199,15 @@ class TelegramExecutor(BaseExecutor):
                 reply_to_message_id=reply_to_message_id
             )
             
-            # Возвращаем ID первого сообщения
+            # Возвращаем ID первого сообщения и список всех ID
             first_message_id = result[0].message_id if result else None
-            return {"success": True, "message_id": first_message_id, "messages_count": len(result)}
+            all_message_ids = [msg.message_id for msg in result] if result else []
+            return {
+                "success": True, 
+                "message_id": first_message_id, 
+                "message_ids": all_message_ids,
+                "messages_count": len(result)
+            }
         except Exception as e:
             logger.error(f"Error sending media group: {e}")
             return {"success": False, "error": str(e)}

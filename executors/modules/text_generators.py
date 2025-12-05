@@ -340,6 +340,7 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
         downloaded_images = await download_kaiten_files(task_id, post_images)
     
     post_id = None
+    post_ids = []  # Список всех ID сообщений для медиа-групп
     
     try:
         # Отправляем пост с изображениями или без
@@ -354,6 +355,7 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                 )
                 if result.get("success"):
                     post_id = result.get("message_id")
+                    post_ids = [post_id]
             else:
                 result = await client_executor.send_media_group(
                     chat_id=group_forum,
@@ -364,6 +366,7 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                 )
                 if result.get("success"):
                     post_id = result.get("message_id")
+                    post_ids = result.get("message_ids", [post_id])  # Сохраняем все ID
         else:
             result = await client_executor.send_message(
                 chat_id=group_forum,
@@ -373,6 +376,7 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
             )
             if result.get("success"):
                 post_id = result.get("message_id")
+                post_ids = [post_id]
         
         if not post_id:
             return {"error": f"Failed to send preview: {result.get('error', 'Unknown error')}", "success": False}
@@ -400,13 +404,15 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
         
         info_id = info_result.get("message_id") if info_result.get("success") else None
         
-        return {"success": True, "post_id": post_id, "info_id": info_id}
+        return {"success": True, "post_id": post_id, "post_ids": post_ids, "info_id": info_id}
     
     except Exception as e:
         return {"error": str(e), "success": False}
 
 
-async def update_complete_preview(card_id: str, client_key: str, post_id: int, info_id: int | None = None) -> dict:
+async def update_complete_preview(card_id: str, client_key: str, post_id: int, 
+                                   info_id: int | None = None,
+                                   post_ids: list[int] | None = None) -> dict:
     """
     Обновить превью поста в complete_topic.
     
@@ -415,6 +421,7 @@ async def update_complete_preview(card_id: str, client_key: str, post_id: int, i
         client_key: Ключ клиента
         post_id: ID сообщения с постом для обновления
         info_id: ID информационного сообщения для обновления
+        post_ids: Список всех ID сообщений (для медиа-групп)
         
     Returns:
         dict с success, post_id и info_id (или error)
@@ -465,16 +472,28 @@ async def update_complete_preview(card_id: str, client_key: str, post_id: int, i
         
         if not result.get("success"):
             # Если редактирование не удалось (например, это media group),
-            # удаляем старое и отправляем новое
-            await client_executor.delete_message(
-                chat_id=group_forum,
-                message_id=str(post_id)
-            )
+            # удаляем все старые сообщения и отправляем новые
+            
+            # Удаляем все сообщения медиа-группы
+            ids_to_delete = post_ids if post_ids else [post_id]
+            for msg_id in ids_to_delete:
+                try:
+                    await client_executor.delete_message(
+                        chat_id=group_forum,
+                        message_id=str(msg_id)
+                    )
+                except Exception as e:
+                    print(f"Error deleting message {msg_id}: {e}")
+            
+            # Удаляем info сообщение
             if info_id:
-                await client_executor.delete_message(
-                    chat_id=group_forum,
-                    message_id=str(info_id)
-                )
+                try:
+                    await client_executor.delete_message(
+                        chat_id=group_forum,
+                        message_id=str(info_id)
+                    )
+                except Exception as e:
+                    print(f"Error deleting info message {info_id}: {e}")
             
             new_preview = await send_complete_preview(card_id, client_key)
             return new_preview
@@ -515,19 +534,22 @@ async def update_complete_preview(card_id: str, client_key: str, post_id: int, i
                 if new_info_result.get("success"):
                     new_info_id = new_info_result.get("message_id")
         
-        return {"success": True, "post_id": new_post_id, "info_id": new_info_id}
+        return {"success": True, "post_id": new_post_id, "post_ids": [new_post_id], "info_id": new_info_id}
     
     except Exception as e:
         return {"error": str(e), "success": False}
 
 
-async def delete_complete_preview(post_id: int, info_id: int | None = None) -> dict:
+async def delete_complete_preview(post_id: int | None = None, 
+                                  info_id: int | None = None, 
+                                  post_ids: list[int] | None = None) -> dict:
     """
     Удалить превью поста из complete_topic.
     
     Args:
-        post_id: ID сообщения с постом для удаления
+        post_id: ID сообщения с постом для удаления (старый формат)
         info_id: ID информационного сообщения для удаления
+        post_ids: Список ID всех сообщений для удаления (новый формат для медиа-групп)
         
     Returns:
         dict с success (или error)
@@ -538,20 +560,31 @@ async def delete_complete_preview(post_id: int, info_id: int | None = None) -> d
         return {"error": "Executor not found", "success": False}
     
     try:
-        # Удаляем сообщение с постом
-        result = await client_executor.delete_message(
-            chat_id=group_forum,
-            message_id=str(post_id)
-        )
+        # Собираем все ID для удаления
+        ids_to_delete = []
         
-        # Удаляем информационное сообщение если есть
+        # Новый формат - список post_ids
+        if post_ids:
+            ids_to_delete.extend(post_ids)
+        # Старый формат - один post_id
+        elif post_id:
+            ids_to_delete.append(post_id)
+        
+        # Добавляем info_id
         if info_id:
-            await client_executor.delete_message(
-                chat_id=group_forum,
-                message_id=str(info_id)
-            )
+            ids_to_delete.append(info_id)
         
-        return {"success": result.get("success", False)}
+        # Удаляем все сообщения
+        for msg_id in ids_to_delete:
+            try:
+                await client_executor.delete_message(
+                    chat_id=group_forum,
+                    message_id=str(msg_id)
+                )
+            except Exception as e:
+                print(f"Error deleting message {msg_id}: {e}")
+        
+        return {"success": True}
     
     except Exception as e:
         return {"error": str(e), "success": False}

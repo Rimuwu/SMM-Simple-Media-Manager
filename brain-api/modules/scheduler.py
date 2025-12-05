@@ -397,9 +397,10 @@ async def cancel_post_tasks(session: AsyncSession, card_id: str) -> int:
         logger.error(f"Невалидный card_id: {card_id}")
         return 0
     
-    # Удаляем задачи публикации
+    # Удаляем задачи публикации и финализации
     post_functions = [
         "modules.notifications.send_post_now",
+        "modules.notifications.finalize_card_publication",
     ]
     
     stmt = delete(ScheduledTask).where(
