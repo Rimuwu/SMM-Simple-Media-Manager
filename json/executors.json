@@ -17,6 +17,9 @@
             },
             "access_token": {
                 "env": "VK_ACCESS_TOKEN"
+            },
+            "user_token": {
+                "env": "VK_USER_TOKEN"
             }
         }
     }

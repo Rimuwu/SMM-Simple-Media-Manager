@@ -77,6 +77,7 @@ services:
       - DEBUG=${DEBUG}
       - KAITEN_DOMAIN=${KAITEN_DOMAIN}
       - TZ=Europe/Moscow
+      - VK_USER_TOKEN=${VK_USER_TOKEN}
     ports:
       - "8003:8003"
     depends_on:

@@ -13,7 +13,8 @@ class VKExecutor(BaseExecutor):
 
     def __init__(self, config: dict, executor_name: str = "vk"):
         super().__init__(config, executor_name)
-        self.token = config.get("access_token")
+        self.token = config.get("access_token")  # Токен группы для постинга
+        self.user_token = config.get("user_token")  # Токен пользователя для загрузки фото
         self.group_id = int(config.get("group_id") or 0)
 
         if self.token:
@@ -22,6 +23,16 @@ class VKExecutor(BaseExecutor):
         else:
             self.vk_session = None
             self.vk = None
+        
+        # Отдельная сессия для загрузки фото (требует user token)
+        if self.user_token:
+            self.vk_user_session = vk_api.VkApi(token=self.user_token)
+            self.vk_user: VkApiMethod = self.vk_user_session.get_api()
+            logger.info("VK: User token загружен для загрузки фото")
+        else:
+            self.vk_user_session = None
+            self.vk_user = None
+            logger.warning("VK: User token не указан - загрузка фото на стену будет недоступна")
 
     def _clean_html(self, text: str) -> str:
         """Удалить HTML теги из текста"""
@@ -68,19 +79,27 @@ class VKExecutor(BaseExecutor):
                               from_group: bool = True, signed: bool = False) -> dict:
         """Создать пост на стене сообщества"""
         try:
+            logger.info(f"VK: Создание поста на стене группы {self.group_id}")
+            logger.info(f"VK: Текст: {text[:100]}..." if len(text) > 100 else f"VK: Текст: {text}")
+            logger.info(f"VK: Attachments: {attachments}")
+            
             params = {
                 "owner_id": -abs(self.group_id),  # Отрицательный ID для сообществ
                 "message": self._clean_html(text),
                 "from_group": 1 if from_group else 0,
-                "signed": 1 if signed else 0
+                "signed": 1 if signed else 0,
+                "primary_attachments_mode": 'grid'
             }
             
             if attachments:
                 params["attachments"] = ",".join(attachments)
+                logger.info(f"VK: Добавлены attachments в пост: {params['attachments']}")
             
             result = self.vk.wall.post(**params)
+            logger.info(f"VK: Пост создан успешно, post_id: {result.get('post_id')}")
             return {"success": True, "post_id": result["post_id"]}
         except Exception as e:
+            logger.error(f"VK: Ошибка создания поста: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def edit_wall_post(self, post_id: str, text: str, 
@@ -178,19 +197,58 @@ class VKExecutor(BaseExecutor):
             return {"success": False, "error": str(e)}
 
     async def upload_photo_to_wall(self, photo_path: str) -> dict:
-        """Загрузить фото для поста на стену"""
+        """
+        Загрузить фото для поста на стену группы.
+        Требует user_token, так как групповой токен не поддерживает photos.getWallUploadServer.
+        """
+        import requests
+        
         try:
-            from vk_api import VkUpload
-            upload = VkUpload(self.vk_session)
+            logger.info(f"VK: Начинаю загрузку фото {photo_path} для группы {self.group_id}")
             
-            # Загружаем фото на стену группы
-            photo = upload.photo_wall(photo_path, group_id=self.group_id)
+            # Проверяем наличие user token
+            if not self.vk_user:
+                logger.error("VK: User token не настроен - невозможно загрузить фото")
+                return {"success": False, "error": "User token not configured. Set VK_USER_TOKEN env variable."}
             
-            # Формируем строку для attachment
-            attachment = f"photo{photo[0]['owner_id']}_{photo[0]['id']}"
+            # Получаем сервер загрузки фото на стену (требует user token)
+            upload_server = self.vk_user.photos.getWallUploadServer(group_id=self.group_id)
+            upload_url = upload_server['upload_url']
+            logger.info(f"VK: Получен сервер загрузки photos: {upload_url[:50]}...")
             
-            return {"success": True, "attachment": attachment, "photo_data": photo[0]}
+            # Загружаем файл
+            with open(photo_path, 'rb') as f:
+                response = requests.post(upload_url, files={'photo': f})
+            
+            upload_result = response.json()
+            logger.info(f"VK: Ответ сервера загрузки: {upload_result}")
+            
+            if 'photo' not in upload_result or not upload_result.get('photo'):
+                logger.error(f"VK: Ошибка загрузки на сервер: {upload_result}")
+                return {"success": False, "error": f"Upload failed: {upload_result}"}
+            
+            # Сохраняем фото (тоже через user token)
+            saved_photo = self.vk_user.photos.saveWallPhoto(
+                group_id=self.group_id,
+                photo=upload_result['photo'],
+                server=upload_result['server'],
+                hash=upload_result['hash']
+            )
+            logger.info(f"VK: Фото сохранено: {saved_photo}")
+            
+            if not saved_photo or len(saved_photo) == 0:
+                logger.error(f"VK: Ошибка сохранения фото: {saved_photo}")
+                return {"success": False, "error": "Photo save failed"}
+            
+            # Формируем attachment
+            photo_data = saved_photo[0]
+            attachment = f"photo{photo_data['owner_id']}_{photo_data['id']}"
+            logger.info(f"VK: Attachment создан: {attachment}")
+            
+            return {"success": True, "attachment": attachment, "photo_data": photo_data}
+            
         except Exception as e:
+            logger.error(f"VK: Ошибка загрузки фото: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     async def upload_document_to_wall(self, doc_path: str, title: str = None) -> dict:
@@ -214,25 +272,6 @@ class VKExecutor(BaseExecutor):
         try:
             result = self.vk.photos.getWallUploadServer(group_id=self.group_id)
             return {"success": True, "upload_url": result["upload_url"]}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    async def schedule_wall_post(self, text: str, publish_date: int, 
-                                attachments: Optional[List[str]] = None) -> dict:
-        """Запланировать пост на стене"""
-        try:
-            params = {
-                "owner_id": -abs(self.group_id),
-                "message": text,
-                "publish_date": publish_date,
-                "from_group": 1
-            }
-
-            if attachments:
-                params["attachments"] = ",".join(attachments)
-
-            result = self.vk.wall.post(**params)
-            return {"success": True, "post_id": result["post_id"]}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
