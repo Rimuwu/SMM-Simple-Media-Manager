@@ -482,6 +482,29 @@ async def update_card(card_data: CardUpdate):
                 forum_already_updated = True
             except Exception as e:
                 print(f"Error updating forum message for ready: {e}")
+            
+            # Отправляем превью постов в complete_topic для каждого клиента
+            try:
+                await card.refresh()
+                complete_message_ids = card.complete_message_id or {}
+                
+                clients = card.clients or []
+                for client_key in clients:
+                    preview_res, _ = await executors_api.post(
+                        ApiEndpoints.COMPLETE_SEND_PREVIEW,
+                        data={
+                            "card_id": str(card.card_id),
+                            "client_key": client_key
+                        }
+                    )
+                    if preview_res.get("success") and preview_res.get("message_id"):
+                        complete_message_ids[client_key] = preview_res.get("message_id")
+                
+                if complete_message_ids:
+                    await card.update(complete_message_id=complete_message_ids)
+                    print(f"Sent complete previews for card {card.card_id}: {complete_message_ids}")
+            except Exception as e:
+                print(f"Error sending complete previews: {e}")
         
         # Уведомляем об изменении статуса, чтобы обновить сцены
         try:
@@ -746,6 +769,58 @@ async def update_card(card_data: CardUpdate):
                     print(f"Failed to update forum message: {forum_result}")
             except Exception as e:
                 print(f"Error updating forum message: {e}")
+    
+    # Обновляем превью в complete_topic если изменились поля, влияющие на пост
+    # и статус карточки - ready (пост ожидает публикации)
+    await card.refresh()
+    complete_update_fields = ['content', 'tags', 'post_images', 'clients']
+    should_update_complete = any(field in data for field in complete_update_fields)
+    
+    if should_update_complete and card.status == CardStatus.ready and card.complete_message_id:
+        try:
+            complete_message_ids = card.complete_message_id or {}
+            clients = card.clients or []
+            
+            # Удаляем превью для клиентов, которых больше нет
+            for client_key in list(complete_message_ids.keys()):
+                if client_key not in clients:
+                    msg_id = complete_message_ids.pop(client_key)
+                    await executors_api.post(
+                        ApiEndpoints.COMPLETE_DELETE_PREVIEW,
+                        data={"message_id": msg_id}
+                    )
+            
+            # Обновляем или добавляем превью для текущих клиентов
+            for client_key in clients:
+                if client_key in complete_message_ids:
+                    # Обновляем существующее превью
+                    update_res, _ = await executors_api.post(
+                        ApiEndpoints.COMPLETE_UPDATE_PREVIEW,
+                        data={
+                            "card_id": str(card.card_id),
+                            "client_key": client_key,
+                            "message_id": complete_message_ids[client_key]
+                        }
+                    )
+                    # Если вернулся новый message_id (было пересоздано), обновляем
+                    if update_res.get("message_id"):
+                        complete_message_ids[client_key] = update_res.get("message_id")
+                else:
+                    # Создаём новое превью для нового клиента
+                    preview_res, _ = await executors_api.post(
+                        ApiEndpoints.COMPLETE_SEND_PREVIEW,
+                        data={
+                            "card_id": str(card.card_id),
+                            "client_key": client_key
+                        }
+                    )
+                    if preview_res.get("success") and preview_res.get("message_id"):
+                        complete_message_ids[client_key] = preview_res.get("message_id")
+            
+            await card.update(complete_message_id=complete_message_ids)
+            print(f"Updated complete previews for card {card.card_id}: {complete_message_ids}")
+        except Exception as e:
+            print(f"Error updating complete previews: {e}")
     
     # Отправляем уведомление исполнителю
     if card_data.notify_executor and card.executor_id:

@@ -8,6 +8,23 @@ class StatusSetterPage(Page):
     
     __page_name__ = 'status-setter'
     
+    async def can_complete(self) -> bool:
+        publish_date = self.scene.data['scene'].get('publish_date')
+        content = self.scene.data['scene'].get('content', None)
+        if publish_date == 'Не указана': return False
+        if content is None: return False
+
+        return True
+
+    async def content_worker(self) -> str:
+        self.clear_content()
+        self.content = await super().content_worker()
+
+        if not await self.can_complete():
+            self.content += "\n\n❌ Дата публикации или контент не установлен - невозможно завершить задачу."
+
+        return self.content
+
     async def buttons_worker(self):
         buttons = await super().buttons_worker()
         
@@ -39,16 +56,17 @@ class StatusSetterPage(Page):
                             'set_review'
                         )
                     })
-                
+
                 # Если статус "На проверке" - 2 кнопки
                 elif status == CardStatus.review.value:
-                    buttons.append({
-                        'text': '✅ Завершить',
-                        'callback_data': callback_generator(
-                            self.scene.__scene_name__,
-                            'set_ready'
-                        )
-                    })
+                    if await self.can_complete():
+                        buttons.append({
+                            'text': '✅ Завершить',
+                            'callback_data': callback_generator(
+                                self.scene.__scene_name__,
+                                'set_ready'
+                            )
+                        })
                     buttons.append({
                         'text': '🔙 Вернуть на доработку',
                         'callback_data': callback_generator(

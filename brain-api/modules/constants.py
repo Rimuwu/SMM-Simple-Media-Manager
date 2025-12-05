@@ -12,6 +12,9 @@ class ApiEndpoints(str, Enum):
     FORUM_SEND_MESSAGE = "/forum/send-message-to-forum"
     FORUM_UPDATE_MESSAGE = "/forum/update-forum-message"
     FORUM_DELETE_MESSAGE = "/forum/delete-forum-message/{}"
+    COMPLETE_SEND_PREVIEW = "/forum/send-complete-preview"
+    COMPLETE_UPDATE_PREVIEW = "/forum/update-complete-preview"
+    COMPLETE_DELETE_PREVIEW = "/forum/delete-complete-preview"
     NOTIFY_USER = "/events/notify_user"
     UPDATE_SCENES = "/events/update_scenes"
 
