@@ -1,6 +1,7 @@
 from tg.oms import Page
-from modules.api_client import get_users, delete_user
+from modules.api_client import get_users, delete_user, get_kaiten_users_dict
 from tg.oms.utils import callback_generator
+from tg.oms.common_pages.user_selector_page import UserSelectorPage
 
 class UserDetailPage(Page):
     __page_name__ = 'user-detail'
@@ -60,12 +61,24 @@ class UserDetailPage(Page):
         department_value = self.user.get('department', 'Не указан')
         department_display = department_names.get(department_value, department_value)
 
+        # Получаем имя через get_display_name
+        kaiten_users = await get_kaiten_users_dict()
+        display_name = await UserSelectorPage.get_display_name(
+            self.user,
+            kaiten_users,
+            self.scene.__bot__
+        )
+
         return self.content.format(
             telegram_id=self.user['telegram_id'],
             role=self.user['role'],
             tasker_id=self.user.get('tasker_id', 'Не привязан'),
             department=department_display,
-            about=self.user.get('about', 'Не указано')
+            about=self.user.get('about', 'Не указано'),
+            tasks=self.user.get('tasks', 0),
+            tasks_year=self.user.get('task_per_year', 0),
+            tasks_month=self.user.get('task_per_month', 0),
+            name=display_name
         )
 
     async def buttons_worker(self):

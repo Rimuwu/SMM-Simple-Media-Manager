@@ -80,6 +80,16 @@ class FinishPage(Page):
         else:
             add_vars['publish_date'] = '➖'
 
+        # Send date
+        if data.get('send_date'):
+            try:
+                dt = datetime.fromisoformat(data['send_date'])
+                add_vars['send_date'] = dt.strftime('%d.%m.%Y %H:%M')
+            except ValueError:
+                add_vars['send_date'] = data['send_date']
+        else:
+            add_vars['send_date'] = '➖'
+
         # Executor
         user_id = data.get('user')
         if user_id:
@@ -181,7 +191,6 @@ class FinishPage(Page):
                 'customer_id': customer_id
             }
         )
-        print(res)
 
         if status and status == 200:
             if 'card_id' in res:
