@@ -53,6 +53,7 @@ async def update_card(card_id: str,
                       deadline: Optional[str] = None,
                       image_prompt: Optional[str] = None,
                       prompt_sended: Optional[bool] = None,
+                      prompt_message: Optional[int] = None,
                       calendar_id: Optional[str] = None,
                       send_time: Optional[str] = None,
                       post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten
@@ -74,6 +75,7 @@ async def update_card(card_id: str,
         "send_time": send_time,
         "image_prompt": image_prompt,
         "prompt_sended": prompt_sended,
+        "prompt_message": prompt_message,
         "calendar_id": calendar_id,
         "post_images": post_images
     }

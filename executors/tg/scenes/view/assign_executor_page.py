@@ -14,7 +14,7 @@ class AssignExecutorPage(UserSelectorPage):
     update_to_db = True
     allow_reset = True
     filter_department = 'smm'  # Фильтруем только пользователей из SMM департамента
-    filter_roles = ['copywriter', 'editor']
+    filter_roles = ['copywriter', 'editor', 'admin']
 
     async def data_preparate(self):
         """Подгружаем текущего исполнителя из данных задачи"""

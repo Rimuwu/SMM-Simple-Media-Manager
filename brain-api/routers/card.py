@@ -267,6 +267,7 @@ class CardUpdate(BaseModel):
     send_time: Optional[str] = None  # ISO 8601 format
     image_prompt: Optional[str] = None
     prompt_sended: Optional[bool] = None
+    prompt_message: Optional[int] = None  # ID сообщения дизайнерам
     calendar_id: Optional[str] = None
     post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten для публикации
     notify_executor: Optional[bool] = False  # Отправить уведомление исполнителю

@@ -4,3 +4,4 @@ from . import manage_users
 from . import forum
 from . import view_tasks
 from . import start
+from . import design_photos
