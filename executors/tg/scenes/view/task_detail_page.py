@@ -250,9 +250,13 @@ class TaskDetailPage(Page):
                 ])
 
         if role == UserRole.customer or is_admin:
+            if is_admin:
+                # Только админ может изменять название и описание
+                action_buttons.extend([
+                    ('change_name', '✏️ Изменить название'),
+                    ('change_description', '📝 Изменить описание'),
+                ])
             action_buttons.extend([
-                ('change_name', '✏️ Изменить название'),
-                ('change_description', '📝 Изменить описание'),
                 ('change_deadline', '⏰ Изменить дедлайн'),
                 ('add_comment', '💬 Добавить комментарий')
             ])

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.api_client import get_cards, get_users
@@ -8,7 +9,9 @@ filter_names = {
     'all-tasks': 'Все задачи',
     'created-by-me': 'Созданные мной',
     'for-review': 'Проверяемые мной',
-    'department-tasks': 'Задачи отдела'
+    'department-tasks': 'Задачи отдела',
+    'by-user': 'По пользователю',
+    'by-department': 'По отделу'
 }
 
 class TaskListPage(Page):
@@ -125,14 +128,113 @@ class TaskListPage(Page):
                         tasks.append(task)
             else:
                 tasks = []
+        
+        elif selected_filter == 'by-user':
+            # Задачи конкретного пользователя (для админов)
+            filter_user_id = self.scene.data['scene'].get('filter_user_id')
+            if filter_user_id:
+                # Получаем задачи где пользователь исполнитель
+                executor_tasks = await get_cards(executor_id=filter_user_id)
+                # Получаем задачи созданные пользователем
+                customer_tasks = await get_cards(customer_id=filter_user_id)
+                
+                # Объединяем и убираем дубликаты
+                all_tasks = executor_tasks + customer_tasks
+                seen_ids = set()
+                tasks = []
+                for task in all_tasks:
+                    task_id = task.get('card_id')
+                    if task_id not in seen_ids:
+                        seen_ids.add(task_id)
+                        tasks.append(task)
+            else:
+                tasks = []
+        
+        elif selected_filter == 'by-department':
+            # Задачи по отделу (для админов)
+            filter_department = self.scene.data['scene'].get('filter_department')
+            if filter_department:
+                # Получаем всех пользователей из отдела
+                department_users = await get_users(department=filter_department)
+                
+                all_department_tasks = []
+                for dept_user in department_users:
+                    dept_user_id = dept_user['user_id']
+                    executor_tasks = await get_cards(executor_id=dept_user_id)
+                    all_department_tasks.extend(executor_tasks)
+                    customer_tasks = await get_cards(customer_id=dept_user_id)
+                    all_department_tasks.extend(customer_tasks)
+                
+                # Убираем дубликаты
+                seen_ids = set()
+                tasks = []
+                for task in all_department_tasks:
+                    task_id = task.get('card_id')
+                    if task_id not in seen_ids:
+                        seen_ids.add(task_id)
+                        tasks.append(task)
+            else:
+                tasks = []
 
         await self.scene.update_key('scene', 'tasks', tasks)
+    
+    def sort_tasks_by_deadline(self, tasks: list) -> list:
+        """Сортирует задачи по дедлайну (ближайшие первые)"""
+        def get_deadline_sort_key(task):
+            deadline = task.get('deadline')
+            if deadline:
+                try:
+                    if isinstance(deadline, str):
+                        return datetime.fromisoformat(deadline)
+                    return deadline
+                except:
+                    pass
+            # Задачи без дедлайна в конец
+            return datetime.max
+        
+        return sorted(tasks, key=get_deadline_sort_key)
+    
+    def format_deadline_label(self, task: dict) -> str:
+        """Форматирует название задачи с дедлайном и эмодзи"""
+        task_name = task.get('name', 'Без названия')
+        if len(task_name) > 25:
+            task_name = task_name[:25] + "..."
+        
+        deadline = task.get('deadline')
+        deadline_str = ""
+        urgent_emoji = "📝"
+        
+        if deadline:
+            try:
+                if isinstance(deadline, str):
+                    dt = datetime.fromisoformat(deadline)
+                else:
+                    dt = deadline
+                
+                # Форматируем дату
+                deadline_str = f" ({dt.strftime('%d.%m')})"
+                
+                # Проверяем, меньше ли дня до дедлайна
+                now = datetime.now()
+                time_left = dt - now
+                
+                if time_left < timedelta(days=1):
+                    urgent_emoji = "🔴"
+                elif time_left < timedelta(days=2):
+                    urgent_emoji = "🟠"
+            except:
+                pass
+        
+        return f"{urgent_emoji} {task_name}{deadline_str}"
 
     async def buttons_worker(self) -> list[dict]:
         result = await super().buttons_worker()
         
         tasks = self.scene.data['scene'].get('tasks', [])
         current_page = self.scene.data['scene'].get('current_page', 0)
+        
+        # Сортируем задачи по дедлайну
+        tasks = self.sort_tasks_by_deadline(tasks)
         
         # Показываем по 5 задач на страницу
         tasks_per_page = 5
@@ -143,12 +245,11 @@ class TaskListPage(Page):
         current_tasks = tasks[start_index:end_index]
         
         for i, task in enumerate(current_tasks):
-            task_name = task.get('name', 'Без названия')
-            if len(task_name) > 30:
-                task_name = task_name[:30] + "..."
+            # Используем новый формат с дедлайном и эмодзи
+            button_text = self.format_deadline_label(task)
             
             result.append({
-                'text': f"📝 {task_name}",
+                'text': button_text,
                 'callback_data': callback_generator(
                     self.scene.__scene_name__, 
                     'view_task',

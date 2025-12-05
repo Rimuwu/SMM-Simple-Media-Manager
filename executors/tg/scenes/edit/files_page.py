@@ -1,10 +1,12 @@
 """
 Страница для просмотра и выбора файлов карточки
 """
+import aiohttp
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
 from aiogram import Bot
 from tg.oms import Page
 from modules.api_client import get_cards, brain_api, get_kaiten_files, update_card
+from modules.logs import executors_logger as logger
 
 
 class FilesPage(Page):
@@ -609,82 +611,169 @@ class FilesPage(Page):
             await callback.answer(f'❌ Ошибка: {str(e)}')
     
     async def photo_handler(self, message: Message) -> None:
-        """Обработка фотографий"""
-        uploaded_files = self.scene.get_key(self.__page_name__, 'uploaded_files') or []
+        """Обработка фотографий - загружает в Kaiten"""
+        card = await self.scene.get_card_data()
+        if not card:
+            await message.answer('❌ Карточка не найдена')
+            return
         
-        if len(uploaded_files) >= self.max_files:
-            await message.answer(f'❌ Достигнут лимит файлов ({self.max_files})')
+        card_id = card.get('card_id')
+        if not card_id:
+            await message.answer('❌ ID карточки не найден')
+            return
+        
+        if not message.photo:
             return
         
         # Получаем самую большую версию фото
         photo = message.photo[-1]
         
-        file_info = {
-            'type': 'photo',
-            'file_id': photo.file_id,
-            'file_unique_id': photo.file_unique_id,
-            'name': f'photo_{len(uploaded_files) + 1}.jpg',
-            'size': photo.file_size
-        }
-        
-        uploaded_files.append(file_info)
-        await self.scene.update_key(self.__page_name__, 'uploaded_files', uploaded_files)
-        
-        msg = await message.answer('✅ Фото добавлено')
-        await self.scene.update_message()
-        
         try:
-            from asyncio import sleep
-            await sleep(3)
-            await msg.delete()
-        except:
-            pass
+            # Скачиваем фото
+            file = await self.scene.__bot__.get_file(photo.file_id)
+            if not file.file_path:
+                await message.answer('❌ Не удалось получить файл')
+                return
+            
+            file_data = await self.scene.__bot__.download_file(file.file_path)
+            if not file_data:
+                await message.answer('❌ Не удалось скачать файл')
+                return
+            
+            file_bytes = file_data.read()
+            file_name = f'photo_{message.message_id}.jpg'
+            
+            # Загружаем в Kaiten через API
+            form_data = aiohttp.FormData()
+            form_data.add_field('card_id', str(card_id))
+            form_data.add_field(
+                'file',
+                file_bytes,
+                filename=file_name,
+                content_type='image/jpeg'
+            )
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    'http://brain:8000/kaiten/upload-file',
+                    data=form_data
+                ) as resp:
+                    if resp.status == 200:
+                        logger.info(f"Фото {file_name} загружено в Kaiten для карточки {card_id}")
+                        msg = await message.answer('✅ Фото загружено в Kaiten!')
+                        
+                        # Обновляем список файлов
+                        await self.data_preparate()
+                        await self.scene.update_message()
+                        
+                        try:
+                            from asyncio import sleep
+                            await sleep(3)
+                            await msg.delete()
+                        except:
+                            pass
+                    else:
+                        error_text = await resp.text()
+                        logger.error(f"Ошибка загрузки фото в Kaiten: {error_text}")
+                        
+                        # Проверяем на ошибку UUID
+                        if 'UUID' in error_text or 'uuid' in error_text.lower():
+                            error_msg = '❌ Карточка не связана с Kaiten (неверный ID задачи)'
+                        else:
+                            error_msg = f'❌ Ошибка загрузки файла'
+                        
+                        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text='🗑 Удалить', callback_data='delete_message')]
+                        ])
+                        await message.answer(error_msg, reply_markup=keyboard)
+        
+        except Exception as e:
+            logger.error(f"Ошибка обработки фото: {e}")
+            await message.answer(f'❌ Ошибка: {str(e)[:100]}')
     
     @Page.on_text('all')
     async def document_handler(self, message: Message):
-        """Обработка документов и других типов файлов"""
-        uploaded_files = self.scene.get_key(self.__page_name__, 'uploaded_files') or []
+        """Обработка документов и других типов файлов - загружаем в Kaiten"""
+        print(f"[FilesPage] document_handler called. photo={message.photo}, document={message.document}, video={message.video}")
         
-        if len(uploaded_files) >= self.max_files:
-            await message.answer(f'❌ Достигнут лимит файлов ({self.max_files})')
-            return
-        
-        file_info = None
-        
-        # Проверяем тип сообщения
-        if message.document:
-            doc = message.document
-            file_info = {
-                'type': 'document',
-                'file_id': doc.file_id,
-                'file_unique_id': doc.file_unique_id,
-                'name': doc.file_name or f'document_{len(uploaded_files) + 1}',
-                'size': doc.file_size,
-                'mime_type': doc.mime_type
-            }
-        elif message.video:
-            video = message.video
-            file_info = {
-                'type': 'video',
-                'file_id': video.file_id,
-                'file_unique_id': video.file_unique_id,
-                'name': video.file_name or f'video_{len(uploaded_files) + 1}',
-                'size': video.file_size,
-                'duration': video.duration
-            }
-        elif message.photo:
+        # Фото обрабатываем отдельно
+        if message.photo:
+            print(f"[FilesPage] Processing photo message")
             await self.photo_handler(message)
             return
-
-        if file_info:
-            uploaded_files.append(file_info)
-            await self.scene.update_key(self.__page_name__, 'uploaded_files', uploaded_files)
-            msg = await message.answer(f'✅ {file_info["type"].capitalize()} добавлен')
-            await self.scene.update_message()
-
-            try:
-                from asyncio import sleep
-                await sleep(3)
-                await msg.delete()
-            except:
-                pass
+        
+        # Определяем тип файла и получаем file_id
+        file_id = None
+        file_name = None
+        
+        if message.document:
+            file_id = message.document.file_id
+            file_name = message.document.file_name or f'document_{file_id[:8]}'
+        elif message.video:
+            file_id = message.video.file_id
+            file_name = message.video.file_name or f'video_{file_id[:8]}.mp4'
+        
+        if not file_id:
+            return
+        
+        try:
+            # Получаем card_id
+            card = await self.scene.get_card_data()
+            card_id = card.get('task_id') or card.get('id')
+            
+            if not card_id:
+                await message.answer('❌ Не найден ID карточки')
+                return
+            
+            # Скачиваем файл из Telegram
+            bot = message.bot
+            file = await bot.get_file(file_id)
+            file_content = await bot.download_file(file.file_path)
+            file_bytes = file_content.read()
+            
+            logger.info(f"Загрузка файла {file_name} для карточки {card_id}")
+            
+            # Отправляем в Kaiten через brain-api
+            async with aiohttp.ClientSession() as session:
+                form = aiohttp.FormData()
+                form.add_field('card_id', str(card_id))
+                form.add_field('file', file_bytes, filename=file_name)
+                
+                async with session.post(
+                    'http://brain:8000/kaiten/upload-file',
+                    data=form
+                ) as resp:
+                    if resp.status == 200:
+                        logger.info(f"Файл {file_name} успешно загружен в Kaiten")
+                        msg = await message.answer('✅ Файл загружен')
+                        
+                        # Обновляем список файлов
+                        await self.data_preparate()
+                        await self.scene.update_message()
+                        
+                        try:
+                            from asyncio import sleep
+                            await sleep(3)
+                            await msg.delete()
+                        except:
+                            pass
+                    else:
+                        error_text = await resp.text()
+                        logger.error(f"Ошибка загрузки файла в Kaiten: {error_text}")
+                        
+                        # Проверяем на ошибку UUID
+                        if 'UUID' in error_text or 'uuid' in error_text.lower():
+                            error_msg = '❌ Карточка не связана с Kaiten (неверный ID задачи)'
+                        else:
+                            error_msg = f'❌ Ошибка загрузки файла'
+                        
+                        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text='🗑 Удалить', callback_data='delete_message')]
+                        ])
+                        await message.answer(error_msg, reply_markup=keyboard)
+        
+        except Exception as e:
+            logger.error(f"Ошибка обработки файла: {e}")
+            await message.answer(f'❌ Ошибка: {str(e)[:100]}')

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID as _UUID
 from os import getenv
@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from database.connection import session_factory
 from global_modules.classes.enums import CardType, ChangeType, UserRole
+from global_modules.timezone import now_naive as moscow_now
 from modules.kaiten import kaiten
 from modules.properties import multi_properties
 from modules.json_get import open_settings, open_properties
@@ -267,12 +268,14 @@ class CardUpdate(BaseModel):
     send_time: Optional[str] = None  # ISO 8601 format
     image_prompt: Optional[str] = None
     prompt_sended: Optional[bool] = None
+    prompt_message: Optional[int] = None  # ID сообщения дизайнерам
     calendar_id: Optional[str] = None
     post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten для публикации
     notify_executor: Optional[bool] = False  # Отправить уведомление исполнителю
     change_type: Optional[str] = None  # Тип изменения
     old_value: Optional[str] = None  # Старое значение
     new_value: Optional[str] = None  # Новое значение
+    author_id: Optional[str] = None  # ID пользователя, который вносит изменения
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
@@ -379,7 +382,7 @@ async def update_card(card_data: CardUpdate):
         if data['status'] == CardStatus.edited:
             forum_already_updated = True  # Помечаем что форум обновим здесь
             
-            # Если статус меняется на edited (в работе), удаляем запланированные задачи публикации (если были)
+            # Если статус меняется на edited (в работе), удаляем запланированные задачи публикации и превью
             if card.status == CardStatus.ready:
                 try:
                     async with session_factory() as session:
@@ -392,6 +395,30 @@ async def update_card(card_data: CardUpdate):
                         print(f"Restored notifications for card {card.card_id}")
                 except Exception as e:
                     print(f"Error canceling tasks: {e}")
+                
+                # Удаляем превью из complete_topic
+                try:
+                    complete_message_ids = card.complete_message_id or {}
+                    for client_key, msg_data in complete_message_ids.items():
+                        if isinstance(msg_data, dict):
+                            await executors_api.post(
+                                ApiEndpoints.COMPLETE_DELETE_PREVIEW,
+                                data={
+                                    "post_id": msg_data.get("post_id"),
+                                    "post_ids": msg_data.get("post_ids"),
+                                    "info_id": msg_data.get("info_id")
+                                }
+                            )
+                        else:
+                            await executors_api.post(
+                                ApiEndpoints.COMPLETE_DELETE_PREVIEW,
+                                data={"post_id": msg_data}
+                            )
+                    # Очищаем complete_message_id в карточке
+                    await card.update(complete_message_id={})
+                    print(f"Deleted complete previews for card {card.card_id}")
+                except Exception as e:
+                    print(f"Error deleting complete previews: {e}")
 
             board_id = settings['space'][
                 'boards'][KaitenBoardNames.IN_PROGRESS]['id']
@@ -482,6 +509,56 @@ async def update_card(card_data: CardUpdate):
                 forum_already_updated = True
             except Exception as e:
                 print(f"Error updating forum message for ready: {e}")
+            
+            # Отправляем превью постов в complete_topic для каждого клиента
+            try:
+                await card.refresh()
+                complete_message_ids = card.complete_message_id or {}
+                
+                clients = card.clients or []
+                for client_key in clients:
+                    preview_res, _ = await executors_api.post(
+                        ApiEndpoints.COMPLETE_SEND_PREVIEW,
+                        data={
+                            "card_id": str(card.card_id),
+                            "client_key": client_key
+                        }
+                    )
+                    if preview_res.get("success"):
+                        complete_message_ids[client_key] = {
+                            "post_id": preview_res.get("post_id"),
+                            "post_ids": preview_res.get("post_ids", []),  # Список всех ID для медиа-групп
+                            "info_id": preview_res.get("info_id")
+                        }
+                
+                if complete_message_ids:
+                    await card.update(complete_message_id=complete_message_ids)
+                    print(f"Sent complete previews for card {card.card_id}: {complete_message_ids}")
+            except Exception as e:
+                print(f"Error sending complete previews: {e}")
+            
+            # Уведомляем заказчика о готовности задачи
+            if card.customer_id:
+                try:
+                    customer = await User.get_by_key('user_id', card.customer_id)
+                    if customer:
+                        deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
+                        message_text = (
+                            f"✅ Задача готова!\n\n"
+                            f"📝 Название: {card.name}\n"
+                            f"⏰ Дедлайн: {deadline_str}\n\n"
+                            f"Задача готова к публикации."
+                        )
+                        await executors_api.post(
+                            ApiEndpoints.NOTIFY_USER,
+                            data={
+                                "user_id": customer.telegram_id,
+                                "message": message_text
+                            }
+                        )
+                        print(f"Notified customer {customer.telegram_id} about ready card {card.card_id}")
+                except Exception as e:
+                    print(f"Error notifying customer about ready status: {e}")
         
         # Уведомляем об изменении статуса, чтобы обновить сцены
         try:
@@ -570,6 +647,27 @@ async def update_card(card_data: CardUpdate):
                 
             except Exception as e:
                 print(f"Error closing scenes: {e}")
+            
+            # Создаём задачу на удаление карточки через 2 дня
+            try:
+                from models.ScheduledTask import ScheduledTask
+                from uuid import UUID as PyUUID
+                
+                delete_at = moscow_now() + timedelta(days=2)
+                card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
+                
+                async with session_factory() as session:
+                    task = ScheduledTask(
+                        card_id=card_uuid,
+                        function_path="modules.notifications.delete_sent_card",
+                        execute_at=delete_at,
+                        arguments={"card_id": str(card.card_id)}
+                    )
+                    session.add(task)
+                    await session.commit()
+                    logger.info(f"Создана задача удаления карточки {card.card_id} на {delete_at}")
+            except Exception as e:
+                logger.error(f"Ошибка создания задачи удаления: {e}")
 
     if 'executor_id' in data and data['executor_id'] != card.executor_id:
         logger.info(f"Изменение исполнителя карточки {card.card_id}: {card.executor_id} -> {data['executor_id']}")
@@ -666,6 +764,16 @@ async def update_card(card_data: CardUpdate):
             except:
                 pass
         
+        # Добавляем информацию об авторе изменения в комментарий Kaiten
+        if card_data.author_id:
+            try:
+                author = await User.get_by_key('user_id', card_data.author_id)
+                if author:
+                    author_name = await get_kaiten_user_name(author)
+                    comment += f"\n👤 Изменил: {author_name}"
+            except Exception as e:
+                logger.error(f"Ошибка получения имени автора для комментария: {e}")
+        
         await update_kaiten_card_field(
             card.task_id, 
             'due_date', 
@@ -709,13 +817,14 @@ async def update_card(card_data: CardUpdate):
         except Exception as e:
             print(f"Error rescheduling card notifications: {e}")
     
-    # Перепланируем задачи публикации при изменении send_time
-    if send_time_changed:
+    # Перепланируем задачи публикации при изменении send_time или clients
+    clients_changed = 'clients' in data
+    if send_time_changed or clients_changed:
         try:
             async with session_factory() as session:
                 await card.refresh()
                 await reschedule_post_tasks(session, card)
-                print(f"Rescheduled post tasks for card {card.card_id}")
+                print(f"Rescheduled post tasks for card {card.card_id} (send_time={send_time_changed}, clients={clients_changed})")
         except Exception as e:
             print(f"Error rescheduling post tasks: {e}")
     
@@ -747,6 +856,90 @@ async def update_card(card_data: CardUpdate):
             except Exception as e:
                 print(f"Error updating forum message: {e}")
     
+    # Обновляем превью в complete_topic если изменились поля, влияющие на пост
+    # и статус карточки - ready (пост ожидает публикации)
+    await card.refresh()
+    complete_update_fields = ['content', 'tags', 'post_images', 'clients', 'send_time']
+    should_update_complete = any(field in data for field in complete_update_fields)
+    
+    if should_update_complete and card.status == CardStatus.ready and card.complete_message_id:
+        try:
+            complete_message_ids = card.complete_message_id or {}
+            clients = card.clients or []
+            
+            # Удаляем превью для клиентов, которых больше нет
+            for client_key in list(complete_message_ids.keys()):
+                if client_key not in clients:
+                    msg_data = complete_message_ids.pop(client_key)
+                    # Поддерживаем как новый формат (dict), так и старый (int)
+                    if isinstance(msg_data, dict):
+                        await executors_api.post(
+                            ApiEndpoints.COMPLETE_DELETE_PREVIEW,
+                            data={
+                                "post_id": msg_data.get("post_id"),
+                                "post_ids": msg_data.get("post_ids"),  # Список всех ID
+                                "info_id": msg_data.get("info_id")
+                            }
+                        )
+                    else:
+                        await executors_api.post(
+                            ApiEndpoints.COMPLETE_DELETE_PREVIEW,
+                            data={"post_id": msg_data}
+                        )
+            
+            # Обновляем или добавляем превью для текущих клиентов
+            for client_key in clients:
+                if client_key in complete_message_ids:
+                    msg_data = complete_message_ids[client_key]
+                    # Поддерживаем как новый формат (dict), так и старый (int)
+                    if isinstance(msg_data, dict):
+                        post_id = msg_data.get("post_id")
+                        post_ids = msg_data.get("post_ids", [])
+                        info_id = msg_data.get("info_id")
+                    else:
+                        post_id = msg_data
+                        post_ids = [msg_data] if msg_data else []
+                        info_id = None
+                    
+                    # Обновляем существующее превью
+                    update_res, _ = await executors_api.post(
+                        ApiEndpoints.COMPLETE_UPDATE_PREVIEW,
+                        data={
+                            "card_id": str(card.card_id),
+                            "client_key": client_key,
+                            "post_id": post_id,
+                            "post_ids": post_ids,  # Передаём все ID для удаления
+                            "info_id": info_id
+                        }
+                    )
+                    # Если вернулись новые ID (было пересоздано), обновляем
+                    if update_res.get("post_id"):
+                        complete_message_ids[client_key] = {
+                            "post_id": update_res.get("post_id"),
+                            "post_ids": update_res.get("post_ids", []),
+                            "info_id": update_res.get("info_id")
+                        }
+                else:
+                    # Создаём новое превью для нового клиента
+                    preview_res, _ = await executors_api.post(
+                        ApiEndpoints.COMPLETE_SEND_PREVIEW,
+                        data={
+                            "card_id": str(card.card_id),
+                            "client_key": client_key
+                        }
+                    )
+                    if preview_res.get("success"):
+                        complete_message_ids[client_key] = {
+                            "post_id": preview_res.get("post_id"),
+                            "post_ids": preview_res.get("post_ids", []),
+                            "info_id": preview_res.get("info_id")
+                        }
+            
+            await card.update(complete_message_id=complete_message_ids)
+            print(f"Updated complete previews for card {card.card_id}: {complete_message_ids}")
+        except Exception as e:
+            print(f"Error updating complete previews: {e}")
+    
     # Отправляем уведомление исполнителю
     if card_data.notify_executor and card.executor_id:
         change_messages = {
@@ -756,6 +949,17 @@ async def update_card(card_data: CardUpdate):
             ChangeType.DESCRIPTION.value: '📝 Изменено описание'
         }
         message_text = change_messages.get(card_data.change_type or '', Messages.CHANGE_NOTIFICATION.value)
+        
+        # Добавляем информацию об авторе изменений
+        if card_data.author_id:
+            try:
+                author = await User.get_by_key('user_id', card_data.author_id)
+                if author:
+                    author_name = await get_kaiten_user_name(author)
+                    message_text += f"\n👤 Изменил: {author_name}"
+            except Exception as e:
+                logger.error(f"Ошибка получения имени автора: {e}")
+        
         message_text += f"\n\n📝 Задача: {card.name}"
         
         if card_data.change_type == ChangeType.DEADLINE.value and card_data.new_value:
@@ -811,12 +1015,13 @@ async def delete_card(card_id: str):
 
     await card.delete()
 
-    async with kaiten as client:
-        try:
-            await client.delete_card(card.task_id)
-        except Exception as e:
-            logger.error(f"Ошибка удаления карточки {card_id} из Kaiten: {e}")
-            return {"detail": f"Card deleted from DB, but failed to delete from Kaiten: {e}"}
+    if card.status != CardStatus.sent and card.task_id:
+        async with kaiten as client:
+            try:
+                await client.delete_card(card.task_id)
+            except Exception as e:
+                logger.error(f"Ошибка удаления карточки {card_id} из Kaiten: {e}")
+                return {"detail": f"Card deleted from DB, but failed to delete from Kaiten: {e}"}
 
     try:
         if card.calendar_id:
@@ -997,3 +1202,25 @@ async def send_now(request: SendNowRequest):
         "detail": "Card scheduled for immediate sending",
         "send_time": send_time.isoformat()
     }
+
+
+class NotifyExecutorRequest(BaseModel):
+    card_id: str
+    message: str
+
+
+@router.post("/notify-executor")
+async def notify_executor_endpoint(data: NotifyExecutorRequest):
+    """
+    Отправляет уведомление исполнителю задачи.
+    """
+    card = await Card.get_by_key('card_id', data.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    
+    if not card.executor_id:
+        raise HTTPException(status_code=400, detail="Card has no executor")
+    
+    await notify_executor(str(card.executor_id), data.message, task_id=data.card_id)
+    
+    return {"detail": "Notification sent"}

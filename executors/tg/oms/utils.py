@@ -93,6 +93,33 @@ def parse_time(text: str) -> Optional[datetime]:
         except ValueError:
             return None
 
+    # Паттерн для даты без времени: 21.10.2025
+    pattern_date_only_full = r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$'
+    match_date_only_full = re.match(pattern_date_only_full, text.strip())
+
+    if match_date_only_full:
+        day, month, year = map(int, match_date_only_full.groups())
+        try:
+            return datetime(year, month, day, 0, 0)
+        except ValueError:
+            return None
+
+    # Паттерн для даты без времени и года: 21.10
+    pattern_date_only = r'^(\d{1,2})\.(\d{1,2})$'
+    match_date_only = re.match(pattern_date_only, text.strip())
+
+    if match_date_only:
+        day, month = map(int, match_date_only.groups())
+        year = now.year
+        try:
+            target_time = datetime(year, month, day, 0, 0)
+            # Если дата уже прошла в этом году, устанавливаем на следующий год
+            if target_time <= now:
+                target_time = datetime(year + 1, month, day, 0, 0)
+            return target_time
+        except ValueError:
+            return None
+
     # Паттерн для времени без даты: 16:30
     pattern_time_only = r'(\d{1,2}):(\d{2})'
     match_time = re.match(pattern_time_only, text.strip())

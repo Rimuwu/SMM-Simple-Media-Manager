@@ -6,6 +6,8 @@ from .pages.select_role_page import SelectRolePage
 from .pages.select_kaiten_user_page import SelectKaitenUserPage
 from .pages.select_department_page import SelectDepartmentPage
 from .pages.edit_about_page import EditAboutPage
+from .pages.filter_users_by_role_page import FilterUsersByRolePage
+from .pages.filter_users_by_department_page import FilterUsersByDepartmentPage
 from modules.api_client import insert_scene, load_scene, update_scene, delete_scene
 
 class UsersScene(Scene):
@@ -17,7 +19,9 @@ class UsersScene(Scene):
         SelectRolePage,
         SelectKaitenUserPage,
         SelectDepartmentPage,
-        EditAboutPage
+        EditAboutPage,
+        FilterUsersByRolePage,
+        FilterUsersByDepartmentPage
     ]
 
 

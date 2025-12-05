@@ -22,6 +22,7 @@ vk_api==11.10.0
 aiogram==3.22.0
 kurigram==2.2.10
 tgcrypto==1.2.5
+Pillow>=10.0.0
 
 # Task API зависимости
 aiohttp>=3.8.0

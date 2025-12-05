@@ -13,6 +13,7 @@ class EditAboutPage(TextTypeScene):
 
     async def data_preparate(self):
         # Данные уже установлены в user_detail_page, не нужно дублировать загрузку
+        self.clear_content()
         await super().data_preparate()
 
     async def buttons_worker(self):
@@ -43,6 +44,9 @@ class EditAboutPage(TextTypeScene):
     @Page.on_callback('save-about')
     async def on_save(self, callback, args):
         about_text = self.scene.data['scene'].get('about_text', '')
+        
+        if about_text.strip() == '':
+            about_text = 'Не указано'
 
         edit_mode = self.scene.data['scene'].get('edit_mode')
         if edit_mode:

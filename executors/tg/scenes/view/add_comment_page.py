@@ -11,6 +11,17 @@ class AddCommentPage(TextTypeScene):
         super().__after_init__()
         self.next_page = ''
 
+    async def content_worker(self) -> str:
+        """Отображаем введённый текст комментария"""
+        comment_text = self.scene.data['scene'].get('comment_text', '')
+        
+        if comment_text:
+            self.content = self.append_variables(comment=comment_text)
+        else:
+            self.content = self.append_variables(comment='_Введите текст комментария..._')
+        
+        return self.content
+
     async def buttons_worker(self):
         buttons = []
 
@@ -52,11 +63,16 @@ class AddCommentPage(TextTypeScene):
         # Получаем информацию о пользователе
         from modules.api_client import get_users
         users = await get_users(telegram_id=telegram_id)
-        if not users:
+        if not users or not isinstance(users, list) or len(users) == 0:
             await callback.answer("❌ Пользователь не найден")
             return
 
-        user_id = users[0]['user_id']
+        user = users[0]
+        if not isinstance(user, dict):
+            await callback.answer("❌ Ошибка данных пользователя")
+            return
+
+        user_id = user.get('user_id')
 
         # Добавляем комментарий через API
         result, status = await brain_api.post(
@@ -77,9 +93,7 @@ class AddCommentPage(TextTypeScene):
 
     @Page.on_callback('task-detail')
     async def on_back(self, callback, args):
+        # Очищаем комментарий при выходе
+        await self.scene.update_key('scene', 'comment_text', '')
         await self.scene.update_page('task-detail')
-
-    async def on_text_input(self, message, text):
-        """Переопределяем метод из TextTypeScene"""
-        await self.scene.update_key('scene', 'comment_text', text)
         await self.scene.update_message()

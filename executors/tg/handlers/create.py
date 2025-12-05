@@ -51,6 +51,7 @@ async def cancel(message: Message):
     ss = scene_manager.get_scene(message.from_user.id)
     if ss:
         await ss.end()
+        await message.answer("Вы вышли из текущей сцены.")
 
 @dp.message(Command("cancel"))
 async def cancel_na(message: Message):

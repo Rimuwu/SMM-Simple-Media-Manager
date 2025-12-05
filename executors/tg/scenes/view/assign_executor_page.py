@@ -14,7 +14,7 @@ class AssignExecutorPage(UserSelectorPage):
     update_to_db = True
     allow_reset = True
     filter_department = 'smm'  # Фильтруем только пользователей из SMM департамента
-    filter_roles = ['copywriter', 'editor']
+    filter_roles = ['copywriter', 'editor', 'admin']
 
     async def data_preparate(self):
         """Подгружаем текущего исполнителя из данных задачи"""
@@ -55,8 +55,11 @@ class AssignExecutorPage(UserSelectorPage):
 
             # Обновляем информацию об исполнителе для отображения
             if user_id:
-                selected_user = next((u for u in self.users_data if str(u['user_id']) == str(user_id)), None)
-                if selected_user:
+                selected_user = next(
+                    (u for u in self.users_data if isinstance(u, dict) and str(u.get('user_id', '')) == str(user_id)), 
+                    None
+                )
+                if selected_user and isinstance(selected_user, dict):
                     # Получаем отображаемое имя пользователя
                     display_name = await self.get_display_name(
                         selected_user,

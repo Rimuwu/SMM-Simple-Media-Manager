@@ -16,10 +16,29 @@ class DateInputPage(Page):
     on_success_callback: Optional[Callable] = None
     __scene_key__: str
     __next_page__: str
-    
+
     async def data_preparate(self) -> None:
         self.clear_content()
-        return await super().data_preparate()
+
+    async def content_worker(self) -> str:
+        
+        date = self.scene.data['scene'].get(self.__scene_key__)
+        if date:
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(date)
+                formatted_date = dt.strftime('%d.%m.%Y %H:%M')
+            except ValueError:
+                formatted_date = date
+        else:
+            formatted_date = 'Не установлена'
+
+        content = self.append_variables(
+            **{
+                self.__scene_key__: formatted_date
+            }
+        )
+        return content
 
     @Page.on_text('not_handled')
     async def not_handled(self, message: Message):

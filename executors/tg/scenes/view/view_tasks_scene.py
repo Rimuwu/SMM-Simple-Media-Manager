@@ -7,6 +7,8 @@ from .change_deadline_page import ChangeDeadlinePage
 from .add_comment_page import AddCommentPage
 from .change_name_page import ChangeNamePage
 from .change_description_page import ChangeDescriptionPage
+from .select_user_filter_page import SelectUserFilterPage
+from .select_department_filter_page import SelectDepartmentFilterPage
 from modules.api_client import insert_scene, load_scene, update_scene, delete_scene
 
 
@@ -21,7 +23,9 @@ class ViewTasksScene(Scene):
         ChangeDeadlinePage,
         AddCommentPage,
         ChangeNamePage,
-        ChangeDescriptionPage
+        ChangeDescriptionPage,
+        SelectUserFilterPage,
+        SelectDepartmentFilterPage
     ]
 
     # Привязываем функции для работы с БД

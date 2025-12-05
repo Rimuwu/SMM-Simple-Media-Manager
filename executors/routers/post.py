@@ -290,19 +290,29 @@ async def send_post(request: PostSendRequest):
             # Для VK - загружаем фото и создаём пост
             attachments = []
             if downloaded_images:
+                logger.info(f"VK: Начинаю загрузку {len(downloaded_images)} изображений для поста")
                 import tempfile
                 import os as os_module
                 for idx, img_data in enumerate(downloaded_images):
+                    logger.info(f"VK: Обработка изображения {idx + 1}/{len(downloaded_images)}, размер: {len(img_data)} bytes")
                     # Сохраняем во временный файл для загрузки
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
                         tmp_file.write(img_data)
                         tmp_path = tmp_file.name
+                    logger.info(f"VK: Сохранено во временный файл: {tmp_path}")
                     try:
                         upload_result = await executor.upload_photo_to_wall(tmp_path)
+                        logger.info(f"VK: Результат загрузки фото: {upload_result}")
                         if upload_result.get('success') and upload_result.get('attachment'):
                             attachments.append(upload_result['attachment'])
+                            logger.info(f"VK: Attachment добавлен: {upload_result['attachment']}")
+                        else:
+                            logger.error(f"VK: Ошибка загрузки фото: {upload_result.get('error')}")
                     finally:
                         os_module.unlink(tmp_path)
+                        logger.info(f"VK: Временный файл удалён: {tmp_path}")
+                
+                logger.info(f"VK: Всего attachments для поста: {attachments}")
             
             result = await executor.create_wall_post(
                 text=post_text,

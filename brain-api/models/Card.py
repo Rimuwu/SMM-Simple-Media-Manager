@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from datetime import datetime
@@ -44,12 +44,14 @@ class Card(Base, AsyncCRUDMixin):
     send_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    prompt_sended: Mapped[bool] = mapped_column(Boolean, default=False)
-    
+    prompt_message: Mapped[int] = mapped_column(BigInteger, nullable=True, default=None)
+
     # Список имён файлов из Kaiten для публикации
     post_images: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    # Формат: {"client_key": {"post_id": int, "info_id": int}, ...}
+    complete_message_id: Mapped[Optional[dict[str, dict]]] = mapped_column(JSON, nullable=True, default={})
 
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
