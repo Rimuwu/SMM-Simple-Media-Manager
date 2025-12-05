@@ -100,7 +100,8 @@ class TelegramExecutor(BaseExecutor):
                          caption: Optional[str] = None,
                          parse_mode: Optional[str] = 'HTML',
                          list_markup: Optional[list] = None,
-                         row_width: int = 3
+                         row_width: int = 3,
+                         reply_to_message_id: Optional[int] = None
                          ) -> dict:
         """
         Отправить фото.
@@ -112,6 +113,7 @@ class TelegramExecutor(BaseExecutor):
             parse_mode: Режим парсинга
             list_markup: Кнопки
             row_width: Ширина ряда кнопок
+            reply_to_message_id: ID сообщения для ответа
         """
         from aiogram.types import BufferedInputFile
         
@@ -127,7 +129,8 @@ class TelegramExecutor(BaseExecutor):
                 photo=photo,
                 caption=caption,
                 parse_mode=parse_mode,
-                reply_markup=markup
+                reply_markup=markup,
+                reply_to_message_id=reply_to_message_id
             )
             return {"success": True, "message_id": result.message_id}
         except Exception as e:
@@ -138,7 +141,8 @@ class TelegramExecutor(BaseExecutor):
                                chat_id: str,
                                media: list,
                                caption: Optional[str] = None,
-                               parse_mode: Optional[str] = 'HTML'
+                               parse_mode: Optional[str] = 'HTML',
+                               reply_to_message_id: Optional[int] = None
                                ) -> dict:
         """
         Отправить группу медиа (несколько фото).
@@ -148,6 +152,7 @@ class TelegramExecutor(BaseExecutor):
             media: Список bytes данных или словарей с file_id
             caption: Подпись (применяется к первому фото)
             parse_mode: Режим парсинга
+            reply_to_message_id: ID сообщения для ответа
         """
         from aiogram.types import InputMediaPhoto, BufferedInputFile
         
@@ -190,7 +195,8 @@ class TelegramExecutor(BaseExecutor):
             
             result = await self.bot.send_media_group(
                 chat_id=chat_id,
-                media=media_group
+                media=media_group,
+                reply_to_message_id=reply_to_message_id
             )
             
             # Возвращаем ID первого сообщения

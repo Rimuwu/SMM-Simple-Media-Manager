@@ -290,14 +290,14 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     """
     Отправить превью поста в complete_topic.
     Отправляет сообщение с картинками и отформатированным текстом поста,
-    затем отправляет название задачи и имя клиента.
+    затем отправляет название задачи, имя клиента и дату отправки.
     
     Args:
         card_id: ID карточки
         client_key: Ключ клиента для которого создаётся превью
         
     Returns:
-        dict с success и message_id (или error)
+        dict с success, post_id и info_id (или error)
     """
     client_executor: TelegramExecutor = manager.get("telegram_executor")
     
@@ -339,7 +339,7 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     if task_id and post_images:
         downloaded_images = await download_kaiten_files(task_id, post_images)
     
-    message_id = None
+    post_id = None
     
     try:
         # Отправляем пост с изображениями или без
@@ -349,19 +349,21 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                     chat_id=group_forum,
                     photo=downloaded_images[0],
                     caption=post_text,
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    reply_to_message_id=complete_topic
                 )
                 if result.get("success"):
-                    message_id = result.get("message_id")
+                    post_id = result.get("message_id")
             else:
                 result = await client_executor.send_media_group(
                     chat_id=group_forum,
                     media=downloaded_images,
                     caption=post_text,
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    reply_to_message_id=complete_topic
                 )
                 if result.get("success"):
-                    message_id = result.get("message_id")
+                    post_id = result.get("message_id")
         else:
             result = await client_executor.send_message(
                 chat_id=group_forum,
@@ -370,39 +372,52 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                 parse_mode="HTML"
             )
             if result.get("success"):
-                message_id = result.get("message_id")
+                post_id = result.get("message_id")
         
-        if not message_id:
+        if not post_id:
             return {"error": f"Failed to send preview: {result.get('error', 'Unknown error')}", "success": False}
+        
+        # Формируем дату отправки
+        send_time = card.get("send_time")
+        date_str = "Не указана"
+        if send_time:
+            try:
+                dt = datetime.fromisoformat(send_time)
+                date_str = dt.strftime('%d.%m.%Y %H:%M')
+            except:
+                pass
         
         # Отправляем информацию о задаче и клиенте
         card_name = card.get("name", "Без названия")
-        info_text = f"📝 <b>{card_name}</b>\n📢 Канал: <b>{client_label}</b>"
+        info_text = f"✅ Готовый пост для задачи <b>{card_name}</b> для клиента <b>{client_label}</b>\n📅 Дата отправки: <b>{date_str}</b>"
         
-        await client_executor.send_message(
+        info_result = await client_executor.send_message(
             chat_id=group_forum,
             text=info_text,
             reply_to_message_id=complete_topic,
             parse_mode="HTML"
         )
         
-        return {"success": True, "message_id": message_id}
+        info_id = info_result.get("message_id") if info_result.get("success") else None
+        
+        return {"success": True, "post_id": post_id, "info_id": info_id}
     
     except Exception as e:
         return {"error": str(e), "success": False}
 
 
-async def update_complete_preview(card_id: str, client_key: str, message_id: int) -> dict:
+async def update_complete_preview(card_id: str, client_key: str, post_id: int, info_id: int | None = None) -> dict:
     """
     Обновить превью поста в complete_topic.
     
     Args:
         card_id: ID карточки
         client_key: Ключ клиента
-        message_id: ID сообщения для обновления
+        post_id: ID сообщения с постом для обновления
+        info_id: ID информационного сообщения для обновления
         
     Returns:
-        dict с success (или error)
+        dict с success, post_id и info_id (или error)
     """
     client_executor: TelegramExecutor = manager.get("telegram_executor")
     
@@ -420,6 +435,8 @@ async def update_complete_preview(card_id: str, client_key: str, message_id: int
     if not client_config:
         return {"error": f"Client {client_key} not found", "success": False}
     
+    client_label = client_config.get('label', client_key)
+    
     # Генерируем текст поста
     content = card.get("content") or card.get("description") or ""
     tags = card.get("tags", [])
@@ -433,38 +450,84 @@ async def update_complete_preview(card_id: str, client_key: str, message_id: int
         client_key=client_key
     )
     
+    new_post_id = post_id
+    new_info_id = info_id
+    
     try:
-        # Пытаемся обновить сообщение
+        # Пытаемся обновить сообщение с постом
         # Примечание: media group нельзя редактировать, только текст/caption
         result = await client_executor.edit_message(
             chat_id=group_forum,
-            message_id=str(message_id),
+            message_id=str(post_id),
             text=post_text,
             parse_mode="HTML"
         )
         
-        if result.get("success"):
-            return {"success": True}
-        else:
+        if not result.get("success"):
             # Если редактирование не удалось (например, это media group),
             # удаляем старое и отправляем новое
             await client_executor.delete_message(
                 chat_id=group_forum,
-                message_id=str(message_id)
+                message_id=str(post_id)
+            )
+            if info_id:
+                await client_executor.delete_message(
+                    chat_id=group_forum,
+                    message_id=str(info_id)
+                )
+            
+            new_preview = await send_complete_preview(card_id, client_key)
+            return new_preview
+        
+        # Обновляем информационное сообщение с датой
+        if info_id:
+            send_time = card.get("send_time")
+            date_str = "Не указана"
+            if send_time:
+                try:
+                    dt = datetime.fromisoformat(send_time)
+                    date_str = dt.strftime('%d.%m.%Y %H:%M')
+                except:
+                    pass
+            
+            card_name = card.get("name", "Без названия")
+            info_text = f"✅ Готовый пост для задачи <b>{card_name}</b> для клиента <b>{client_label}</b>\n📅 Дата отправки: <b>{date_str}</b>"
+            
+            info_result = await client_executor.edit_message(
+                chat_id=group_forum,
+                message_id=str(info_id),
+                text=info_text,
+                parse_mode="HTML"
             )
             
-            return await send_complete_preview(card_id, client_key)
+            if not info_result.get("success"):
+                # Если не удалось обновить info, пересоздаём его
+                await client_executor.delete_message(
+                    chat_id=group_forum,
+                    message_id=str(info_id)
+                )
+                new_info_result = await client_executor.send_message(
+                    chat_id=group_forum,
+                    text=info_text,
+                    reply_to_message_id=complete_topic,
+                    parse_mode="HTML"
+                )
+                if new_info_result.get("success"):
+                    new_info_id = new_info_result.get("message_id")
+        
+        return {"success": True, "post_id": new_post_id, "info_id": new_info_id}
     
     except Exception as e:
         return {"error": str(e), "success": False}
 
 
-async def delete_complete_preview(message_id: int) -> dict:
+async def delete_complete_preview(post_id: int, info_id: int | None = None) -> dict:
     """
     Удалить превью поста из complete_topic.
     
     Args:
-        message_id: ID сообщения для удаления
+        post_id: ID сообщения с постом для удаления
+        info_id: ID информационного сообщения для удаления
         
     Returns:
         dict с success (или error)
@@ -475,10 +538,18 @@ async def delete_complete_preview(message_id: int) -> dict:
         return {"error": "Executor not found", "success": False}
     
     try:
+        # Удаляем сообщение с постом
         result = await client_executor.delete_message(
             chat_id=group_forum,
-            message_id=str(message_id)
+            message_id=str(post_id)
         )
+        
+        # Удаляем информационное сообщение если есть
+        if info_id:
+            await client_executor.delete_message(
+                chat_id=group_forum,
+                message_id=str(info_id)
+            )
         
         return {"success": result.get("success", False)}
     

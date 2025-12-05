@@ -50,7 +50,8 @@ class Card(Base, AsyncCRUDMixin):
     post_images: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
-    complete_message_id: Mapped[Optional[dict[str, int]]] = mapped_column(JSON, nullable=True, default=[])
+    # Формат: {"client_key": {"post_id": int, "info_id": int}, ...}
+    complete_message_id: Mapped[Optional[dict[str, dict]]] = mapped_column(JSON, nullable=True, default={})
 
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 

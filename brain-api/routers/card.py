@@ -497,8 +497,11 @@ async def update_card(card_data: CardUpdate):
                             "client_key": client_key
                         }
                     )
-                    if preview_res.get("success") and preview_res.get("message_id"):
-                        complete_message_ids[client_key] = preview_res.get("message_id")
+                    if preview_res.get("success"):
+                        complete_message_ids[client_key] = {
+                            "post_id": preview_res.get("post_id"),
+                            "info_id": preview_res.get("info_id")
+                        }
                 
                 if complete_message_ids:
                     await card.update(complete_message_id=complete_message_ids)
@@ -773,7 +776,7 @@ async def update_card(card_data: CardUpdate):
     # Обновляем превью в complete_topic если изменились поля, влияющие на пост
     # и статус карточки - ready (пост ожидает публикации)
     await card.refresh()
-    complete_update_fields = ['content', 'tags', 'post_images', 'clients']
+    complete_update_fields = ['content', 'tags', 'post_images', 'clients', 'send_time']
     should_update_complete = any(field in data for field in complete_update_fields)
     
     if should_update_complete and card.status == CardStatus.ready and card.complete_message_id:
@@ -784,27 +787,50 @@ async def update_card(card_data: CardUpdate):
             # Удаляем превью для клиентов, которых больше нет
             for client_key in list(complete_message_ids.keys()):
                 if client_key not in clients:
-                    msg_id = complete_message_ids.pop(client_key)
-                    await executors_api.post(
-                        ApiEndpoints.COMPLETE_DELETE_PREVIEW,
-                        data={"message_id": msg_id}
-                    )
+                    msg_data = complete_message_ids.pop(client_key)
+                    # Поддерживаем как новый формат (dict), так и старый (int)
+                    if isinstance(msg_data, dict):
+                        await executors_api.post(
+                            ApiEndpoints.COMPLETE_DELETE_PREVIEW,
+                            data={
+                                "post_id": msg_data.get("post_id"),
+                                "info_id": msg_data.get("info_id")
+                            }
+                        )
+                    else:
+                        await executors_api.post(
+                            ApiEndpoints.COMPLETE_DELETE_PREVIEW,
+                            data={"post_id": msg_data}
+                        )
             
             # Обновляем или добавляем превью для текущих клиентов
             for client_key in clients:
                 if client_key in complete_message_ids:
+                    msg_data = complete_message_ids[client_key]
+                    # Поддерживаем как новый формат (dict), так и старый (int)
+                    if isinstance(msg_data, dict):
+                        post_id = msg_data.get("post_id")
+                        info_id = msg_data.get("info_id")
+                    else:
+                        post_id = msg_data
+                        info_id = None
+                    
                     # Обновляем существующее превью
                     update_res, _ = await executors_api.post(
                         ApiEndpoints.COMPLETE_UPDATE_PREVIEW,
                         data={
                             "card_id": str(card.card_id),
                             "client_key": client_key,
-                            "message_id": complete_message_ids[client_key]
+                            "post_id": post_id,
+                            "info_id": info_id
                         }
                     )
-                    # Если вернулся новый message_id (было пересоздано), обновляем
-                    if update_res.get("message_id"):
-                        complete_message_ids[client_key] = update_res.get("message_id")
+                    # Если вернулись новые ID (было пересоздано), обновляем
+                    if update_res.get("post_id"):
+                        complete_message_ids[client_key] = {
+                            "post_id": update_res.get("post_id"),
+                            "info_id": update_res.get("info_id")
+                        }
                 else:
                     # Создаём новое превью для нового клиента
                     preview_res, _ = await executors_api.post(
@@ -814,8 +840,11 @@ async def update_card(card_data: CardUpdate):
                             "client_key": client_key
                         }
                     )
-                    if preview_res.get("success") and preview_res.get("message_id"):
-                        complete_message_ids[client_key] = preview_res.get("message_id")
+                    if preview_res.get("success"):
+                        complete_message_ids[client_key] = {
+                            "post_id": preview_res.get("post_id"),
+                            "info_id": preview_res.get("info_id")
+                        }
             
             await card.update(complete_message_id=complete_message_ids)
             print(f"Updated complete previews for card {card.card_id}: {complete_message_ids}")

@@ -68,13 +68,14 @@ async def send_complete_preview_endpoint(request: CompletePreviewRequest):
     """
     Отправить превью готового поста в complete_topic.
     Отправляет сообщение с картинками и отформатированным текстом,
-    затем информацию о задаче и клиенте.
+    затем информацию о задаче, клиенте и дате отправки.
     """
     data = await send_complete_preview(request.card_id, request.client_key)
     
     return {
         "success": data.get("success", False),
-        "message_id": data.get("message_id", None),
+        "post_id": data.get("post_id", None),
+        "info_id": data.get("info_id", None),
         "error": data.get("error", None)
     }
 
@@ -82,7 +83,8 @@ async def send_complete_preview_endpoint(request: CompletePreviewRequest):
 class UpdateCompletePreviewRequest(BaseModel):
     card_id: str
     client_key: str
-    message_id: int
+    post_id: int
+    info_id: Optional[int] = None
 
 @router.post("/update-complete-preview")
 async def update_complete_preview_endpoint(request: UpdateCompletePreviewRequest):
@@ -92,25 +94,29 @@ async def update_complete_preview_endpoint(request: UpdateCompletePreviewRequest
     data = await update_complete_preview(
         request.card_id,
         request.client_key,
-        request.message_id
+        request.post_id,
+        request.info_id
     )
     
     return {
         "success": data.get("success", False),
-        "message_id": data.get("message_id", None),
+        "post_id": data.get("post_id", None),
+        "info_id": data.get("info_id", None),
         "error": data.get("error", None)
     }
 
 
 class DeleteCompletePreviewRequest(BaseModel):
-    message_id: int
+    post_id: int
+    info_id: Optional[int] = None
 
 @router.post("/delete-complete-preview")
 async def delete_complete_preview_endpoint(request: DeleteCompletePreviewRequest):
     """
     Удалить превью готового поста из complete_topic.
+    Удаляет оба сообщения: с постом и с информацией.
     """
-    data = await delete_complete_preview(request.message_id)
+    data = await delete_complete_preview(request.post_id, request.info_id)
     
     return {
         "success": data.get("success", False),
