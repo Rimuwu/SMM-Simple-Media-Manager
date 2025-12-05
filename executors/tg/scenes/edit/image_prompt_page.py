@@ -148,7 +148,7 @@ class ImagePromptPage(Page):
         executor_name = "Не назначен"
         if card.get('executor_id'):
             executor_users = await get_users(user_id=card['executor_id'])
-            if executor_users:
+            if executor_users and isinstance(executor_users[0], dict):
                 executor_name = await UserSelectorPage.get_display_name(
                     executor_users[0], kaiten_users, self.scene.__bot__
                 )
@@ -156,7 +156,7 @@ class ImagePromptPage(Page):
         customer_name = "Не указан"
         if card.get('customer_id'):
             customer_users = await get_users(user_id=card['customer_id'])
-            if customer_users:
+            if customer_users and isinstance(customer_users[0], dict):
                 customer_name = await UserSelectorPage.get_display_name(
                     customer_users[0], kaiten_users, self.scene.__bot__
                 )

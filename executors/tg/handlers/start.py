@@ -27,6 +27,7 @@ async def start_au(message: Message):
         "/users - Создание и редактирование пользователей.\n\n"
         "× *(Любая роль)*\n"
         "/tasks - Для просмотра заказов, созданных задач или выбора задачи для работы.\n"
+        "/leaderboard - Лидерборд выполненных задач.\n"
         "/cancel - Команда для выхода из текущей сцены."
     )
 
@@ -36,7 +37,9 @@ async def start_au(message: Message):
             BotCommand(command="create", description="Создать новую задачу"),
             BotCommand(command="users", description="Управление пользователями"),
             BotCommand(command="tasks", description="Просмотр задач"),
+            BotCommand(command="leaderboard", description="Лидерборд задач"),
             BotCommand(command="cancel", description="Выйти из текущей сцены"),
+            BotCommand(command="start", description="Список команд / обновить быстрые команды"),
         ],
         BotCommandScopeChat(chat_id=message.chat.id)
     )

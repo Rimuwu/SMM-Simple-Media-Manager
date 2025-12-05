@@ -278,6 +278,9 @@ class GoogleCalendarManager:
             if not current_event:
                 return None
 
+            # Определяем, является ли исходное событие all-day (использует 'date' вместо 'dateTime')
+            is_all_day = 'date' in current_event.get('start', {})
+
             # Обновляем только переданные поля
             if title is not None:
                 current_event['summary'] = title
@@ -287,16 +290,32 @@ class GoogleCalendarManager:
                 current_event['location'] = location
 
             if start_time is not None:
-                current_event['start'] = {
-                    'dateTime': start_time.isoformat(),
-                    'timeZone': 'UTC'
-                }
+                # Убираем timezone info если есть
+                if start_time.tzinfo is not None:
+                    start_time = start_time.replace(tzinfo=None)
+                
+                if is_all_day:
+                    # Для all-day событий используем формат date
+                    current_event['start'] = {'date': start_time.strftime('%Y-%m-%d')}
+                else:
+                    current_event['start'] = {
+                        'dateTime': start_time.isoformat() + 'Z',
+                        'timeZone': 'UTC'
+                    }
 
             if end_time is not None:
-                current_event['end'] = {
-                    'dateTime': end_time.isoformat(),
-                    'timeZone': 'UTC'
-                }
+                # Убираем timezone info если есть
+                if end_time.tzinfo is not None:
+                    end_time = end_time.replace(tzinfo=None)
+                
+                if is_all_day:
+                    # Для all-day событий используем формат date
+                    current_event['end'] = {'date': end_time.strftime('%Y-%m-%d')}
+                else:
+                    current_event['end'] = {
+                        'dateTime': end_time.isoformat() + 'Z',
+                        'timeZone': 'UTC'
+                    }
 
             if attendees is not None:
                 current_event['attendees'] = [{'email': email} for email in attendees]

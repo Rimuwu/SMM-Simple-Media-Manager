@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID as _UUID
 from os import getenv
@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from database.connection import session_factory
 from global_modules.classes.enums import CardType, ChangeType, UserRole
+from global_modules.timezone import now_naive as moscow_now
 from modules.kaiten import kaiten
 from modules.properties import multi_properties
 from modules.json_get import open_settings, open_properties
@@ -274,6 +275,7 @@ class CardUpdate(BaseModel):
     change_type: Optional[str] = None  # Тип изменения
     old_value: Optional[str] = None  # Старое значение
     new_value: Optional[str] = None  # Новое значение
+    author_id: Optional[str] = None  # ID пользователя, который вносит изменения
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
@@ -509,6 +511,29 @@ async def update_card(card_data: CardUpdate):
                     print(f"Sent complete previews for card {card.card_id}: {complete_message_ids}")
             except Exception as e:
                 print(f"Error sending complete previews: {e}")
+            
+            # Уведомляем заказчика о готовности задачи
+            if card.customer_id:
+                try:
+                    customer = await User.get_by_key('user_id', card.customer_id)
+                    if customer:
+                        deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
+                        message_text = (
+                            f"✅ Задача готова!\n\n"
+                            f"📝 Название: {card.name}\n"
+                            f"⏰ Дедлайн: {deadline_str}\n\n"
+                            f"Задача готова к публикации."
+                        )
+                        await executors_api.post(
+                            ApiEndpoints.NOTIFY_USER,
+                            data={
+                                "user_id": customer.telegram_id,
+                                "message": message_text
+                            }
+                        )
+                        print(f"Notified customer {customer.telegram_id} about ready card {card.card_id}")
+                except Exception as e:
+                    print(f"Error notifying customer about ready status: {e}")
         
         # Уведомляем об изменении статуса, чтобы обновить сцены
         try:
@@ -597,6 +622,27 @@ async def update_card(card_data: CardUpdate):
                 
             except Exception as e:
                 print(f"Error closing scenes: {e}")
+            
+            # Создаём задачу на удаление карточки через 2 дня
+            try:
+                from models.ScheduledTask import ScheduledTask
+                from uuid import UUID as PyUUID
+                
+                delete_at = moscow_now() + timedelta(days=2)
+                card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
+                
+                async with session_factory() as session:
+                    task = ScheduledTask(
+                        card_id=card_uuid,
+                        function_path="modules.notifications.delete_sent_card",
+                        execute_at=delete_at,
+                        arguments={"card_id": str(card.card_id)}
+                    )
+                    session.add(task)
+                    await session.commit()
+                    logger.info(f"Создана задача удаления карточки {card.card_id} на {delete_at}")
+            except Exception as e:
+                logger.error(f"Ошибка создания задачи удаления: {e}")
 
     if 'executor_id' in data and data['executor_id'] != card.executor_id:
         logger.info(f"Изменение исполнителя карточки {card.card_id}: {card.executor_id} -> {data['executor_id']}")
@@ -692,6 +738,16 @@ async def update_card(card_data: CardUpdate):
                 comment = f"⏰ Дедлайн изменен: {old_dt.strftime('%d.%m.%Y %H:%M')} → {new_dt.strftime('%d.%m.%Y %H:%M')}"
             except:
                 pass
+        
+        # Добавляем информацию об авторе изменения в комментарий Kaiten
+        if card_data.author_id:
+            try:
+                author = await User.get_by_key('user_id', card_data.author_id)
+                if author:
+                    author_name = await get_kaiten_user_name(author)
+                    comment += f"\n👤 Изменил: {author_name}"
+            except Exception as e:
+                logger.error(f"Ошибка получения имени автора для комментария: {e}")
         
         await update_kaiten_card_field(
             card.task_id, 
@@ -861,6 +917,17 @@ async def update_card(card_data: CardUpdate):
             ChangeType.DESCRIPTION.value: '📝 Изменено описание'
         }
         message_text = change_messages.get(card_data.change_type or '', Messages.CHANGE_NOTIFICATION.value)
+        
+        # Добавляем информацию об авторе изменений
+        if card_data.author_id:
+            try:
+                author = await User.get_by_key('user_id', card_data.author_id)
+                if author:
+                    author_name = await get_kaiten_user_name(author)
+                    message_text += f"\n👤 Изменил: {author_name}"
+            except Exception as e:
+                logger.error(f"Ошибка получения имени автора: {e}")
+        
         message_text += f"\n\n📝 Задача: {card.name}"
         
         if card_data.change_type == ChangeType.DEADLINE.value and card_data.new_value:
@@ -1103,3 +1170,25 @@ async def send_now(request: SendNowRequest):
         "detail": "Card scheduled for immediate sending",
         "send_time": send_time.isoformat()
     }
+
+
+class NotifyExecutorRequest(BaseModel):
+    card_id: str
+    message: str
+
+
+@router.post("/notify-executor")
+async def notify_executor_endpoint(data: NotifyExecutorRequest):
+    """
+    Отправляет уведомление исполнителю задачи.
+    """
+    card = await Card.get_by_key('card_id', data.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    
+    if not card.executor_id:
+        raise HTTPException(status_code=400, detail="Card has no executor")
+    
+    await notify_executor(str(card.executor_id), data.message, task_id=data.card_id)
+    
+    return {"detail": "Notification sent"}

@@ -83,52 +83,79 @@ class UserDetailPage(Page):
 
     async def buttons_worker(self):
         user_id = self.scene.data['scene'].get('selected_user')
-        return [
-            {
-                "text": "🎭 Изменить роль",
+        current_user_telegram_id = self.scene.user_id
+        
+        # Проверяем, не редактирует ли админ себя
+        is_self_edit = (user_id == current_user_telegram_id)
+        
+        buttons = []
+        
+        if not is_self_edit:
+            # Кнопки редактирования только если это не свой профиль
+            buttons.extend([
+                {
+                    "text": "🎭 Изменить роль",
+                    "callback_data": callback_generator(
+                        self.scene.__scene_name__,
+                        "select-role"
+                    )
+                },
+                {
+                    "text": "🆔 Изменить Kaiten ID",
+                    "callback_data": callback_generator(
+                        self.scene.__scene_name__,
+                        "select-kaiten-user"
+                    )
+                },
+                {
+                    "text": "🏢 Изменить департамент",
+                    "callback_data": callback_generator(
+                        self.scene.__scene_name__,
+                        "select-department"
+                    )
+                },
+                {
+                    "text": "📝 Изменить описание",
+                    "callback_data": callback_generator(
+                        self.scene.__scene_name__,
+                        "edit-about"
+                    )
+                },
+                {
+                    "text": "❌ Удалить пользователя",
+                    "callback_data": callback_generator(
+                        self.scene.__scene_name__,
+                        "delete-user"
+                    ),
+                    "ignore_row": True
+                }
+            ])
+        else:
+            # Для своего профиля показываем сообщение
+            buttons.append({
+                "text": "⚠️ Нельзя редактировать себя",
                 "callback_data": callback_generator(
                     self.scene.__scene_name__,
-                    "select-role"
-                )
-            },
-            {
-                "text": "🆔 Изменить Kaiten ID",
-                "callback_data": callback_generator(
-                    self.scene.__scene_name__,
-                    "select-kaiten-user"
-                )
-            },
-            {
-                "text": "🏢 Изменить департамент",
-                "callback_data": callback_generator(
-                    self.scene.__scene_name__,
-                    "select-department"
-                )
-            },
-            {
-                "text": "📝 Изменить описание",
-                "callback_data": callback_generator(
-                    self.scene.__scene_name__,
-                    "edit-about"
-                )
-            },
-            {
-                "text": "❌ Удалить пользователя",
-                "callback_data": callback_generator(
-                    self.scene.__scene_name__,
-                    "delete-user"
+                    "self_edit_warning"
                 ),
                 "ignore_row": True
-            },
-            {
-                "text": "🔙 Назад",
-                "callback_data": callback_generator(
-                    self.scene.__scene_name__,
-                    "users-list"
-                ),
-                "ignore_row": True
-            }
-        ]
+            })
+        
+        # Кнопка назад всегда доступна
+        buttons.append({
+            "text": "🔙 Назад",
+            "callback_data": callback_generator(
+                self.scene.__scene_name__,
+                "users-list"
+            ),
+            "ignore_row": True
+        })
+        
+        return buttons
+    
+    @Page.on_callback('self_edit_warning')
+    async def on_self_edit_warning(self, callback, args):
+        await callback.answer("⚠️ Вы не можете редактировать свой профиль", show_alert=True)
 
     @Page.on_callback('delete-user')
     async def on_delete(self, callback, args):

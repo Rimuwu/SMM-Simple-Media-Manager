@@ -348,6 +348,30 @@ async def finalize_card_publication(card: Card, **kwargs):
         await card.update(status=CardStatus.sent)
         logger.info(f"Статус карточки {card.card_id} изменен на sent")
         
+        # Создаём задачу на удаление карточки через 2 дня
+        try:
+            from models.ScheduledTask import ScheduledTask
+            from database.connection import session_factory
+            from global_modules.timezone import now_naive as moscow_now
+            from datetime import timedelta
+            from uuid import UUID as PyUUID
+            
+            delete_at = moscow_now() + timedelta(days=2)
+            card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
+            
+            async with session_factory() as session:
+                task = ScheduledTask(
+                    card_id=card_uuid,
+                    function_path="modules.notifications.delete_sent_card",
+                    execute_at=delete_at,
+                    arguments={"card_id": str(card.card_id)}
+                )
+                session.add(task)
+                await session.commit()
+                logger.info(f"Создана задача удаления карточки {card.card_id} на {delete_at}")
+        except Exception as e:
+            logger.error(f"Ошибка создания задачи удаления: {e}")
+        
         # Удаляем сообщение с форума
         if card.forum_message_id:
             try:
@@ -398,3 +422,157 @@ async def finalize_card_publication(card: Card, **kwargs):
         
     except Exception as e:
         logger.error(f"Ошибка финализации публикации карточки {card.card_id}: {e}", exc_info=True)
+
+
+async def delete_sent_card(card_id: str):
+    """
+    Удаляет карточку из БД (не из Kaiten).
+    Вызывается через 2 дня после получения статуса sent.
+    """
+    try:
+        card = await Card.get_by_key('card_id', card_id)
+        if not card:
+            logger.info(f"Карточка {card_id} уже удалена или не найдена")
+            return
+        
+        # Проверяем, что статус всё ещё sent (может измениться)
+        if card.status != CardStatus.sent:
+            logger.info(f"Карточка {card_id} изменила статус, удаление отменено")
+            return
+        
+        # Удаляем карточку из БД
+        await card.delete()
+        logger.info(f"Карточка {card_id} удалена из БД")
+        
+    except Exception as e:
+        logger.error(f"Ошибка удаления карточки {card_id}: {e}", exc_info=True)
+
+
+async def get_leaderboard_text(period: str = "all") -> str:
+    """
+    Получить текст лидерборда.
+    
+    Args:
+        period: "all", "year" или "month"
+    
+    Returns:
+        Форматированный текст лидерборда
+    """
+    from sqlalchemy import desc
+    
+    # Получаем пользователей отсортированных по количеству задач
+    if period == "year":
+        users = await User.filter_by()  # Получаем всех
+        users = sorted(users, key=lambda u: u.task_per_year, reverse=True)
+        period_name = "год"
+        get_tasks = lambda u: u.task_per_year
+    elif period == "month":
+        users = await User.filter_by()
+        users = sorted(users, key=lambda u: u.task_per_month, reverse=True)
+        period_name = "месяц"
+        get_tasks = lambda u: u.task_per_month
+    else:  # all
+        users = await User.filter_by()
+        users = sorted(users, key=lambda u: u.tasks, reverse=True)
+        period_name = "всё время"
+        get_tasks = lambda u: u.tasks
+    
+    # Фильтруем пользователей с 0 задачами
+    users = [u for u in users if get_tasks(u) > 0]
+    
+    if not users:
+        return f"🏆 Лидерборд ({period_name})\n\nПока нет выполненных задач."
+    
+    # Формируем текст
+    text_lines = [f"🏆 Лидерборд ({period_name})\n"]
+    
+    medals = ["🥇", "🥈", "🥉"]
+    for i, user in enumerate(users[:10]):  # Топ 10
+        medal = medals[i] if i < 3 else f"{i + 1}."
+        tasks_count = get_tasks(user)
+        text_lines.append(f"{medal} ID: {user.telegram_id} — {tasks_count} задач")
+    
+    return "\n".join(text_lines)
+
+
+async def reset_monthly_tasks():
+    """
+    Сбросить месячный счетчик задач у всех пользователей.
+    Отправить лидерборд на форум перед сбросом.
+    После выполнения создаёт следующую задачу сброса.
+    """
+    logger.info("Запуск сброса месячного счетчика задач")
+    
+    try:
+        # Получаем и отправляем лидерборд перед сбросом
+        leaderboard_text = await get_leaderboard_text("month")
+        
+        settings = open_settings()
+        group_forum = settings.get('group_forum')
+        
+        if group_forum:
+            await executors_api.post(
+                ApiEndpoints.NOTIFY_USER,
+                data={
+                    "user_id": group_forum,
+                    "message": f"📊 Итоги месяца:\n\n{leaderboard_text}"
+                }
+            )
+            logger.info("Лидерборд месяца отправлен на форум")
+        
+        # Сбрасываем счетчики
+        users = await User.filter_by()
+        for user in users:
+            await user.update(task_per_month=0)
+        
+        logger.info(f"Месячный счетчик сброшен у {len(users)} пользователей")
+        
+        # Создаём следующую задачу сброса
+        from modules.reset_tasks import check_and_create_monthly_reset_task
+        await check_and_create_monthly_reset_task()
+        
+    except Exception as e:
+        logger.error(f"Ошибка сброса месячного счетчика: {e}", exc_info=True)
+
+
+async def reset_yearly_tasks():
+    """
+    Сбросить годовой счетчик задач у всех пользователей.
+    Отправить лидерборд на форум перед сбросом.
+    После выполнения создаёт следующую задачу сброса.
+    """
+    logger.info("Запуск сброса годового счетчика задач")
+    
+    try:
+        # Получаем и отправляем лидерборд перед сбросом
+        leaderboard_text = await get_leaderboard_text("year")
+        
+        settings = open_settings()
+        group_forum = settings.get('group_forum')
+        
+        if group_forum:
+            await executors_api.post(
+                ApiEndpoints.NOTIFY_USER,
+                data={
+                    "user_id": group_forum,
+                    "message": f"📊 Итоги года:\n\n{leaderboard_text}"
+                }
+            )
+            logger.info("Лидерборд года отправлен на форум")
+        
+        # Сбрасываем счетчики (годовой и месячный)
+        users = await User.filter_by()
+        for user in users:
+            await user.update(task_per_year=0, task_per_month=0)
+        
+        logger.info(f"Годовой счетчик сброшен у {len(users)} пользователей")
+        
+        # Создаём следующую задачу сброса
+        from modules.reset_tasks import check_and_create_yearly_reset_task
+        await check_and_create_yearly_reset_task()
+        
+    except Exception as e:
+        logger.error(f"Ошибка сброса годового счетчика: {e}", exc_info=True)
+        
+    except Exception as e:
+        logger.error(f"Ошибка сброса годового счетчика: {e}", exc_info=True)

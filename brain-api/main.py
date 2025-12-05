@@ -20,6 +20,7 @@ from modules.logs import brain_logger
 from modules.kaiten import kaiten
 from modules.config_kaiten import sync_kaiten_settings
 from modules.scheduler import TaskScheduler
+from modules.reset_tasks import init_reset_tasks
 from database.connection import session_factory
 import asyncio
 
@@ -41,6 +42,9 @@ async def lifespan(app: FastAPI):
     # await kaiten_check()
 
     await sync_kaiten_settings()
+
+    # Проверка и создание задач сброса статистики
+    await init_reset_tasks()
 
     # Запуск планировщика задач
     scheduler = TaskScheduler(session_factory=session_factory, check_interval=10)

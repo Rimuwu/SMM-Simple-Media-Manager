@@ -1,8 +1,11 @@
 from asyncio import sleep
 from typing import Optional
-from aiogram.types import Message, CallbackQuery, FSInputFile
+import io
+from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
 from tg.oms import Page
 from tg.oms.utils import callback_generator, list_to_inline
+from PIL import Image
+from modules.logs import executors_logger as logger
 
 
 class FilesPage(Page):
@@ -180,6 +183,9 @@ class FilesPage(Page):
             await message.answer(f'❌ Достигнут лимит файлов ({self.max_files})')
             return
         
+        if not message.photo:
+            return
+        
         # Получаем самую большую версию фото
         photo = message.photo[-1]
         
@@ -211,14 +217,102 @@ class FilesPage(Page):
         # Проверяем тип сообщения
         if message.document:
             doc = message.document
-            file_info = {
-                'type': 'document',
-                'file_id': doc.file_id,
-                'file_unique_id': doc.file_unique_id,
-                'name': doc.file_name or f'document_{len(files) + 1}',
-                'size': doc.file_size,
-                'mime_type': doc.mime_type
-            }
+            mime_type = doc.mime_type or ''
+            file_name_orig = doc.file_name or ''
+            
+            # Проверяем, является ли документ изображением
+            image_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff']
+            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.tif']
+            
+            is_image = (
+                mime_type in image_mimes or
+                any(file_name_orig.lower().endswith(ext) for ext in image_extensions)
+            )
+            
+            if is_image:
+                # Конвертируем в фото
+                try:
+                    file = await self.scene.__bot__.get_file(doc.file_id)
+                    if not file.file_path:
+                        await message.answer('❌ Не удалось получить файл')
+                        return
+                        
+                    file_data = await self.scene.__bot__.download_file(file.file_path)
+                    if not file_data:
+                        await message.answer('❌ Не удалось скачать файл')
+                        return
+                        
+                    raw_data = file_data.read()
+                    
+                    # Конвертируем в JPEG
+                    image = Image.open(io.BytesIO(raw_data))
+                    if image.mode in ('RGBA', 'LA', 'P'):
+                        background = Image.new('RGB', image.size, (255, 255, 255))
+                        if image.mode == 'P':
+                            image = image.convert('RGBA')
+                        background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                        image = background
+                    elif image.mode != 'RGB':
+                        image = image.convert('RGB')
+                    
+                    output = io.BytesIO()
+                    image.save(output, format='JPEG', quality=95)
+                    jpeg_data = output.getvalue()
+                    
+                    # Отправляем как фото и получаем file_id
+                    new_photo_name = f'photo_{len(files) + 1}.jpg'
+                    photo_file = BufferedInputFile(jpeg_data, filename=new_photo_name)
+                    
+                    sent_msg = await self.scene.__bot__.send_photo(
+                        chat_id=self.scene.user_id,
+                        photo=photo_file,
+                        caption="🔄 Конвертация документа в фото..."
+                    )
+                    
+                    # Получаем file_id из отправленного фото
+                    if not sent_msg.photo:
+                        await message.answer('❌ Ошибка конвертации фото')
+                        return
+                        
+                    new_photo = sent_msg.photo[-1]
+                    
+                    file_info = {
+                        'type': 'photo',
+                        'file_id': new_photo.file_id,
+                        'file_unique_id': new_photo.file_unique_id,
+                        'name': new_photo_name,
+                        'size': new_photo.file_size
+                    }
+                    
+                    # Удаляем техническое сообщение
+                    try:
+                        await sent_msg.delete()
+                    except:
+                        pass
+                    
+                    logger.info(f"Документ {file_name_orig} конвертирован в фото")
+                    
+                except Exception as e:
+                    logger.error(f"Ошибка конвертации документа в фото: {e}")
+                    # Если конвертация не удалась, сохраняем как документ
+                    file_info = {
+                        'type': 'document',
+                        'file_id': doc.file_id,
+                        'file_unique_id': doc.file_unique_id,
+                        'name': doc.file_name or f'document_{len(files) + 1}',
+                        'size': doc.file_size,
+                        'mime_type': doc.mime_type
+                    }
+            else:
+                # Обычный документ (не изображение)
+                file_info = {
+                    'type': 'document',
+                    'file_id': doc.file_id,
+                    'file_unique_id': doc.file_unique_id,
+                    'name': doc.file_name or f'document_{len(files) + 1}',
+                    'size': doc.file_size,
+                    'mime_type': doc.mime_type
+                }
         elif message.video:
             video = message.video
             file_info = {

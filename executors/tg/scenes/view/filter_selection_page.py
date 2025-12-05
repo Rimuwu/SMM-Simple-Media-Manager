@@ -1,7 +1,7 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from global_modules.classes.enums import UserRole
-from modules.api_client import get_user_role
+from modules.api_client import get_user_role, get_users
 
 class FilterSelectionPage(Page):
     __page_name__ = 'filter-selection'
@@ -25,7 +25,9 @@ class FilterSelectionPage(Page):
                 ('my-tasks', '📋 Мои задачи'),
                 ('all-tasks', '📁 Все задачи'), 
                 ('created-by-me', '➕ Созданные мной'),
-                ('for-review', '✨ Требуют проверки')
+                ('for-review', '✨ Требуют проверки'),
+                ('by-user', '👤 По пользователю'),
+                ('by-department', '🏢 По отделу')
             ]
         elif user_role == UserRole.copywriter:
             filters = [
@@ -60,6 +62,16 @@ class FilterSelectionPage(Page):
     @Page.on_callback('select_filter')
     async def select_filter_handler(self, callback, args):
         filter_type = args[1]
+        
+        # Если выбран фильтр по пользователю - переходим на страницу выбора пользователя
+        if filter_type == 'by-user':
+            await self.scene.update_page('select-user-filter')
+            return
+        
+        # Если выбран фильтр по отделу - переходим на страницу выбора отдела
+        if filter_type == 'by-department':
+            await self.scene.update_page('select-department-filter')
+            return
         
         # Сохраняем выбранный фильтр и сбрасываем номер страницы
         await self.scene.update_key('scene', 'selected_filter', filter_type)
