@@ -2,6 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from models.User import User
+from models.Card import Card
 from modules.api_client import executors_api
 from modules.logs import brain_logger as logger
 
@@ -107,10 +108,6 @@ async def update(user_data: UserUpdate):
     except Exception as e:
         logger.error(f"Ошибка при обновлении пользователя {user.telegram_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-    except Exception as e:
-        print(f"Error in user.update: {e}")
-        raise HTTPException(status_code=500, 
-                            detail=f"Internal server error: {str(e)}")
 
 @router.delete("/delete")
 async def delete(telegram_id: int):
@@ -123,5 +120,15 @@ async def delete(telegram_id: int):
             '/events/close_scene/' + str(user.telegram_id)
         )
 
+    # Обнуляем ссылки на пользователя в карточках
+    executor_cards = await Card.filter_by(executor_id=user.user_id)
+    for card in executor_cards:
+        await card.update(executor_id=None)
+    
+    customer_cards = await Card.filter_by(customer_id=user.user_id)
+    for card in customer_cards:
+        await card.update(customer_id=None)
+
     await user.delete()
+    logger.info(f"Пользователь {telegram_id} удалён, обнулено {len(executor_cards)} карточек исполнителя и {len(customer_cards)} карточек заказчика")
     return {"status": "ok"}

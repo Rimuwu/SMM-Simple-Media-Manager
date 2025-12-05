@@ -811,12 +811,13 @@ async def delete_card(card_id: str):
 
     await card.delete()
 
-    async with kaiten as client:
-        try:
-            await client.delete_card(card.task_id)
-        except Exception as e:
-            logger.error(f"Ошибка удаления карточки {card_id} из Kaiten: {e}")
-            return {"detail": f"Card deleted from DB, but failed to delete from Kaiten: {e}"}
+    if card.status != CardStatus.sent and card.task_id:
+        async with kaiten as client:
+            try:
+                await client.delete_card(card.task_id)
+            except Exception as e:
+                logger.error(f"Ошибка удаления карточки {card_id} из Kaiten: {e}")
+                return {"detail": f"Card deleted from DB, but failed to delete from Kaiten: {e}"}
 
     try:
         if card.calendar_id:

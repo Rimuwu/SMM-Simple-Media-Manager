@@ -298,21 +298,10 @@ async def reschedule_card_notifications(session: AsyncSession, card: Card) -> No
 # ================== Функции для управления тасками публикации ==================
 
 
-# Список исполнителей, поддерживающих нативную отложенную отправку
-SCHEDULABLE_EXECUTORS = ['tp_executor']  # Pyrogram поддерживает schedule_message
-
-
 async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
     """
     Запланировать задачи публикации постов для карточки.
     Создает задачи для каждого канала (клиента) карточки.
-    
-    Для исполнителей с поддержкой отложенной отправки (tp_executor):
-    - Создает задачу на schedule_post_via_executor
-    - Создает задачу проверки verify_post_sent через минуту после send_time
-    
-    Для остальных исполнителей (telegram_executor, vk_executor):
-    - Создает задачу на send_post_now в указанное время
     
     Args:
         session: Сессия БД
@@ -345,64 +334,32 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
             logger.warning(f"У клиента {client_key} не указан исполнитель")
             continue
         
-        # Проверяем, поддерживает ли исполнитель отложенную отправку
-        if executor_name in SCHEDULABLE_EXECUTORS:
-            # Исполнитель поддерживает нативную отложенную отправку
-            # Создаем задачу на планирование поста (выполняется сейчас)
-            if now < card.send_time:
-                schedule_task = ScheduledTask(
-                    card_id=card_uuid,
-                    function_path="modules.notifications.schedule_post_via_executor",
-                    execute_at=now + timedelta(seconds=5),  # Выполняем почти сразу
-                    arguments={
-                        "card_id": str(card.card_id),
-                        "client_key": client_key
-                    }
-                )
-                session.add(schedule_task)
-                logger.info(f"Создана задача планирования поста для {client_key} (карточка {card.card_id})")
-                
-                # Создаем задачу проверки через минуту после send_time
-                verify_time = card.send_time + timedelta(minutes=1)
-                verify_task = ScheduledTask(
-                    card_id=card_uuid,
-                    function_path="modules.notifications.verify_post_sent",
-                    execute_at=verify_time,
-                    arguments={
-                        "card_id": str(card.card_id),
-                        "client_key": client_key
-                    }
-                )
-                session.add(verify_task)
-                logger.info(f"Создана задача проверки поста для {client_key} на {verify_time}")
+        # Создаем задачу на отправку в указанное время
+        if card.send_time > now:
+            send_task = ScheduledTask(
+                card_id=card_uuid,
+                function_path="modules.notifications.send_post_now",
+                execute_at=card.send_time,
+                arguments={
+                    "card_id": str(card.card_id),
+                    "client_key": client_key
+                }
+            )
+            session.add(send_task)
+            logger.info(f"Создана задача отправки поста для {client_key} на {card.send_time}")
         else:
-            # Исполнитель не поддерживает отложенную отправку
-            # Создаем задачу на немедленную отправку в указанное время
-            if card.send_time > now:
-                send_task = ScheduledTask(
-                    card_id=card_uuid,
-                    function_path="modules.notifications.send_post_now",
-                    execute_at=card.send_time,
-                    arguments={
-                        "card_id": str(card.card_id),
-                        "client_key": client_key
-                    }
-                )
-                session.add(send_task)
-                logger.info(f"Создана задача отправки поста для {client_key} на {card.send_time}")
-            else:
-                # Время уже прошло - отправляем сейчас
-                send_task = ScheduledTask(
-                    card_id=card_uuid,
-                    function_path="modules.notifications.send_post_now",
-                    execute_at=now + timedelta(seconds=5),
-                    arguments={
-                        "card_id": str(card.card_id),
-                        "client_key": client_key
-                    }
-                )
-                session.add(send_task)
-                logger.info(f"Время отправки прошло, создана задача немедленной отправки для {client_key}")
+            # Время уже прошло - отправляем сейчас
+            send_task = ScheduledTask(
+                card_id=card_uuid,
+                function_path="modules.notifications.send_post_now",
+                execute_at=now + timedelta(seconds=5),
+                arguments={
+                    "card_id": str(card.card_id),
+                    "client_key": client_key
+                }
+            )
+            session.add(send_task)
+            logger.info(f"Время отправки прошло, создана задача немедленной отправки для {client_key}")
     
     # Создаём задачу финализации после отправки всех постов
     # Выполняется через 2 минуты после последнего поста
@@ -442,9 +399,7 @@ async def cancel_post_tasks(session: AsyncSession, card_id: str) -> int:
     
     # Удаляем задачи публикации
     post_functions = [
-        "modules.notifications.schedule_post_via_executor",
         "modules.notifications.send_post_now",
-        "modules.notifications.verify_post_sent"
     ]
     
     stmt = delete(ScheduledTask).where(
@@ -505,7 +460,6 @@ async def update_post_tasks_time(session: AsyncSession, card: Card, new_time: da
     
     # Обновляем время для задач публикации
     post_functions = [
-        "modules.notifications.schedule_post_via_executor",
         "modules.notifications.send_post_now",
     ]
     
@@ -520,19 +474,8 @@ async def update_post_tasks_time(session: AsyncSession, card: Card, new_time: da
     
     result = await session.execute(stmt)
     
-    # Также обновляем задачу верификации и финализации на время + 1 и 2 минуты
-    verify_time = new_time + timedelta(minutes=1)
+    # Также обновляем задачу финализации на время + 2 минуты
     finalize_time = new_time + timedelta(minutes=2)
-    
-    verify_stmt = (
-        update(ScheduledTask)
-        .where(
-            ScheduledTask.card_id == card_uuid,
-            ScheduledTask.function_path == "modules.notifications.verify_post_sent"
-        )
-        .values(execute_at=verify_time)
-    )
-    await session.execute(verify_stmt)
     
     finalize_stmt = (
         update(ScheduledTask)

@@ -253,46 +253,6 @@ async def check_card_approval(card: Card, **kwargs):
 # ================== Функции для публикации постов ==================
 
 
-async def schedule_post_via_executor(card: Card, client_key: str, **kwargs):
-    """
-    Запланировать пост через исполнителя с отложенной отправкой.
-    Используется для tp_executor (Pyrogram), который поддерживает schedule_message.
-    
-    Вся генерация контента и работа с исполнителями происходит на стороне executors API.
-    
-    Args:
-        card: Карточка с контентом
-        client_key: Ключ клиента из clients.json
-        **kwargs: Дополнительные параметры
-    """
-    logger.info(f"Планирование поста через исполнителя для карточки {card.card_id}, клиент: {client_key}")
-    
-    try:
-        # Отправляем запрос на отложенную публикацию - всю логику выполняет executors API
-        response, status = await executors_api.post(
-            "/post/schedule",
-            data={
-                "card_id": str(card.card_id),
-                "client_key": client_key,
-                "content": card.content or card.description or "",
-                "tags": card.tags,
-                "send_time": card.send_time.isoformat() if card.send_time else None,
-                "task_id": card.task_id,  # ID карточки в Kaiten для скачивания файлов
-                "post_images": card.post_images or []  # Имена файлов из Kaiten
-            }
-        )
-        
-        if status == 200 and response.get('success'):
-            logger.info(f"Пост для карточки {card.card_id} запланирован, клиент: {client_key}")
-        else:
-            logger.error(f"Ошибка планирования поста: {response}")
-            await notify_admins_about_post_failure(card, client_key, response.get('error', 'Unknown error'))
-            
-    except Exception as e:
-        logger.error(f"Ошибка при планировании поста для карточки {card.card_id}: {e}", exc_info=True)
-        await notify_admins_about_post_failure(card, client_key, str(e))
-
-
 async def send_post_now(card: Card, client_key: str, **kwargs):
     """
     Немедленно отправить пост через исполнителя.
@@ -331,39 +291,6 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
     except Exception as e:
         logger.error(f"Ошибка при отправке поста для карточки {card.card_id}: {e}", exc_info=True)
         await notify_admins_about_post_failure(card, client_key, str(e))
-
-
-async def verify_post_sent(card: Card, client_key: str, **kwargs):
-    """
-    Проверить, был ли отправлен пост через исполнителя с отложенной отправкой.
-    Вызывается через минуту после запланированного времени отправки.
-    Если пост не был отправлен - отправляет его немедленно.
-    
-    Args:
-        card: Карточка с контентом
-        client_key: Ключ клиента из clients.json
-        **kwargs: Дополнительные параметры
-    """
-    logger.info(f"Проверка отправки поста для карточки {card.card_id}, клиент: {client_key}")
-    
-    try:
-        # Проверяем статус отправки через executors API
-        response, status = await executors_api.get(
-            f"/post/verify/{card.card_id}/{client_key}"
-        )
-        
-        if status == 200 and response.get('sent'):
-            logger.info(f"Пост для карточки {card.card_id} успешно отправлен")
-            return
-        
-        # Пост не был отправлен - отправляем немедленно
-        logger.warning(f"Пост для карточки {card.card_id} не был отправлен, отправляем сейчас")
-        await send_post_now(card, client_key, **kwargs)
-        
-    except Exception as e:
-        logger.error(f"Ошибка при проверке отправки поста: {e}", exc_info=True)
-        # В случае ошибки проверки - отправляем пост
-        await send_post_now(card, client_key, **kwargs)
 
 
 async def notify_admins_about_post_failure(card: Card, client_key: str, error: str):
