@@ -134,6 +134,14 @@ class APIClient:
                 status_code = response.status
                 return response_data, status_code
 
+    async def available(self) -> bool:
+        """Проверяет доступность API"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.base_url}/") as response:
+                    return response.status == 200
+        except:
+            return False
 
 
     def clear_cache(self):

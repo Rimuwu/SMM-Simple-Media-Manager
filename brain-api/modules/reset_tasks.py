@@ -46,7 +46,7 @@ async def check_and_create_monthly_reset_task():
         if existing_tasks:
             logger.info(f"Задача сброса месячной статистики уже существует: {existing_tasks[0].task_id}")
             return
-        
+
         # Создаём новую задачу
         next_month = await get_next_month_start()
         

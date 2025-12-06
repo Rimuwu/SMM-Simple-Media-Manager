@@ -23,23 +23,38 @@ from modules.scheduler import TaskScheduler
 from modules.reset_tasks import init_reset_tasks
 from database.connection import session_factory
 import asyncio
-
+from modules.api_client import executors_api
 
 # Глобальный экземпляр планировщика
 scheduler = None
 
 
+async def create_sheduler():
+    global scheduler
+
+    executors_status = 0
+    while executors_status != True:
+        brain_logger.info("Ожидание запуска executors-api...")
+        await asyncio.sleep(3)
+
+        executors_status = await executors_api.available()
+
+    # Запуск планировщика задач
+    scheduler = TaskScheduler(
+        session_factory=session_factory, check_interval=10
+        )
+    await scheduler.start()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global scheduler
-    
+
     # Startup
     brain_logger.info("Апи запускается...")
     await create_tables()
-    brain_logger.info("Таблицы в базе данных созданы или уже существуют.")
+    brain_logger.info(
+        "Таблицы в базе данных созданы или уже существуют.")
     await create_superuser()
-
-    # await kaiten_check()
 
     await sync_kaiten_settings()
 
@@ -47,11 +62,8 @@ async def lifespan(app: FastAPI):
     await init_reset_tasks()
 
     # Запуск планировщика задач
-    scheduler = TaskScheduler(session_factory=session_factory, check_interval=10)
-    scheduler_task = asyncio.create_task(scheduler.start())
+    scheduler_task = asyncio.create_task(create_sheduler())
 
-    # await test_db()
-    
     yield
 
     # Shutdown
@@ -80,73 +92,3 @@ app = get_fastapi_app(
     # api_logger=brain_logger
 )
 # app.add_middleware(RequestLoggingMiddleware, logger=brain_logger)
-
-async def kaiten_check():
-
-    async with kaiten as client:
-        # boards = await client.get_boards(656548)
-        # pprint(boards)
-        
-        # columns = await client.get_columns(1490862)
-        # pprint(columns)
-        
-        # properties = await client.get_custom_properties()
-
-        # pprint(properties)
-
-        # card = await client.get_card(56247840)
-        # pprint(card)
-        
-        # card2 = await client.get_card(56248185)
-        # pprint(card2)
-        
-        us = await client.get_company_users(only_virtual=True)
-        print(us)
-
-        # pr_v = await client.get_property_select_values(496988)
-
-        # pprint(pr_v)
-        
-        # pp = await client.get_custom_properties()
-        # pprint(pp)
-
-async def test_db():
-    from models.Card import Card
-    
-    # Ищем карточку только по безопасным полям
-
-        # Если не найдена, создаем новую
-    card = await Card.create(
-        name="Test Card",
-        description="This is a test card",
-        task_id=1,
-        clients=["123sdd", "433fdf"],
-        tags=["tag1", "tag2"],
-        deadline=None,
-    )
-
-    card = await Card.get_by_id(card.card_id)
-    if card:
-        pprint(card.to_dict())
-    
-    
-    
-#     from models.User import User
-#     from models.Card import Card
-#     from models.Automation import Automation, Preset
-#     from uuid import uuid4
-
-#     # Создание пользователя
-    
-#     user, status = await User.first_or_create(
-#         user_id=uuid4(),
-#         telegram_id=123456789,
-#     )
-#     pprint(user.to_dict())
-    
-#     await user.update(telegram_id=987654321)
-#     pprint(user.to_dict())
-    
-#     user = await User.get_by_id(user.user_id)
-#     if user:
-#         pprint(user.to_dict())

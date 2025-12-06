@@ -1184,14 +1184,14 @@ async def delete_card(card_id: str):
 
     if card.forum_message_id:
         forum_res, status = await executors_api.delete(
-                ApiEndpoints.FORUM_DELETE_MESSAGE.value.format(card.card_id)
+                ApiEndpoints.FORUM_DELETE_MESSAGE_FOR_ID.value.format(card.forum_message_id)
             )
 
         if not forum_res.get('success', False):
             error_msg = forum_res.get('error', 'Unknown error')
             logger.error(f"Ошибка удаления сообщения форума для карточки {card_id}: {error_msg}")
             return {"detail": f"Card deleted from DB, but failed to delete forum message: {error_msg}"}
-    
+
     logger.info(f"Карточка {card_id} успешно удалена")
     return {"detail": "Card deleted successfully"}
 

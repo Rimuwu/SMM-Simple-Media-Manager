@@ -32,7 +32,7 @@ async def card_deleted(card_id: str):
 
     cards = await get_cards(card_id=card_id)
     if not cards:
-        return {"error": "Card not found", "success": False}
+        return {"error": f"Card not found for {card_id}", "success": False}
     else:
         card = cards[0]
         message_id = card.get("forum_message_id", None)

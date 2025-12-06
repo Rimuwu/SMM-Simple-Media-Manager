@@ -72,7 +72,8 @@ class TaskScheduler:
             for task in tasks:
                 await self._execute_task(task, session)
     
-    async def _execute_task(self, task: ScheduledTask, session: AsyncSession):
+    async def _execute_task(self, 
+                            task: ScheduledTask, session: AsyncSession):
         """
         Выполнить задачу.
         
@@ -94,26 +95,27 @@ class TaskScheduler:
                     await session.delete(task)
                     await session.commit()
                     return
-                
+
                 # Добавляем карточку в аргументы
                 task.arguments['card'] = card
-            
+
+            # Удаляем задачу до выполнения, чтобы избежать повторного выполнения
+            await session.delete(task)
+            await session.commit()
+
             # Выполняем функцию
             if asyncio.iscoroutinefunction(func):
                 await func(**task.arguments)
             else:
                 func(**task.arguments)
-            
+
             logger.info(f"Задача {task.task_id} выполнена успешно")
-            
+
         except Exception as e:
             logger.error(f"Ошибка выполнения задачи {task.task_id}: {e}", exc_info=True)
-        
-        finally:
-            # Удаляем задачу после выполнения (независимо от результата)
             await session.delete(task)
             await session.commit()
-    
+
     def _import_function(self, function_path: str) -> Callable:
         """
         Импортировать функцию по её пути.

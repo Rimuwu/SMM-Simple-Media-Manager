@@ -20,6 +20,21 @@ async def on_shutdown():
 async def delete_message_callback(callback):
     """Обработчик для удаления сообщения по коллбеку"""
     
+    # Проверяем права в группах/супергруппах
+    if callback.message.chat.type in ("group", "supergroup"):
+        member = await callback.bot.get_chat_member(
+            chat_id=callback.message.chat.id,
+            user_id=callback.from_user.id
+        )
+        # Проверяем, может ли пользователь удалять сообщения
+        can_delete = (
+            member.status in ("creator", "administrator") and 
+            (member.status == "creator" or getattr(member, "can_delete_messages", False))
+        )
+        if not can_delete:
+            await callback.answer("У вас нет прав на удаление сообщений", show_alert=True)
+            return
+    
     id_list = callback.data.split()[1:]  # Получаем список ID сообщений из callback_data
     
     try:

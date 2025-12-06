@@ -29,8 +29,8 @@ async def send_card_deadline_reminder(card: Card, **kwargs):
     logger.info(f"Проверка напоминания о дедлайне для карточки {card.card_id}")
     
     # Проверяем статус карточки
-    if card.status == CardStatus.ready:
-        logger.info(f"Карточка {card.card_id} имеет статус ready, напоминание не отправляется")
+    if card.status in [CardStatus.ready, CardStatus.sent]:
+        logger.info(f"Карточка {card.card_id} имеет статус ready или sent, напоминание не отправляется")
         return
     
     # Проверяем наличие исполнителя
@@ -49,8 +49,8 @@ async def send_card_deadline_reminder(card: Card, **kwargs):
         deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
         
         # Формируем сообщение
-        message_text = f"⏰ Напоминание о дедлайне\n\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\nОсталось 2 дня!"
-        
+        message_text = f"⏰ Напоминание о дедлайне\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\nОсталось 2 дня!"
+
         # Отправляем уведомление
         await executors_api.post(
             ApiEndpoints.NOTIFY_USER,
@@ -79,19 +79,20 @@ async def send_forum_deadline_passed(card: Card, **kwargs):
     try:
         settings = open_settings()
         group_forum = settings.get('group_forum')
-        
+
         if not group_forum:
             logger.warning("ID форума не найден в настройках")
             return
 
         # Формируем сообщение
-        message_text = f"⏰ Дедлайн прошел!\n\n📝 Задача: {card.name}\n\nЗадача просрочена!"
-        
+        message_text = f"⏰ Дедлайн прошел!\n📝 Задача: {card.name}\n\nЗадача просрочена!"
+
         await executors_api.post(
             ApiEndpoints.NOTIFY_USER,
             data={
                 "user_id": group_forum,
-                "message": message_text
+                "message": message_text,
+                "reply_to": card.forum_message_id
             }
         )
         
@@ -123,15 +124,16 @@ async def send_forum_no_executor_alert(card: Card, **kwargs):
         
         # Формируем сообщение
         message_text = f"⚠️ Внимание! Карточка без исполнителя\n\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\n❗ До дедлайна остался 1 день, но исполнитель не назначен!"
-        
+
         await executors_api.post(
             ApiEndpoints.NOTIFY_USER,
             data={
                 "user_id": group_forum,
-                "message": message_text
+                "message": message_text,
+                "reply_to": card.forum_message_id
             }
         )
-        
+
         logger.info(f"Уведомление об отсутствии исполнителя для карточки {card.card_id} отправлено на форум")
         
     except Exception as e:
@@ -195,64 +197,6 @@ async def send_admin_no_executor_alert(card: Card, **kwargs):
         logger.error(f"Ошибка отправки уведомлений админам для карточки {card.card_id}: {e}", exc_info=True)
 
 
-async def send_card_notification(card: Card, message_type: str = "default", **kwargs):
-    """
-    Отправить уведомление по карточке.
-    
-    Args:
-        card: Карточка
-        message_type: Тип сообщения (напоминание, уведомление и т.д.)
-        **kwargs: Дополнительные параметры
-    """
-    logger.info(f"Отправка уведомления типа '{message_type}' для карточки {card.card_id}")
-    
-    # TODO: Логика отправки в зависимости от типа
-    # if message_type == "deadline":
-    #     await send_deadline_message(card)
-    # elif message_type == "status_change":
-    #     await send_status_change_message(card)
-    
-    logger.info(f"Уведомление для карточки {card.card_id} отправлено")
-
-
-async def publish_card_content(card: Card, **kwargs):
-    """
-    Опубликовать контент карточки в запланированное время.
-    
-    Args:
-        card: Карточка с контентом для публикации
-        **kwargs: Дополнительные параметры
-    """
-    logger.info(f"Публикация контента карточки {card.card_id}")
-    
-    # TODO: Логика публикации контента
-    # - Отправка в социальные сети
-    # - Создание постов
-    # - Обновление статуса карточки
-    
-    logger.info(f"Контент карточки {card.card_id} опубликован")
-
-
-async def check_card_approval(card: Card, **kwargs):
-    """
-    Проверить статус согласования карточки.
-    
-    Args:
-        card: Карточка для проверки
-        **kwargs: Дополнительные параметры
-    """
-    logger.info(f"Проверка согласования карточки {card.card_id}")
-    
-    if card.need_check:
-        # TODO: Отправить напоминание о необходимости проверки
-        logger.info(f"Карточка {card.card_id} ожидает проверки")
-    
-    logger.info(f"Проверка карточки {card.card_id} завершена")
-
-
-# ================== Функции для публикации постов ==================
-
-
 async def send_post_now(card: Card, client_key: str, **kwargs):
     """
     Немедленно отправить пост через исполнителя.
@@ -293,7 +237,8 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
         await notify_admins_about_post_failure(card, client_key, str(e))
 
 
-async def notify_admins_about_post_failure(card: Card, client_key: str, error: str):
+async def notify_admins_about_post_failure(
+    card: Card, client_key: str, error: str):
     """
     Уведомить админов об ошибке публикации поста.
     
@@ -319,7 +264,7 @@ async def notify_admins_about_post_failure(card: Card, client_key: str, error: s
         for admin in admins:
             try:
                 await executors_api.post(
-                    "/events/notify_user",
+                    ApiEndpoints.NOTIFY_USER,
                     data={
                         "user_id": admin.telegram_id,
                         "message": message_text
@@ -429,7 +374,7 @@ async def finalize_card_publication(card: Card, **kwargs):
             for admin in admins:
                 try:
                     await executors_api.post(
-                        "/events/notify_user",
+                        ApiEndpoints.NOTIFY_USER,
                         data={
                             "user_id": admin.telegram_id,
                             "message": message_text
@@ -497,10 +442,10 @@ async def get_leaderboard_text(period: str = "all") -> str:
     
     # Фильтруем пользователей с 0 задачами
     users = [u for u in users if get_tasks(u) > 0]
-    
+
     if not users:
         return f"🏆 Лидерборд ({period_name})\n\nПока нет выполненных задач."
-    
+
     # Формируем текст
     text_lines = [f"🏆 Лидерборд ({period_name})\n"]
     
@@ -509,7 +454,7 @@ async def get_leaderboard_text(period: str = "all") -> str:
         medal = medals[i] if i < 3 else f"{i + 1}."
         tasks_count = get_tasks(user)
         text_lines.append(f"{medal} ID: {user.telegram_id} — {tasks_count} задач")
-    
+
     return "\n".join(text_lines)
 
 
@@ -524,31 +469,32 @@ async def reset_monthly_tasks():
     try:
         # Получаем и отправляем лидерборд перед сбросом
         leaderboard_text = await get_leaderboard_text("month")
-        
+
         settings = open_settings()
         group_forum = settings.get('group_forum')
-        
+
         if group_forum:
             await executors_api.post(
                 ApiEndpoints.NOTIFY_USER,
                 data={
                     "user_id": group_forum,
-                    "message": f"📊 Итоги месяца:\n\n{leaderboard_text}"
+                    "message": f"📊 Итоги месяца:\n\n{leaderboard_text}",
+                    "reply_to": settings.get('forum_topic')
                 }
             )
             logger.info("Лидерборд месяца отправлен на форум")
-        
+
         # Сбрасываем счетчики
         users = await User.filter_by()
         for user in users:
             await user.update(task_per_month=0)
-        
+
         logger.info(f"Месячный счетчик сброшен у {len(users)} пользователей")
-        
+
         # Создаём следующую задачу сброса
         from modules.reset_tasks import check_and_create_monthly_reset_task
         await check_and_create_monthly_reset_task()
-        
+
     except Exception as e:
         logger.error(f"Ошибка сброса месячного счетчика: {e}", exc_info=True)
 
@@ -573,24 +519,22 @@ async def reset_yearly_tasks():
                 ApiEndpoints.NOTIFY_USER,
                 data={
                     "user_id": group_forum,
-                    "message": f"📊 Итоги года:\n\n{leaderboard_text}"
+                    "message": f"📊 Итоги года:\n\n{leaderboard_text}\n\nС новым годом дизановры!",
+                    "reply_to": settings.get('forum_topic')
                 }
             )
             logger.info("Лидерборд года отправлен на форум")
-        
+
         # Сбрасываем счетчики (годовой и месячный)
         users = await User.filter_by()
         for user in users:
-            await user.update(task_per_year=0, task_per_month=0)
-        
+            await user.update(task_per_year=0)
+
         logger.info(f"Годовой счетчик сброшен у {len(users)} пользователей")
-        
+
         # Создаём следующую задачу сброса
         from modules.reset_tasks import check_and_create_yearly_reset_task
         await check_and_create_yearly_reset_task()
-        
-    except Exception as e:
-        logger.error(f"Ошибка сброса годового счетчика: {e}", exc_info=True)
-        
+
     except Exception as e:
         logger.error(f"Ошибка сброса годового счетчика: {e}", exc_info=True)

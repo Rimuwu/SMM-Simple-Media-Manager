@@ -37,6 +37,21 @@ async def delete_forum_message(card_id: str):
             "message_id": data.get("message_id", None),
             "error": data.get("error", None)}
 
+@router.delete("/delete-forum-message-for-id/{message_id}")
+async def delete_forum_message_for_id(message_id: str):
+    
+    client_executor: TelegramExecutor = manager.get(
+        "telegram_executor"
+    )
+
+    data = await client_executor.delete_message(
+        chat_id=group_forum,
+        message_id=message_id
+    )
+
+    return {"success": data.get("success", False),
+            "error": data.get("error", None)}
+
 class UpdateForumMessage(BaseModel):
     card_id: str
     status: str

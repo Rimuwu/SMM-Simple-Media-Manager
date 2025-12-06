@@ -1,3 +1,4 @@
+from aiogram import Bot
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
@@ -134,6 +135,7 @@ class NotifyUserEvent(BaseModel):
     message: str
     task_id: Optional[str] = None
     skip_if_page: Optional[str] = None
+    reply_to: Optional[int] = None
 
 
 @router.post("/notify_user")
@@ -169,17 +171,18 @@ async def notify_user(event: NotifyUserEvent):
             # Если нет активных сцен, получаем бот из менеджера исполнителей
             from modules.executors_manager import manager
             client_executor = manager.get("telegram_executor")
-            bot = client_executor.bot
-        
+            bot: Bot = client_executor.bot
+
         # Создаем клавиатуру с кнопкой удаления
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🗑️ Удалить", callback_data="delete_message")]
         ])
-        
+
         await bot.send_message(
             chat_id=event.user_id,
             text=event.message,
-            reply_markup=keyboard
+            reply_markup=keyboard,
+            reply_to_message_id=event.reply_to
         )
         
         return {"status": "ok", "sent": True}

@@ -7,32 +7,14 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.exceptions import TelegramBadRequest
 from modules.executors_manager import manager
-from modules.api_client import brain_api
+from modules.api_client import brain_api, get_kaiten_users_dict
 from modules.logs import executors_logger as logger
 from tg.filters.authorize import Authorize
+from modules.utils import get_display_name
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp  # type: ignore
 bot: Bot = client_executor.bot  # type: ignore
-
-
-async def get_user_display_name(telegram_id: int) -> str:
-    """
-    Получает отображаемое имя пользователя по telegram_id.
-    Возвращает @username если есть, иначе full_name.
-    """
-    try:
-        chat = await bot.get_chat(telegram_id)
-        if chat.username:
-            return f"@{chat.username}"
-        elif chat.full_name:
-            return chat.full_name
-        else:
-            return f"ID: {telegram_id}"
-    except Exception as e:
-        logger.warning(f"Не удалось получить данные пользователя {telegram_id}: {e}")
-        return f"ID: {telegram_id}"
-
 
 async def get_leaderboard_text(period: str = 'all') -> str:
     """
@@ -64,33 +46,44 @@ async def get_leaderboard_text(period: str = 'all') -> str:
         
         # Сортируем по количеству задач
         sorted_users = sorted(users, key=lambda u: u.get(field, 0), reverse=True)
-        
+
         # Формируем текст
         text_lines = [f"{emoji} **Лидерборд за {period_name}**\n"]
-        
+
         medals = ['🥇', '🥈', '🥉']
-        
-        for idx, user in enumerate(sorted_users[:10]):  # Топ 10
+
+        kaiten_users = await get_kaiten_users_dict()
+
+        idx = 0
+        for user in sorted_users[:10]:  # Топ 10
             tasks_count = user.get(field, 0)
-            
+
             if tasks_count == 0:
                 continue
-            
+            else:
+                idx += 1
+
             # Получаем имя пользователя через Telegram API
             telegram_id = user.get('telegram_id')
             if telegram_id:
-                name = await get_user_display_name(int(telegram_id))
+                name = await get_display_name(
+                    telegram_id=int(telegram_id), 
+                    kaiten_users=kaiten_users,
+                    bot=bot,
+                    tasker_id=user.get('tasker_id')
+                )
             else:
                 name = "Неизвестный"
-            
+
             # Определяем эмодзи позиции
             if idx < 3:
                 position = medals[idx]
             else:
                 position = f"{idx + 1}."
-            
-            text_lines.append(f"{position} {name} — *{tasks_count}* задач")
-        
+
+            text_lines.append(
+                f"• {position} {name} — *{tasks_count}* задач")
+
         if len(text_lines) == 1:
             text_lines.append("\n_Пока нет данных для отображения._")
         
@@ -121,9 +114,7 @@ async def leaderboard_command(message: Message):
             period = 'year'
         elif arg in ['all', 'всё', 'все', 'a']:
             period = 'all'
-    
-    await message.answer("⏳ Загрузка лидерборда...")
-    
+
     text = await get_leaderboard_text(period)
     
     # Добавляем кнопки для переключения периодов

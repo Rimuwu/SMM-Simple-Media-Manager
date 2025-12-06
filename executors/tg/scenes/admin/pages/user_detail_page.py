@@ -2,6 +2,9 @@ from tg.oms import Page
 from modules.api_client import get_users, delete_user, get_kaiten_users_dict
 from tg.oms.utils import callback_generator
 from tg.oms.common_pages.user_selector_page import UserSelectorPage
+from os import getenv
+
+superuser_id = int(getenv("ADMIN_ID", 0))
 
 class UserDetailPage(Page):
     __page_name__ = 'user-detail'
@@ -78,19 +81,22 @@ class UserDetailPage(Page):
             tasks=self.user.get('tasks', 0),
             tasks_year=self.user.get('task_per_year', 0),
             tasks_month=self.user.get('task_per_month', 0),
-            name=display_name
+            name=display_name,
+            created=self.user.get('tasks_created', 0),
+            checked=self.user.get('tasks_checked', 0)
         )
 
     async def buttons_worker(self):
         user_id = self.scene.data['scene'].get('selected_user')
         current_user_telegram_id = self.scene.user_id
-        
+
         # Проверяем, не редактирует ли админ себя
         is_self_edit = (user_id == current_user_telegram_id)
-        
+        is_admin = isinstance(self.user, dict) and (self.user.get('role') == 'admin')
+
         buttons = []
-        
-        if not is_self_edit:
+
+        if not is_self_edit or current_user_telegram_id == superuser_id:
             # Кнопки редактирования только если это не свой профиль
             buttons.extend([
                 {
@@ -133,14 +139,14 @@ class UserDetailPage(Page):
         else:
             # Для своего профиля показываем сообщение
             buttons.append({
-                "text": "⚠️ Нельзя редактировать себя",
+                "text": "⚠️ Себя редактировать нельзя",
                 "callback_data": callback_generator(
                     self.scene.__scene_name__,
                     "self_edit_warning"
                 ),
                 "ignore_row": True
             })
-        
+
         # Кнопка назад всегда доступна
         buttons.append({
             "text": "🔙 Назад",

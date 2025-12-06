@@ -1,4 +1,5 @@
 
+from pprint import pprint
 from modules.kaiten import kaiten
 from modules.json_get import open_settings
 import json
@@ -47,6 +48,10 @@ async def sync_kaiten_settings():
         logger.error(f"Ошибка при синхронизации настроек: {e}")
         results['error'] = str(e)
     
+    async with kaiten as k:
+        vr = await k.get_company_users(only_virtual=True)
+        pprint(vr)
+
     return results
 
 

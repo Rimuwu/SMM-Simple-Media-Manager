@@ -372,7 +372,7 @@
                 "row_width": 2
             },
             "user-detail": {
-                "content": "*👤 Имя*: {name}\n🧪 *Телеграм ID:* `{telegram_id}`\n🎭 *Роль:* {role}\n🆔 *Kaiten ID:* {tasker_id}\n🏢 *Департамент:* {department}\n📝 *Описание:* {about}\n\n*🍿 Выполнено задач*\n- Всё время: {tasks}\n- Год: {tasks_year}\n- Месяц: {tasks_month}",
+                "content": "*👤 Имя*: {name}\n🧪 *Телеграм ID:* `{telegram_id}`\n🎭 *Роль:* {role}\n🆔 *Kaiten ID:* {tasker_id}\n🏢 *Департамент:* {department}\n📝 *Описание:* {about}\n\n*🍿 Выполнено задач*\n- Всё время: {tasks}\n- Год: {tasks_year}\n- Месяц: {tasks_month}\n\n*🍢 Иная статистика*\n- Создано: {created}\n- Проверено: {checked}",
                 "row_width": 2
             },
             "add-user": {

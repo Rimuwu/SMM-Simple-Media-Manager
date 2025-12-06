@@ -78,6 +78,7 @@ services:
       - KAITEN_DOMAIN=${KAITEN_DOMAIN}
       - TZ=Europe/Moscow
       - VK_USER_TOKEN=${VK_USER_TOKEN}
+      - ADMIN_ID=${ADMIN_ID}
     ports:
       - "127.0.0.1:8013:8003"
     depends_on:

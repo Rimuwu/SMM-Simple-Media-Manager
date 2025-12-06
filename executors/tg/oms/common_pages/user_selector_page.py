@@ -2,7 +2,7 @@ from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms.utils import callback_generator
 from modules.api_client import get_users, get_kaiten_users_dict
 from typing import Optional, Callable
-
+from modules.utils import get_telegram_user
 
 class UserSelectorPage(RadioTypeScene):
     """
@@ -108,22 +108,19 @@ class UserSelectorPage(RadioTypeScene):
 
         if tasker_id and tasker_id in kaiten_users:
             if bot and telegram_id:
-                try:
-                    chat = await bot.get_chat(telegram_id)
+                chat = await get_telegram_user(bot, telegram_id)
+                if chat:
                     return f"{kaiten_users[tasker_id]} (@{chat.username})" if chat.username else kaiten_users[tasker_id]
-                except Exception:
-                    pass
             else:
                 return kaiten_users[tasker_id]
 
         if bot and telegram_id:
-            try:
-                chat = await bot.get_chat(telegram_id)
-                return f"{chat.full_name} (@{chat.username})" if chat.username else chat.full_name
-            except Exception:
-                pass
 
-        return f"@{telegram_id}"
+            chat = await get_telegram_user(bot, telegram_id)
+            if chat:
+                return f"{chat.full_name} (@{chat.username})" if chat.username else chat.full_name
+
+        return f"{telegram_id}"
 
     async def buttons_worker(self):
         buttons = await super().buttons_worker()
