@@ -12,7 +12,7 @@ async def create_tables():
     engine.echo = False
     async with engine.begin() as conn:
         # Удаляем все таблицы с CASCADE для обхода зависимостей
-        # await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(
             text("CREATE SCHEMA IF NOT EXISTS public")
             )
@@ -43,7 +43,7 @@ async def create_superuser():
         new_admin = User(
             telegram_id=int(admin_id),
             role=UserRole.admin,
-            departament='smm'
+            department='smm'
         )
         session.add(new_admin)
         await session.commit()
