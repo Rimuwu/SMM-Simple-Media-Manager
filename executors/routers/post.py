@@ -121,13 +121,6 @@ def get_client_config(client_key: str) -> tuple:
     return client_config, executor_name, client_id
 
 
-def get_platform_from_client_key(client_key: str) -> str:
-    """Определить платформу по ключу клиента"""
-    if "vk" in client_key.lower():
-        return "vk"
-    return "telegram"
-
-
 @router.post("/schedule")
 async def schedule_post(request: PostScheduleRequest):
     """
@@ -163,11 +156,9 @@ async def schedule_post(request: PostScheduleRequest):
             return {"success": False, "error": "send_time is required"}
         
         # Генерируем текст поста
-        platform = get_platform_from_client_key(request.client_key)
         post_text = generate_post(
             content=request.content,
             tags=request.tags,
-            platform=platform,
             client_key=request.client_key
         )
         
@@ -259,11 +250,9 @@ async def send_post(request: PostSendRequest):
     
     try:
         # Генерируем текст поста
-        platform = get_platform_from_client_key(request.client_key)
         post_text = generate_post(
             content=request.content,
             tags=request.tags,
-            platform=platform,
             client_key=request.client_key
         )
         

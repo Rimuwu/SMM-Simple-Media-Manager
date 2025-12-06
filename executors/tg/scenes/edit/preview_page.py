@@ -169,7 +169,7 @@ class PreviewPage(Page):
         task_id = card.get('task_id')
         
         # Генерируем текст поста с тегом клиента
-        post_text = generate_post(content, tags, platform="telegram", client_key=client)
+        post_text = generate_post(content, tags, client_key=client)
 
         # Создаем клавиатуру с кнопкой удаления
         keyboard = InlineKeyboardMarkup(inline_keyboard=[

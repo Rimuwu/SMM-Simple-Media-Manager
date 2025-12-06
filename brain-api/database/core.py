@@ -42,7 +42,8 @@ async def create_superuser():
 
         new_admin = User(
             telegram_id=int(admin_id),
-            role=UserRole.admin
+            role=UserRole.admin,
+            departament='smm'
         )
         session.add(new_admin)
         await session.commit()

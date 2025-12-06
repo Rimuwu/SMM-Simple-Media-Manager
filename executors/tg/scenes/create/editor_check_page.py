@@ -43,18 +43,9 @@ class EditorCheckPage(Page):
                     'enable_check'
                 )
             })
-        
-        # Кнопка назад
-        buttons.append({
-            'text': '⬅️ Назад',
-            'callback_data': callback_generator(
-                self.scene.__scene_name__,
-                'main'
-            )
-        })
-        
+
         return buttons
-    
+
     @Page.on_callback('enable_check')
     async def enable_check(self, callback, args):
         """Включает проверку редактором"""

@@ -1,6 +1,7 @@
 from tg.oms.common_pages import UserSelectorPage
 from modules.api_client import update_card
 from modules.api_client import brain_api
+from global_modules.classes.enums import CardStatus
 
 class AssignExecutorPage(UserSelectorPage):
 
@@ -35,23 +36,34 @@ class AssignExecutorPage(UserSelectorPage):
             return False
 
         card_id = task.get('card_id')
+        current_status = task.get('status')
 
         if user_id == None:
             response, status = await brain_api.get(f"/card/delete-executor/{card_id}")
             success = (status == 200)
 
         else:
+            # Если статус pass_ и назначаем исполнителя - меняем статус на edited
+            update_params = {
+                'card_id': card_id,
+                'executor_id': user_id
+            }
+
+            if current_status == CardStatus.pass_.value or current_status == CardStatus.pass_:
+                update_params['status'] = CardStatus.edited
+
             # Обновляем карточку
-            result = await update_card(
-                card_id=card_id,
-                executor_id=user_id
-            )
+            result = await update_card(**update_params)
             success = result is not None
             print("Update executor response:", result)
 
         if success:
             # Обновляем данные задачи
             task['executor_id'] = user_id
+
+            # Если статус был pass_ и назначили исполнителя - обновляем статус в локальных данных
+            if user_id and (current_status == CardStatus.pass_.value or current_status == CardStatus.pass_):
+                task['status'] = CardStatus.edited.value
 
             # Обновляем информацию об исполнителе для отображения
             if user_id:

@@ -56,16 +56,16 @@ class MainPage(Page):
                     CardStatus.sent.value: "🚀 Отправлено"
                 }
                 status = status_names.get(card.get('status'), card.get('status', 'Неизвестно'))
-                
+
                 # Если статус "Отправлено", закрываем сцену
-                if card.get('status') == CardStatus.sent.value:
-                    logger.info(f"Сцена редактирования задачи {task_id} закрыта для пользователя {self.scene.user_id} (статус 'Отправлено')")
-                    await self.scene.bot.send_message(
-                        chat_id=self.scene.user_id,
-                        text="🚀 Задача была отправлена и закрыта для редактирования."
-                    )
-                    await self.scene.end()
-                    return
+                # if card.get('status') == CardStatus.sent.value:
+                #     logger.info(f"Сцена редактирования задачи {task_id} закрыта для пользователя {self.scene.user_id} (статус 'Отправлено')")
+                #     await self.scene.bot.send_message(
+                #         chat_id=self.scene.user_id,
+                #         text="🚀 Задача была отправлена и закрыта для редактирования."
+                #     )
+                #     # await self.scene.end()
+                #     return
                 
                 # Форматируем контент для отображения
                 content = card.get('content', 'Не указан')

@@ -321,17 +321,13 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     # Генерируем текст поста
     content = card.get("content") or card.get("description") or ""
     tags = card.get("tags", [])
-    
-    # Определяем платформу по ключу клиента
-    platform = "vk" if "vk" in client_key.lower() else "telegram"
-    
+
     post_text = generate_post(
         content=content,
         tags=tags,
-        platform=platform,
         client_key=client_key
     )
-    
+
     # Загружаем изображения если есть
     task_id = card.get("task_id")
     post_images = card.get("post_images", []) or []
@@ -448,13 +444,10 @@ async def update_complete_preview(card_id: str, client_key: str, post_id: int,
     # Генерируем текст поста
     content = card.get("content") or card.get("description") or ""
     tags = card.get("tags", [])
-    
-    platform = "vk" if "vk" in client_key.lower() else "telegram"
-    
+
     post_text = generate_post(
         content=content,
         tags=tags,
-        platform=platform,
         client_key=client_key
     )
     

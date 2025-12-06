@@ -52,7 +52,6 @@ def convert_hyperlinks_to_vk(text: str) -> str:
 def generate_post(
     content: str,
     tags: Optional[list[str]] = None,
-    platform: str = "telegram",
     client_key: Optional[str] = None
 ) -> str:
     """
@@ -61,14 +60,19 @@ def generate_post(
     Args:
         content: Основной текст поста
         tags: Список хештегов
-        platform: Платформа для форматирования (telegram, vk, instagram и т.д.)
+        platform: Платформа для форматирования (telegram, vk)
         client_key: Ключ клиента из clients.json для добавления tag_suffix
     
     Returns:
         Отформатированный текст поста
     """
     post_text = content.strip()
-    
+
+    if 'vk' in (client_key or '').lower():
+        platform = "vk"
+    else:
+        platform = "telegram"
+
     # Добавляем хештеги с суффиксом клиента
     if tags:
         tag_suffix = ""
@@ -95,6 +99,7 @@ def generate_post(
         # Telegram поддерживает HTML и Markdown
         # Оставляем как есть
         pass
+
     elif platform.lower() == "vk":
         # VK имеет свои особенности форматирования
         # Конвертируем гиперссылки vk.com в VK формат

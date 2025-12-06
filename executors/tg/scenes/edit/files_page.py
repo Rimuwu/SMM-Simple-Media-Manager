@@ -95,6 +95,10 @@ class FilesPage(Page):
         files = self.scene.get_key(self.__page_name__, 'files') or []
         selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
         
+        # Получаем сохранённые файлы из карточки для сравнения
+        card = await self.scene.get_card_data()
+        saved_images = card.get('post_images') or [] if card else []
+        
         # Кнопки для файлов из Kaiten (просмотр и toggle выбора)
         for file in files:
             file_id = file.get('id')
@@ -116,8 +120,11 @@ class FilesPage(Page):
                 )
             })
         
-        # Кнопка сохранения выбранных файлов в карточку
-        if selected_files:
+        # Проверяем, изменились ли выбранные файлы по сравнению с сохранёнными
+        files_changed = set(selected_files) != set(saved_images)
+        
+        # Кнопка сохранения выбранных файлов в карточку (только если есть изменения)
+        if selected_files and files_changed:
             buttons.append({
                 'text': f'💾 Сохранить выбранные ({len(selected_files)})',
                 'callback_data': callback_generator(
@@ -126,8 +133,9 @@ class FilesPage(Page):
                 ),
                 'ignore_row': True
             })
-            
-            # Кнопка очистки выбранных
+        
+        # Кнопка очистки выбранных (только если есть выбранные)
+        if selected_files:
             buttons.append({
                 'text': '🗑 Очистить выбранные',
                 'callback_data': callback_generator(

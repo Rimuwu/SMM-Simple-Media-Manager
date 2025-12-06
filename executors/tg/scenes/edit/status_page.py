@@ -1,5 +1,5 @@
 from tg.oms import Page
-from modules.api_client import update_card, get_cards, get_user_role
+from modules.api_client import update_card, get_cards, get_user_role, get_users, brain_api
 from global_modules.classes.enums import CardStatus
 from tg.oms.utils import callback_generator
 from modules.logs import executors_logger as logger
@@ -112,17 +112,44 @@ class StatusSetterPage(Page):
                                 'set_ready_no_send'
                             )
                         })
+                
+                # Кнопка "Вернуть на форум" для админа и исполнителя
+                # Доступна если статус "В работе", "На проверке" или "Готова"
+                if status in [CardStatus.edited.value, CardStatus.review.value, CardStatus.ready.value]:
+                    # Проверяем, является ли пользователь исполнителем этой задачи
+                    executor_id = card.get('executor_id')
+                    users = await get_users(telegram_id=self.scene.user_id)
+                    current_user_id = str(users[0].get('user_id')) if users else None
+                    is_executor = current_user_id and str(executor_id) == current_user_id
+                    
+                    if is_editor_or_admin or is_executor:
+                        buttons.append({
+                            'text': '📤 Вернуть на форум',
+                            'callback_data': callback_generator(
+                                self.scene.__scene_name__,
+                                'return_to_forum'
+                            ), 
+                            'ignore_row': True
+                        })
 
         return buttons
 
     @Page.on_callback('set_edited')
     async def set_edited_status(self, callback, args):
-        """Изменяет статус задачи на "В работе" """
+        """Изменяет статус задачи на "В работе" и устанавливает исполнителя"""
         task_id = self.scene.data['scene'].get('task_id')
         
         if task_id:
-            logger.info(f"Пользователь {self.scene.user_id} перевел задачу {task_id} в статус 'В работе'")
-            await update_card(card_id=task_id, status=CardStatus.edited)
+            # Получаем user_id текущего пользователя
+            users = await get_users(telegram_id=self.scene.user_id)
+            executor_id = None
+            if users:
+                executor_id = str(users[0].get('user_id'))
+            
+            logger.info(f"Пользователь {self.scene.user_id} перевел задачу {task_id} в статус 'В работе' (executor_id={executor_id})")
+            
+            # Обновляем статус и исполнителя
+            await update_card(card_id=task_id, status=CardStatus.edited, executor_id=executor_id)
             await self.scene.update_key('scene', 'status', '✏️ В работе')
             await callback.answer('✅ Статус изменен на "В работе"', show_alert=True)
             await self.scene.update_page('main-page')
@@ -173,7 +200,36 @@ class StatusSetterPage(Page):
                 send_time='reset'  # Сбрасываем время отправки
             )
             await self.scene.update_key('scene', 'status', '📤 Отправлена (без публикации)')
-            await callback.answer('✅ Задача завершена без отправки!', show_alert=True)
-            await self.scene.update_page('main-page')
+            await callback.answer('✅ Задача завершена без отправки!')
+            await self.scene.__bot__.send_message(
+                chat_id=self.scene.user_id,
+                text="Задача завершена без отправки."
+            )
+            # await self.scene.update_page('main-page')
+        else:
+            await callback.answer('❌ Ошибка: задача не найдена', show_alert=True)
+    
+    @Page.on_callback('return_to_forum')
+    async def return_to_forum_status(self, callback, args):
+        """Возвращает задачу на форум: сбрасывает исполнителя, статус на pass_, пересоздаёт сообщение форума"""
+        task_id = self.scene.data['scene'].get('task_id')
+        
+        if task_id:
+            logger.info(f"Пользователь {self.scene.user_id} возвращает задачу {task_id} на форум")
+            
+            # Вызываем специальный эндпоинт для возврата на форум
+            res, status = await brain_api.post(
+                '/card/return-to-forum',
+                data={'card_id': task_id}
+            )
+            
+            if status == 200:
+                await self.scene.update_key('scene', 'status', '⏳ Создано')
+                await callback.answer('✅ Задача возвращена на форум!', show_alert=True)
+                # Закрываем сцену редактирования, так как задача больше не у исполнителя
+                await self.scene.end()
+            else:
+                error_msg = res.get('detail', 'Неизвестная ошибка') if isinstance(res, dict) else str(res)
+                await callback.answer(f'❌ Ошибка: {error_msg}', show_alert=True)
         else:
             await callback.answer('❌ Ошибка: задача не найдена', show_alert=True)
