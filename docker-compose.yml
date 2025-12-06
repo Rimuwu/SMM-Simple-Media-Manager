@@ -27,7 +27,7 @@ services:
       - KAITEN_DOMAIN=${KAITEN_DOMAIN}
       - TZ=Europe/Moscow
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8010:8000"
     depends_on:
       - postgres
     restart: unless-stopped
@@ -53,7 +53,7 @@ services:
       - GOOGLE_CALENDAR_ID=${GOOGLE_CALENDAR_ID}
       - TZ=Europe/Moscow
     ports:
-      - "127.0.0.1:8001:8001"
+      - "127.0.0.1:8011:8001"
     depends_on:
       - brain
     restart: unless-stopped
@@ -79,7 +79,7 @@ services:
       - TZ=Europe/Moscow
       - VK_USER_TOKEN=${VK_USER_TOKEN}
     ports:
-      - "127.0.0.1:8003:8003"
+      - "127.0.0.1:8013:8003"
     depends_on:
       brain:
         condition: service_healthy
