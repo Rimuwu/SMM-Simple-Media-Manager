@@ -28,6 +28,33 @@ from modules.card_service import (
 from modules.logs import brain_logger as logger
 
 
+async def increment_reviewers_tasks(card: Card):
+    """
+    Увеличивает счётчик tasks_checked для всех редакторов,
+    которые оставили комментарии в editor_notes (не is_customer).
+    """
+    if not card.editor_notes:
+        return
+    
+    # Собираем уникальных авторов комментариев (не заказчиков)
+    reviewer_ids = set()
+    for note in card.editor_notes:
+        if not note.get('is_customer', False):
+            author_id = note.get('author')
+            if author_id:
+                reviewer_ids.add(str(author_id))
+    
+    # Увеличиваем счётчики для каждого редактора
+    for reviewer_id in reviewer_ids:
+        try:
+            reviewer = await User.get_by_key('user_id', reviewer_id)
+            if reviewer:
+                await reviewer.update(tasks_checked=reviewer.tasks_checked + 1)
+                logger.info(f"Увеличен счётчик проверенных задач для редактора {reviewer.user_id}")
+        except Exception as e:
+            logger.error(f"Ошибка увеличения счётчика проверенных задач для {reviewer_id}: {e}")
+
+
 # Создаём роутер
 router = APIRouter(prefix='/card')
 settings = open_settings() or {}
@@ -47,7 +74,7 @@ class CardCreate(BaseModel):
 
     # properties
     channels: Optional[list[str]] = None  # Список каналов для публикации
-    editor_check: bool = True # Нужно ли проверять перед публикацией
+    need_check: bool = True # Нужно ли проверять перед публикацией
     image_prompt: Optional[str] = None  # Промпт задачи для картинки
     tags: Optional[list[str]] = None  # Теги для карты
     type_id: CardType  # Тип задания
@@ -83,7 +110,7 @@ async def create_card(card_data: CardCreate):
 
     properties = multi_properties(
         channels=channels,
-        editor_check=card_data.editor_check,
+        editor_check=card_data.need_check,
         image_prompt=card_data.image_prompt,
         tags=tags
     )
@@ -120,9 +147,20 @@ async def create_card(card_data: CardCreate):
         image_prompt=card_data.image_prompt,
         customer_id=card_data.customer_id,
         executor_id=card_data.executor_id,
+        need_check=card_data.need_check
     )
-    
+
     logger.info(f"Карточка создана в БД: {card.card_id} (Kaiten ID: {card_id})")
+
+    # Увеличиваем счётчик созданных задач у заказчика
+    if card_data.customer_id:
+        try:
+            customer = await User.get_by_key('user_id', card_data.customer_id)
+            if customer:
+                await customer.update(tasks_created=customer.tasks_created + 1)
+                logger.info(f"Увеличен счётчик созданных задач для заказчика {customer.user_id}")
+        except Exception as e:
+            logger.error(f"Ошибка увеличения счётчика созданных задач: {e}")
 
     if card_data.type_id == CardType.public:
 
@@ -280,7 +318,6 @@ class CardUpdate(BaseModel):
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
-    # print(card_data.__dict__)
 
     card = await Card.get_by_key('card_id', card_data.card_id)
     if not card:
@@ -498,7 +535,26 @@ async def update_card(card_data: CardUpdate):
                 except Exception as e:
                     print(f"Error scheduling post tasks: {e}")
             else:
-                logger.info(f"Карточка {card.card_id} не требует отправки (need_send=False)")
+                # Если need_send=False, сразу меняем статус на sent и финализируем
+                logger.info(f"Карточка {card.card_id} не требует отправки (need_send=False), меняем статус на sent")
+                await card.update(status=CardStatus.sent)
+                
+                # Увеличиваем счётчики выполненных задач у исполнителя
+                if card.executor_id:
+                    try:
+                        executor = await User.get_by_key('user_id', card.executor_id)
+                        if executor:
+                            await executor.update(
+                                tasks=executor.tasks + 1,
+                                task_per_month=executor.task_per_month + 1,
+                                task_per_year=executor.task_per_year + 1
+                            )
+                            logger.info(f"Счётчики исполнителя {executor.user_id} увеличены (need_send=False)")
+                    except Exception as e:
+                        logger.error(f"Ошибка увеличения счётчиков исполнителя: {e}")
+                
+                # Увеличиваем tasks_checked для редакторов из editor_notes
+                await increment_reviewers_tasks(card)
             
             # Обновляем сообщение на форуме со статусом ready
             try:
@@ -1040,8 +1096,9 @@ async def delete_card(card_id: str):
             )
 
         if not forum_res.get('success', False):
-            logger.error(f"Ошибка удаления сообщения форума для карточки {card_id}")
-            return {"detail": "Card deleted from DB, but failed to delete forum message"}
+            error_msg = forum_res.get('error', 'Unknown error')
+            logger.error(f"Ошибка удаления сообщения форума для карточки {card_id}: {error_msg}")
+            return {"detail": f"Card deleted from DB, but failed to delete forum message: {error_msg}"}
     
     logger.info(f"Карточка {card_id} успешно удалена")
     return {"detail": "Card deleted successfully"}

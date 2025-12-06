@@ -159,19 +159,20 @@ class StatusSetterPage(Page):
     
     @Page.on_callback('set_ready_no_send')
     async def set_ready_no_send_status(self, callback, args):
-        """Завершает задачу без отправки в каналы (need_send=False, send_time=None)"""
+        """Завершает задачу без отправки в каналы (need_send=False, send_time=None) -> статус sent"""
         task_id = self.scene.data['scene'].get('task_id')
         
         if task_id:
             logger.info(f"Пользователь {self.scene.user_id} завершил задачу {task_id} без отправки")
             # Устанавливаем need_send=False и сбрасываем send_time
+            # Статус будет автоматически изменён на sent в brain-api
             await update_card(
                 card_id=task_id, 
                 status=CardStatus.ready,
                 need_send=False,
                 send_time='reset'  # Сбрасываем время отправки
             )
-            await self.scene.update_key('scene', 'status', '✅ Готова (без отправки)')
+            await self.scene.update_key('scene', 'status', '📤 Отправлена (без публикации)')
             await callback.answer('✅ Задача завершена без отправки!', show_alert=True)
             await self.scene.update_page('main-page')
         else:

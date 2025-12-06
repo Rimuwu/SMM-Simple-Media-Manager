@@ -395,6 +395,24 @@ async def finalize_card_publication(card: Card, **kwargs):
             except Exception as e:
                 logger.error(f"Ошибка увеличения счётчиков задач: {e}")
         
+        # Увеличиваем tasks_checked для редакторов из editor_notes
+        if card.editor_notes:
+            reviewer_ids = set()
+            for note in card.editor_notes:
+                if not note.get('is_customer', False):
+                    author_id = note.get('author')
+                    if author_id:
+                        reviewer_ids.add(str(author_id))
+            
+            for reviewer_id in reviewer_ids:
+                try:
+                    reviewer = await User.get_by_key('user_id', reviewer_id)
+                    if reviewer:
+                        await reviewer.update(tasks_checked=reviewer.tasks_checked + 1)
+                        logger.info(f"Увеличен счётчик проверенных задач для редактора {reviewer.user_id}")
+                except Exception as e:
+                    logger.error(f"Ошибка увеличения счётчика проверенных задач для {reviewer_id}: {e}")
+        
         # Получаем список каналов для отчёта
         clients_str = ", ".join(card.clients) if card.clients else "Не указаны"
         

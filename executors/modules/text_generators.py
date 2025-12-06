@@ -46,8 +46,9 @@ async def card_deleted(card_id: str):
 
     status = data.get("success", False)
     if not status:
+        error_msg = data.get("error", "Unknown error")
         return {
-            "error": "Не удалось удалить сообщение из форума", 
+            "error": f"Не удалось удалить сообщение из форума: {error_msg}", 
             "success": False
         }
 
