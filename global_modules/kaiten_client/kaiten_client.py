@@ -1044,6 +1044,214 @@ class KaitenClient:
         await self._request('DELETE', f'{endpoint}/{lane_id}')
         return True
 
+    # === ТИПЫ КАРТОЧЕК ===
+    
+    async def get_card_types(
+        self,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Получает список типов карточек.
+        
+        ⚠️ Поле properties устарело и будет удалено после 31.01.2026.
+        Используйте card_properties вместо него.
+        
+        Args:
+            limit: Максимальное количество типов в ответе (макс 100)
+            offset: Количество записей для пропуска
+        
+        Returns:
+            Список типов карточек
+        
+        Response Attributes:
+            - company_id: ID компании
+            - letter: Буква типа карточки
+            - name: Название типа карточки
+            - color: Номер цвета
+            - updated: Временная метка последнего обновления
+            - created: Дата создания
+            - id: ID типа карточки
+            - archived: Флаг архивации
+            - card_properties: Массив свойств карточки для заполнения
+            - suggest_fields: Предлагать отображение доп. полей на основе статистики
+        """
+        params = {}
+        
+        if limit is not None:
+            params['limit'] = limit
+        if offset is not None:
+            params['offset'] = offset
+        
+        response = await self._request('GET', KaitenConfig.ENDPOINT_CARD_TYPES, params=params)
+        return response if isinstance(response, list) else response.get('items', [])
+    
+    async def get_card_type(self, card_type_id: int) -> Dict[str, Any]:
+        """
+        Получает тип карточки по ID.
+        
+        ⚠️ Поле properties устарело и будет удалено после 31.01.2026.
+        Используйте card_properties вместо него.
+        
+        Args:
+            card_type_id: ID типа карточки
+        
+        Returns:
+            Данные типа карточки
+        
+        Response Attributes:
+            - company_id: ID компании
+            - letter: Буква типа карточки
+            - name: Название типа карточки
+            - color: Номер цвета
+            - updated: Временная метка последнего обновления
+            - created: Дата создания
+            - id: ID типа карточки
+            - description_template: Шаблон описания
+            - archived: Флаг архивации
+            - card_properties: Массив свойств карточки для заполнения
+            - suggest_fields: Предлагать отображение доп. полей на основе статистики
+        """
+        return await self._request('GET', f'{KaitenConfig.ENDPOINT_CARD_TYPES}/{card_type_id}')
+    
+    async def create_card_type(
+        self,
+        letter: str,
+        name: str,
+        color: int,
+        card_properties: Optional[List[Dict[str, Any]]] = None,
+        suggest_fields: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        Создает новый тип карточки.
+        
+        ⚠️ Поле properties устарело и будет удалено после 31.01.2026.
+        Используйте card_properties вместо него.
+        
+        Args:
+            letter: Символ типа (макс 1 символ или 11 для эмодзи)
+            name: Название типа (1-64 символа)
+            color: Номер цвета (2-25)
+            card_properties: Массив свойств карточки для заполнения
+            suggest_fields: Предлагать отображение доп. полей на основе статистики
+        
+        Returns:
+            Созданный тип карточки
+        
+        Response Attributes:
+            - company_id: ID компании
+            - letter: Буква типа карточки
+            - name: Название типа карточки
+            - color: Номер цвета
+            - updated: Временная метка последнего обновления
+            - created: Дата создания
+            - id: ID типа карточки
+            - description_template: Шаблон описания
+            - card_properties: Массив свойств карточки для заполнения
+            - suggest_fields: Предлагать отображение доп. полей на основе статистики
+        """
+        data: Dict[str, Any] = {
+            'letter': letter,
+            'name': name,
+            'color': color
+        }
+        
+        if card_properties is not None:
+            data['card_properties'] = card_properties
+        if suggest_fields is not None:
+            data['suggest_fields'] = suggest_fields
+        
+        return await self._request('POST', KaitenConfig.ENDPOINT_CARD_TYPES, json=data)
+    
+    async def update_card_type(
+        self,
+        card_type_id: int,
+        letter: Optional[str] = None,
+        name: Optional[str] = None,
+        color: Optional[int] = None,
+        card_properties: Optional[List[Dict[str, Any]]] = None,
+        suggest_fields: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        Обновляет тип карточки.
+        
+        ⚠️ Поле properties устарело и будет удалено после 31.01.2026.
+        Используйте card_properties вместо него.
+        
+        Args:
+            card_type_id: ID типа карточки
+            letter: Символ типа (макс 1 символ или 11 для эмодзи)
+            name: Название типа (1-64 символа)
+            color: Номер цвета (2-25)
+            card_properties: Массив свойств карточки для заполнения
+            suggest_fields: Предлагать отображение доп. полей на основе статистики
+        
+        Returns:
+            Обновленный тип карточки
+        
+        Response Attributes:
+            - company_id: ID компании
+            - letter: Буква типа карточки
+            - name: Название типа карточки
+            - color: Номер цвета
+            - updated: Временная метка последнего обновления
+            - created: Дата создания
+            - id: ID типа карточки
+            - description_template: Шаблон описания
+            - card_properties: Массив свойств карточки для заполнения
+            - suggest_fields: Предлагать отображение доп. полей на основе статистики
+        """
+        data: Dict[str, Any] = {}
+        
+        if letter is not None:
+            data['letter'] = letter
+        if name is not None:
+            data['name'] = name
+        if color is not None:
+            data['color'] = color
+        if card_properties is not None:
+            data['card_properties'] = card_properties
+        if suggest_fields is not None:
+            data['suggest_fields'] = suggest_fields
+        
+        return await self._request('PATCH', f'{KaitenConfig.ENDPOINT_CARD_TYPES}/{card_type_id}', json=data)
+    
+    async def delete_card_type(
+        self,
+        card_type_id: int,
+        replace_type_id: int
+    ) -> Dict[str, Any]:
+        """
+        Удаляет тип карточки.
+        
+        При удалении типа карточки необходимо указать ID типа,
+        на который будут заменены все карточки удаляемого типа.
+        
+        ⚠️ Поле properties устарело и будет удалено после 31.01.2026.
+        Используйте card_properties вместо него.
+        
+        Args:
+            card_type_id: ID удаляемого типа карточки
+            replace_type_id: ID типа карточки для замены
+        
+        Returns:
+            Данные удаленного типа карточки
+        
+        Response Attributes:
+            - company_id: ID компании
+            - letter: Буква типа карточки
+            - name: Название типа карточки
+            - color: Номер цвета
+            - updated: Временная метка последнего обновления
+            - created: Дата создания
+            - id: ID типа карточки
+            - description_template: Шаблон описания
+            - card_properties: Массив свойств карточки для заполнения
+            - suggest_fields: Предлагать отображение доп. полей на основе статистики
+        """
+        data = {'replace_type_id': replace_type_id}
+        return await self._request('DELETE', f'{KaitenConfig.ENDPOINT_CARD_TYPES}/{card_type_id}', json=data)
+
     # Методы для работы с пользовательскими свойствами
     async def get_custom_properties(self) -> List[Property]:
         """Получает список всех пользовательских свойств.

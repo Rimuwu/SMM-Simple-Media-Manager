@@ -212,9 +212,19 @@
             }
         }
     },
-    "card-types": {
-        "public": 534097,
-        "private": 534098
+    "card_types": {
+        "public": {
+            "id": 576243,
+            "name": "Личное задание",
+            "letter": "😎",
+            "color": 25
+        },
+        "private": {
+            "id": 576244,
+            "name": "Свободное задание",
+            "letter": "🕊",
+            "color": 2
+        }
     },
     "group_forum": -1001670342796,
     "forum_topic": 2315,

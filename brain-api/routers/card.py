@@ -106,7 +106,7 @@ async def create_card(card_data: CardCreate):
                     properties_data[PropertyNames.TAGS]['values'][tag]['id']
                 )
 
-    card_type = settings['card-types'][card_data.type_id]
+    card_type = settings['card_types'][card_data.type_id]['id']
 
     properties = multi_properties(
         channels=channels,

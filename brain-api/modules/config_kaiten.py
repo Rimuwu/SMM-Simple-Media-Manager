@@ -27,7 +27,8 @@ async def sync_kaiten_settings():
         'properties': {'created': [], 'updated': [], 'errors': []},
         'space': {'status': None, 'error': None},
         'boards': {'created': [], 'updated': [], 'errors': []},
-        'columns': {'created': [], 'updated': [], 'errors': []}
+        'columns': {'created': [], 'updated': [], 'errors': []},
+        'card_types': {'created': [], 'updated': [], 'errors': []}
     }
     
     try:
@@ -41,6 +42,9 @@ async def sync_kaiten_settings():
         # Синхронизация свойств
         await sync_properties(settings, results)
         
+        # Синхронизация типов карточек
+        await sync_card_types(settings, results)
+        
         # Сохраняем обновленные настройки
         save_settings(settings)
         
@@ -49,6 +53,7 @@ async def sync_kaiten_settings():
         results['error'] = str(e)
     
     async with kaiten as k:
+        print('USERS')
         vr = await k.get_company_users(only_virtual=True)
         pprint(vr)
 
@@ -338,6 +343,106 @@ async def sync_properties(settings: Dict[str, Any], results: Dict[str, Any]):
                 
     except Exception as e:
         logger.error(f"Ошибка при синхронизации свойств: {e}")
+
+
+async def sync_card_types(settings: Dict[str, Any], results: Dict[str, Any]):
+    """Синхронизирует типы карточек с Kaiten."""
+    card_types_config = settings.get('card_types', {})
+    
+    if not card_types_config:
+        logger.info("Нет типов карточек для синхронизации")
+        return
+    
+    try:
+        # Получаем все существующие типы карточек из Kaiten
+        existing_types = await kaiten.get_card_types()
+        existing_types_map = {t['name']: t for t in existing_types}
+        existing_types_id_map = {t['id']: t for t in existing_types}
+        
+        for type_key, type_config in card_types_config.items():
+            type_id = type_config.get('id', 0)
+            type_name = type_config.get('name', '')
+            type_letter = type_config.get('letter', '')
+            type_color = type_config.get('color', 2)  # По умолчанию цвет 2
+            
+            try:
+                if type_id and type_id in existing_types_id_map:
+                    # Тип найден по ID
+                    existing_type = existing_types_id_map[type_id]
+                    logger.info(f"Найден тип карточки '{type_name}' с ID {type_id}")
+                    
+                    # Проверяем, нужно ли обновить данные
+                    needs_update = False
+                    update_fields = {}
+                    
+                    if existing_type.get('name') != type_name and type_name:
+                        update_fields['name'] = type_name
+                        needs_update = True
+                        
+                    if existing_type.get('letter') != type_letter and type_letter:
+                        update_fields['letter'] = type_letter
+                        needs_update = True
+                    
+                    if needs_update:
+                        logger.info(f"Обновление типа карточки {type_id}: {update_fields}")
+                        await kaiten.update_card_type(type_id, **update_fields)
+                        results['card_types']['updated'].append(type_key)
+                    
+                    # Обновляем конфиг из Kaiten если данные не указаны
+                    if not type_name:
+                        type_config['name'] = existing_type.get('name', '')
+                    if not type_letter:
+                        type_config['letter'] = existing_type.get('letter', '')
+                    if 'color' not in type_config:
+                        type_config['color'] = existing_type.get('color', 2)
+                        
+                elif type_name in existing_types_map:
+                    # Нашли по названию - обновляем ID в настройках
+                    existing_type = existing_types_map[type_name]
+                    type_config['id'] = existing_type['id']
+                    logger.info(f"Найден тип карточки '{type_name}' с ID {existing_type['id']}")
+                    results['card_types']['updated'].append(type_key)
+                    
+                    # Проверяем, нужно ли обновить letter
+                    if existing_type.get('letter') != type_letter and type_letter:
+                        logger.info(f"Обновление letter типа карточки {existing_type['id']}: '{existing_type.get('letter')}' -> '{type_letter}'")
+                        await kaiten.update_card_type(existing_type['id'], letter=type_letter)
+                    
+                    # Обновляем данные из Kaiten
+                    if not type_letter:
+                        type_config['letter'] = existing_type.get('letter', '')
+                    if 'color' not in type_config:
+                        type_config['color'] = existing_type.get('color', 2)
+                        
+                else:
+                    # Тип не найден - создаём новый
+                    if not type_name or not type_letter:
+                        logger.warning(f"Пропускаем создание типа '{type_key}': отсутствует name или letter")
+                        continue
+                        
+                    logger.info(f"Тип карточки '{type_name}' ({type_key}) не найден в Kaiten, создаём новый")
+                    
+                    new_type = await kaiten.create_card_type(
+                        letter=type_letter,
+                        name=type_name,
+                        color=type_color
+                    )
+                    logger.info(f"API ответ создания типа карточки: {new_type}")
+                    type_config['id'] = new_type['id']
+                    type_config['color'] = new_type.get('color', type_color)
+                    logger.info(f"Создан новый тип карточки '{type_name}' с ID {new_type['id']}")
+                    results['card_types']['created'].append(type_key)
+                    await asyncio.sleep(0.5)  # Небольшая задержка после создания
+                    
+            except Exception as e:
+                logger.error(f"Ошибка при синхронизации типа карточки '{type_key}': {e}")
+                results['card_types']['errors'].append({
+                    'card_type': type_key,
+                    'error': str(e)
+                })
+                
+    except Exception as e:
+        logger.error(f"Ошибка при синхронизации типов карточек: {e}")
 
 
 async def sync_property_values(prop_id: int, prop_config: Dict[str, Any], results: Dict[str, Any]):
