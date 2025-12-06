@@ -1176,12 +1176,13 @@ async def delete_card(card_id: str):
                 logger.error(f"Ошибка удаления карточки {card_id} из Kaiten: {e}")
                 return {"detail": f"Card deleted from DB, but failed to delete from Kaiten: {e}"}
 
-    try:
-        if card.calendar_id:
-            await delete_calendar_event(card.calendar_id)
-    except Exception as e:
-        logger.error(f"Ошибка удаления события календаря для карточки {card_id}: {e}")
-        return {"detail": f"Card deleted from DB, but failed to delete from Calendar: {e}"}
+    if card.status != CardStatus.sent:
+        try:
+            if card.calendar_id:
+                await delete_calendar_event(card.calendar_id)
+        except Exception as e:
+            logger.error(f"Ошибка удаления события календаря для карточки {card_id}: {e}")
+            return {"detail": f"Card deleted from DB, but failed to delete from Calendar: {e}"}
 
     if card.forum_message_id:
         forum_res, status = await executors_api.delete(
