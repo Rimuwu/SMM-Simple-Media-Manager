@@ -92,6 +92,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+    name: smm_manager_postgres_data
 
 networks:
   smm_network:
