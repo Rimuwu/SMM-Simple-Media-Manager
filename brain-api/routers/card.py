@@ -490,18 +490,19 @@ async def update_card(card_data: CardUpdate):
             if 'executor_id' in data:
                 await card.update(executor_id=data['executor_id'])
                 await card.refresh()
-            
+
             # Обновляем сообщение на форуме
-            try:
-                forum_res, _ = await executors_api.post(
-                    ApiEndpoints.FORUM_UPDATE_MESSAGE,
-                    data={"card_id": str(card.card_id), "status": CardStatus.edited.value}
-                )
-                message_id = forum_res.get("message_id")
-                if message_id:
-                    await card.update(forum_message_id=message_id)
-            except Exception as e:
-                print(f"Error updating forum message: {e}")
+            if card.forum_message_id:
+                try:
+                    forum_res, _ = await executors_api.post(
+                        ApiEndpoints.FORUM_UPDATE_MESSAGE,
+                        data={"card_id": str(card.card_id), "status": CardStatus.edited.value}
+                    )
+                    message_id = forum_res.get("message_id")
+                    if message_id:
+                        await card.update(forum_message_id=message_id)
+                except Exception as e:
+                    print(f"Error updating forum message: {e}")
 
         need_send = data.get('need_send', card.need_send)
 
