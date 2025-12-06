@@ -1,9 +1,12 @@
 from datetime import datetime
+from os import getenv
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import SETTINGS
 from modules.api_client import brain_api, get_users, get_kaiten_users_dict, get_user_role
 from tg.oms.common_pages import UserSelectorPage
+
+debug = getenv('DEBUG', 'False') == 'True'
 
 class MainPage(Page):
     __page_name__ = 'main'
@@ -113,15 +116,16 @@ class MainPage(Page):
     async def buttons_worker(self) -> list[dict]:
         result = await super().buttons_worker()
         
-        result.append(
-            {
-                'text': 'Тестовые данные',
-                'callback_data': callback_generator(
-                    self.scene.__scene_name__,
-                    'test_data'
-                )
-            }
-        )
+        if debug:
+            result.append(
+                {
+                    'text': 'Тестовые данные',
+                    'callback_data': callback_generator(
+                        self.scene.__scene_name__,
+                        'test_data'
+                    )
+                }
+            )
 
         return result
     
