@@ -45,7 +45,10 @@ async def get_leaderboard_text(period: str = 'all') -> str:
             emoji = '🏆'
         
         # Сортируем по количеству задач
-        sorted_users = sorted(users, key=lambda u: u.get(field, 0), reverse=True)
+        sorted_users = sorted(users, 
+                              key=lambda u: u.get(field, 0), 
+                              reverse=True
+                              )
 
         # Формируем текст
         text_lines = [f"{emoji} **Лидерборд за {period_name}**\n"]
@@ -54,7 +57,7 @@ async def get_leaderboard_text(period: str = 'all') -> str:
 
         kaiten_users = await get_kaiten_users_dict()
 
-        idx = 0
+        idx = -1
         for user in sorted_users[:10]:  # Топ 10
             tasks_count = user.get(field, 0)
 
