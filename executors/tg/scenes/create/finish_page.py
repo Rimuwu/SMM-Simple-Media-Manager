@@ -183,7 +183,7 @@ class FinishPage(Page):
                 'deadline': data['publish_date'],
                 'send_time': data['send_date'],
                 'channels': data['channels'],
-                'editor_check': True,
+                'editor_check': data.get('editor_check', True),
                 'image_prompt': data['image'],
                 'tags': data['tags'],
                 'type_id': data['type'],

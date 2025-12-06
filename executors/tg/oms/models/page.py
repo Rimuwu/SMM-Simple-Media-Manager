@@ -344,6 +344,11 @@ class Page:
     async def post_buttons(self, 
                            buttons: list[dict]
                            ) -> list[dict]:
-        """ 
+        """ Функция вызывающаяся после формирования кнопок страницы
         """
         return buttons
+    
+    async def page_leave(self) -> None:
+        """ Функция вызывающаяся при выходе со страницы
+        """
+        pass

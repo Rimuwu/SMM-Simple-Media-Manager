@@ -1,8 +1,53 @@
 """
 Модуль для генерации постов с форматированием для различных платформ
 """
+import re
 from typing import Optional
 from modules.constants import CLIENTS, SETTINGS
+
+
+def clean_html(text: str) -> str:
+    """
+    Удаляет HTML теги из текста.
+    
+    Args:
+        text: Текст с HTML тегами
+    
+    Returns:
+        Очищенный текст без HTML тегов
+    """
+    clean = re.compile('<.*?>')
+    return re.sub(clean, '', text)
+
+
+def convert_hyperlinks_to_vk(text: str) -> str:
+    """
+    Конвертирует HTML гиперссылки в VK формат.
+    Ссылки на vk.com конвертируются в [ссылка|текст].
+    Остальные ссылки просто извлекают текст.
+    
+    Args:
+        text: Текст с HTML гиперссылками
+    
+    Returns:
+        Текст с конвертированными ссылками
+    """
+    # Паттерн для поиска <a href="...">текст</a>
+    pattern = r'<a\s+href=["\']([^"\']+)["\'][^>]*>([^<]+)</a>'
+    
+    def replace_link(match):
+        url = match.group(1)
+        link_text = match.group(2)
+        
+        # Если ссылка на vk.com, конвертируем в VK формат
+        if 'vk.com' in url:
+            return f'[{url}|{link_text}]'
+        else:
+            # Для остальных ссылок просто оставляем текст и URL
+            return f'{link_text} ({url})'
+    
+    return re.sub(pattern, replace_link, text, flags=re.IGNORECASE)
+
 
 def generate_post(
     content: str,
@@ -48,17 +93,15 @@ def generate_post(
     # Форматирование в зависимости от платформы
     if platform.lower() == "telegram":
         # Telegram поддерживает HTML и Markdown
-        # Здесь можно добавить специфичное форматирование
+        # Оставляем как есть
         pass
     elif platform.lower() == "vk":
         # VK имеет свои особенности форматирования
-        pass
-    elif platform.lower() == "instagram":
-        # Instagram ограничивает длину и не поддерживает ссылки
-        pass
+        # Конвертируем гиперссылки vk.com в VK формат
+        post_text = convert_hyperlinks_to_vk(post_text)
+        # Очищаем оставшиеся HTML теги
+        post_text = clean_html(post_text)
 
-    print(post_text)
-    
     return post_text
 
 

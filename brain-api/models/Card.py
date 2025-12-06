@@ -37,6 +37,8 @@ class Card(Base, AsyncCRUDMixin):
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     clients: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
     need_check: Mapped[bool] = mapped_column(Boolean, default=True)
+    need_send: Mapped[bool] = mapped_column(Boolean, default=True)
+
     tags: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     # Дополнительные поля для управления карточками

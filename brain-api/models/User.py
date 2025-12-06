@@ -18,6 +18,9 @@ class User(Base, AsyncCRUDMixin):
     task_per_month: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    tasks_checked: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tasks_created: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     department: Mapped[Department] = mapped_column(nullable=False, default=Department.without_department)
     about: Mapped[str] = mapped_column(String, nullable=True, default=None)
 

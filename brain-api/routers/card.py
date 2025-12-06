@@ -260,6 +260,7 @@ class CardUpdate(BaseModel):
     executor_id: Optional[str] = None
     customer_id: Optional[str] = None
     need_check: Optional[bool] = None
+    need_send: Optional[bool] = None  # Нужно ли отправлять в каналы
     forum_message_id: Optional[int] = None
     content: Optional[str] = None
     clients: Optional[list[str]] = None
@@ -487,14 +488,17 @@ async def update_card(card_data: CardUpdate):
                 except Exception as e:
                     print(f"Error closing executor scene: {e}")
             
-            # Планируем задачи публикации
-            try:
-                async with session_factory() as session:
-                    await card.refresh()
-                    await schedule_post_tasks(session, card)
-                    print(f"Scheduled post tasks for card {card.card_id}")
-            except Exception as e:
-                print(f"Error scheduling post tasks: {e}")
+            # Планируем задачи публикации только если need_send = True
+            await card.refresh()
+            if card.need_send:
+                try:
+                    async with session_factory() as session:
+                        await schedule_post_tasks(session, card)
+                        print(f"Scheduled post tasks for card {card.card_id}")
+                except Exception as e:
+                    print(f"Error scheduling post tasks: {e}")
+            else:
+                logger.info(f"Карточка {card.card_id} не требует отправки (need_send=False)")
             
             # Обновляем сообщение на форуме со статусом ready
             try:
@@ -1049,11 +1053,22 @@ class CommentAdd(BaseModel):
 
 @router.post("/add-comment")
 async def add_comment(note_data: CommentAdd):
-    """Добавить комментарий к карточке (обычный комментарий)"""
+    """Добавить комментарий к карточке (обычный комментарий от заказчика)"""
     logger.info(f"Добавление комментария к карточке {note_data.card_id} от {note_data.author}")
     card = await Card.get_by_key('card_id', note_data.card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
+    
+    # Сохраняем комментарий в editor_notes с пометкой is_customer
+    editor_notes = card.editor_notes or []
+    new_note = {
+        "content": note_data.content,
+        "author": note_data.author,
+        "is_customer": True,
+        "created_at": datetime.now().isoformat()
+    }
+    editor_notes.append(new_note)
+    await card.update(editor_notes=editor_notes)
     
     # Добавляем комментарий в Kaiten
     if card.task_id and card.task_id != 0:
@@ -1064,7 +1079,7 @@ async def add_comment(note_data: CommentAdd):
             if author:
                 author_name = await get_kaiten_user_name(author)
             
-            comment_text = f"💬 {author_name}: {note_data.content}"
+            comment_text = f"💬 Заказчик ({author_name}): {note_data.content}"
             
             await add_kaiten_comment(card.task_id, comment_text)
         except Exception as e:

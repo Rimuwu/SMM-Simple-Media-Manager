@@ -1,5 +1,5 @@
 from tg.oms import Page
-from modules.api_client import update_card, get_cards
+from modules.api_client import update_card, get_cards, get_user_role
 from global_modules.classes.enums import CardStatus
 from tg.oms.utils import callback_generator
 from modules.logs import executors_logger as logger
@@ -46,6 +46,11 @@ class StatusSetterPage(Page):
             if cards:
                 card = cards[0]
                 status = card.get('status')
+                need_check = card.get('need_check', True)
+                
+                # Проверяем роль пользователя
+                user_role = await get_user_role(self.scene.user_id)
+                is_editor_or_admin = user_role in ['admin', 'editor']
                 
                 # Если статус "Создано" - кнопка "Взять в работу"
                 if status == CardStatus.pass_.value:
@@ -57,17 +62,28 @@ class StatusSetterPage(Page):
                         )
                     })
                 
-                # Если статус "В работе" - кнопка "Отправить на проверку"
+                # Если статус "В работе"
                 elif status == CardStatus.edited.value and await self.can_complete():
-                    buttons.append({
-                        'text': '🔍 Отправить на проверку',
-                        'callback_data': callback_generator(
-                            self.scene.__scene_name__,
-                            'set_review'
-                        )
-                    })
+                    # Если need_check=False - сразу кнопка завершения
+                    if not need_check:
+                        buttons.append({
+                            'text': '✅ Завершить',
+                            'callback_data': callback_generator(
+                                self.scene.__scene_name__,
+                                'set_ready'
+                            )
+                        })
+                    else:
+                        # Иначе - отправить на проверку
+                        buttons.append({
+                            'text': '🔍 Отправить на проверку',
+                            'callback_data': callback_generator(
+                                self.scene.__scene_name__,
+                                'set_review'
+                            )
+                        })
 
-                # Если статус "На проверке" - 2 кнопки
+                # Если статус "На проверке" - кнопки для редактора/админа
                 elif status == CardStatus.review.value:
                     if await self.can_complete():
                         buttons.append({
@@ -84,9 +100,21 @@ class StatusSetterPage(Page):
                             'set_edited'
                         )
                     })
-        
+
+                # Кнопка "Завершить без отправки" для редактора/админа
+                # Доступна если статус "В работе" или "На проверке" и можно завершить
+                if is_editor_or_admin and status in [CardStatus.edited.value, CardStatus.review.value]:
+                    if await self.can_complete():
+                        buttons.append({
+                            'text': '🚫 Завершить без отправки',
+                            'callback_data': callback_generator(
+                                self.scene.__scene_name__,
+                                'set_ready_no_send'
+                            )
+                        })
+
         return buttons
-    
+
     @Page.on_callback('set_edited')
     async def set_edited_status(self, callback, args):
         """Изменяет статус задачи на "В работе" """
@@ -125,6 +153,26 @@ class StatusSetterPage(Page):
             await update_card(card_id=task_id, status=CardStatus.ready)
             await self.scene.update_key('scene', 'status', '✅ Готова')
             await callback.answer('✅ Задача завершена!', show_alert=True)
+            await self.scene.update_page('main-page')
+        else:
+            await callback.answer('❌ Ошибка: задача не найдена', show_alert=True)
+    
+    @Page.on_callback('set_ready_no_send')
+    async def set_ready_no_send_status(self, callback, args):
+        """Завершает задачу без отправки в каналы (need_send=False, send_time=None)"""
+        task_id = self.scene.data['scene'].get('task_id')
+        
+        if task_id:
+            logger.info(f"Пользователь {self.scene.user_id} завершил задачу {task_id} без отправки")
+            # Устанавливаем need_send=False и сбрасываем send_time
+            await update_card(
+                card_id=task_id, 
+                status=CardStatus.ready,
+                need_send=False,
+                send_time='reset'  # Сбрасываем время отправки
+            )
+            await self.scene.update_key('scene', 'status', '✅ Готова (без отправки)')
+            await callback.answer('✅ Задача завершена без отправки!', show_alert=True)
             await self.scene.update_page('main-page')
         else:
             await callback.answer('❌ Ошибка: задача не найдена', show_alert=True)

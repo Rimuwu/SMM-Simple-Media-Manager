@@ -1,9 +1,9 @@
 import asyncio
 import random
-import re
 import vk_api
 from vk_api.vk_api import VkApiMethod
 from modules.executor import BaseExecutor
+from modules.post_generator import clean_html, convert_hyperlinks_to_vk
 from typing import Optional, Dict, List, Any
 from modules.logs import executors_logger as logger
 
@@ -34,17 +34,17 @@ class VKExecutor(BaseExecutor):
             self.vk_user = None
             logger.warning("VK: User token не указан - загрузка фото на стену будет недоступна")
 
-    def _clean_html(self, text: str) -> str:
-        """Удалить HTML теги из текста"""
-        clean = re.compile('<.*?>')
-        return re.sub(clean, '', text)
+    def _format_text_for_vk(self, text: str) -> str:
+        """Форматирует текст для VK: конвертирует гиперссылки и очищает HTML"""
+        text = convert_hyperlinks_to_vk(text)
+        return clean_html(text)
 
     async def send_message(self, chat_id: str, text: str) -> dict:
         """Отправить сообщение"""
         try:
             result = self.vk.messages.send(
                 user_id=int(chat_id),
-                message=self._clean_html(text),
+                message=self._format_text_for_vk(text),
                 random_id=random.getrandbits(64)
             )
             return {"success": True, "message_id": result}
@@ -57,7 +57,7 @@ class VKExecutor(BaseExecutor):
             self.vk.messages.edit(
                 peer_id=int(chat_id),
                 message_id=int(message_id),
-                message=self._clean_html(text)
+                message=self._format_text_for_vk(text)
             )
             return {"success": True}
         except Exception as e:
@@ -85,7 +85,7 @@ class VKExecutor(BaseExecutor):
             
             params = {
                 "owner_id": -abs(self.group_id),  # Отрицательный ID для сообществ
-                "message": self._clean_html(text),
+                "message": self._format_text_for_vk(text),
                 "from_group": 1 if from_group else 0,
                 "signed": 1 if signed else 0,
                 "primary_attachments_mode": 'grid'
@@ -109,7 +109,7 @@ class VKExecutor(BaseExecutor):
             params = {
                 "owner_id": -abs(self.group_id),
                 "post_id": int(post_id),
-                "message": self._clean_html(text)
+                "message": self._format_text_for_vk(text)
             }
             
             if attachments:

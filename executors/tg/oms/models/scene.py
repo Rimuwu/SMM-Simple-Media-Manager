@@ -130,6 +130,8 @@ class Scene:
         page_model: Page = self.pages[page_name]
         status, answer = page_model.page_blocked()
         if status:
+            last_page = self.current_page
+            await last_page.page_leave()
 
             await self.update_key('scene', 'last_page', self.page)
             self.page = page_name

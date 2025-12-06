@@ -2,7 +2,7 @@ from datetime import datetime
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import SETTINGS
-from modules.api_client import brain_api, get_users, get_kaiten_users_dict
+from modules.api_client import brain_api, get_users, get_kaiten_users_dict, get_user_role
 from tg.oms.common_pages import UserSelectorPage
 
 class MainPage(Page):
@@ -17,6 +17,10 @@ class MainPage(Page):
             add_vars['type'] = 'Общее задание'
         else:
             add_vars['type'] = 'Личное задание'
+
+        # Editor check
+        editor_check = data.get('editor_check', True)
+        add_vars['editor_check'] = '✅' if editor_check else '❌'
 
         # Channels
         channels = data.get('channels', [])
@@ -159,3 +163,13 @@ class MainPage(Page):
                     'next_line'] = False
 
         return buttons_lst
+    
+    async def to_page_preworker(self, to_page_buttons: dict) -> dict:
+        """Фильтруем кнопки - editor-check только для админов"""
+        user_role = await get_user_role(self.scene.user_id)
+        
+        # Кнопка настройки проверки редактором доступна только админам
+        if user_role != 'admin' and 'editor-check' in to_page_buttons:
+            del to_page_buttons['editor-check']
+        
+        return to_page_buttons

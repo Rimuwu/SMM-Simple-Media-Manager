@@ -29,24 +29,29 @@ class EditorNotesPage(Page):
                     max_length = 800
                     displayed_count = 0
                     
+                    # Получаем kaiten_users один раз
+                    kaiten_users = await get_kaiten_users_dict()
+                    
                     # Идем от последнего к первому (новые комментарии первыми)
                     for i, note in enumerate(reversed(editor_notes), 1):
                         content = note.get('content', 'Пусто')
-                        author_id = str(note.get('author', None))
+                        author_id = str(note.get('author', ''))
+                        is_customer = note.get('is_customer', False)
                         
                         author_name = 'Неизвестный'
                         if author_id:
-                            users = await get_users(user_id=author_id)
-                            if users:
-                                user_data = users[0]
-                                kaiten_users = await get_kaiten_users_dict()
-
+                            author_users = await get_users(user_id=author_id)
+                            if author_users:
+                                user_data = author_users[0]
                                 author_name = await UserSelectorPage.get_display_name(
                                         user_data, kaiten_users, self.scene.__bot__
                                     )
 
-                        # Формируем текст комментария
-                        note_text = f"💬 {len(editor_notes) - i + 1}. от {author_name}:\n`{content}`"
+                        # Формируем текст комментария с пометкой для заказчика
+                        if is_customer:
+                            note_text = f"📋 {len(editor_notes) - i + 1}. *Заказчик* ({author_name}):\n`{content}`"
+                        else:
+                            note_text = f"💬 {len(editor_notes) - i + 1}. от {author_name}:\n`{content}`"
                         note_length = len(note_text) + 2  # +2 для "\n\n"
                         
                         # Проверяем, не превысим ли лимит

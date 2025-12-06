@@ -11,6 +11,7 @@ from .cancel import CancelPage
 from .image import Image
 from .send_page import SendDatePage
 from .ai_parse_page import AIParserPage
+from .editor_check_page import EditorCheckPage
 
 class CreateTaskScene(Scene):
 
@@ -26,7 +27,8 @@ class CreateTaskScene(Scene):
         CancelPage,
         Image,
         SendDatePage,
-        AIParserPage
+        AIParserPage,
+        EditorCheckPage
     ]
 
     # Привязываем функции для работы с БД

@@ -110,7 +110,7 @@ class MainPage(Page):
                 
                 # Проверяем роль пользователя
                 user_role = await get_user_role(self.scene.user_id)
-                
+
                 # Если статус "На проверке" или "Готов" и роль "копирайтер" - оставляем только комментарии и превью
                 if status in [CardStatus.review.value, CardStatus.ready.value] and user_role == 'copywriter':
                     allowed_pages = ['editor-notes', 'post-preview']
@@ -119,8 +119,6 @@ class MainPage(Page):
                 if status == CardStatus.sent.value and user_role == 'copywriter':
                     return {}
 
-                
-        
         return to_page_buttons
     
     async def buttons_worker(self):
