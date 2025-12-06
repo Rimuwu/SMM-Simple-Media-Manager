@@ -12,7 +12,7 @@ async def create_tables():
     engine.echo = False
     async with engine.begin() as conn:
         # Удаляем все таблицы с CASCADE для обхода зависимостей
-        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        # await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(
             text("CREATE SCHEMA IF NOT EXISTS public")
             )
