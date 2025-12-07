@@ -1,5 +1,6 @@
 from tg.oms.common_pages import DateInputPage
-from modules.api_client import update_card, get_users
+from modules.api_client import brain_api
+from global_modules.brain_client import brain_client
 from datetime import datetime
 
 
@@ -38,7 +39,7 @@ class ChangeDeadlinePage(DateInputPage):
         
         # Получаем user_id текущего пользователя
         telegram_id = self.scene.user_id
-        users = await get_users(telegram_id=telegram_id)
+        users = await brain_client.get_users(telegram_id=telegram_id)
         author_id = None
         if users and isinstance(users, list) and len(users) > 0:
             user = users[0]
@@ -46,7 +47,6 @@ class ChangeDeadlinePage(DateInputPage):
                 author_id = user.get('user_id')
         
         # Обновляем дедлайн в карточке
-        from modules.api_client import brain_api
         result, status = await brain_api.post(
             "/card/update",
             data={

@@ -1,6 +1,6 @@
 from datetime import datetime
 from tg.oms import Page
-from modules.api_client import get_cards, get_user_role
+from global_modules.brain_client import brain_client
 from modules.constants import SETTINGS
 from global_modules.classes.enums import CardStatus
 from modules.logs import executors_logger as logger
@@ -14,7 +14,7 @@ class MainPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
 
         if task_id:
-            cards = await get_cards(card_id=task_id)
+            cards = await brain_client.get_cards(card_id=task_id)
             if cards:
                 card = cards[0]
 
@@ -103,13 +103,13 @@ class MainPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
         
         if task_id:
-            cards = await get_cards(card_id=task_id)
+            cards = await brain_client.get_cards(card_id=task_id)
             if cards:
                 card = cards[0]
                 status = card.get('status')
                 
                 # Проверяем роль пользователя
-                user_role = await get_user_role(self.scene.user_id)
+                user_role = await brain_client.get_user_role(self.scene.user_id)
 
                 # Если статус "На проверке" или "Готов" и роль "копирайтер" - оставляем только комментарии и превью
                 if status in [CardStatus.review.value, CardStatus.ready.value] and user_role == 'copywriter':
@@ -142,3 +142,4 @@ class MainPage(Page):
         """Выход из сцены"""
         await self.scene.end()
         await callback.answer('👋 Задача закрыта')
+

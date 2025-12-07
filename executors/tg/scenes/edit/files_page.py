@@ -5,7 +5,8 @@ import aiohttp
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
 from aiogram import Bot
 from tg.oms import Page
-from modules.api_client import get_cards, brain_api, get_kaiten_files, update_card
+from modules.api_client import brain_api
+from global_modules.brain_client import brain_client
 from modules.logs import executors_logger as logger
 
 
@@ -40,7 +41,7 @@ class FilesPage(Page):
         
         try:
             # Запрос файлов карточки из Kaiten
-            response = await get_kaiten_files(task_id)
+            response = await brain_client.get_kaiten_files(task_id)
             status = 200 if response else 404
             
             if status == 200 and response.get('files'):
@@ -212,7 +213,7 @@ class FilesPage(Page):
             card_id = card.get('card_id')
             
             # Сохраняем в карточку
-            success = await update_card(
+            success = await brain_client.update_card(
                 card_id=card_id,
                 post_images=selected_files
             )
@@ -426,8 +427,7 @@ class FilesPage(Page):
         
         try:
             # Отправляем hex данные в API для обновления карточки
-            from modules.api_client import update_card
-            success = await update_card(
+            success = await brain_client.update_card(
                 card_id=card_id,
                 binary_data=bytes.fromhex(file_data_hex)
             )
@@ -598,8 +598,7 @@ class FilesPage(Page):
             card_id = card.get('card_id')
             
             # Обновляем карточку
-            from modules.api_client import update_card
-            success = await update_card(
+            success = await brain_client.update_card(
                 card_id=card_id,
                 binary_data=file_bytes.read()
             )

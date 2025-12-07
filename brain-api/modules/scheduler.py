@@ -1,13 +1,3 @@
-"""
-Планировщик задач для выполнения отложенных функций.
-
-Основные возможности:
-- Периодическая проверка запланированных задач
-- Динамический импорт и выполнение функций
-- Автоматическое удаление выполненных задач
-- Логирование ошибок выполнения
-"""
-
 import asyncio
 import importlib
 from datetime import datetime, timedelta
@@ -309,7 +299,7 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
         session: Сессия БД
         card: Карточка для публикации
     """
-    from modules.json_get import open_clients
+    from global_modules.json_get import open_clients
     from uuid import UUID as PyUUID
     
     if not card.send_time:

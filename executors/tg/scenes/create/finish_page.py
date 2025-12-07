@@ -2,7 +2,7 @@ from datetime import datetime
 from modules.utils import get_display_name
 from tg.oms.utils import callback_generator
 from tg.oms import Page
-from modules.api_client import brain_api, get_users, get_kaiten_users_dict
+from modules.api_client import brain_api
 from modules.constants import SETTINGS
 from tg.oms.common_pages import UserSelectorPage
 
@@ -92,14 +92,17 @@ class FinishPage(Page):
             add_vars['send_date'] = '➖'
 
         # Executor
+        from global_modules.brain_client import brain_client
+        
         user_id = data.get('user')
         if user_id:
             # Получаем информацию о пользователе
-            users = await get_users()
-            user_data = next((u for u in users if str(u['user_id']) == str(user_id)), None) if users else None
-            
-            if user_data:
-                kaiten_users = await get_kaiten_users_dict() if user_data.get('tasker_id') else {}
+
+            users = await brain_client.get_users(user_id=str(user_id))
+
+            if users:
+                user_data = users[0]
+                kaiten_users = await brain_client.get_kaiten_users_dict() if user_data.get('tasker_id') else {}
                 
                 display_name = await get_display_name(
                     user_data['telegram_id'],
@@ -146,36 +149,39 @@ class FinishPage(Page):
         if data.get('user'):
             data['type'] = 'private'
 
-        customer_id, status = await brain_api.get(
-            '/user/get',
-            params={'telegram_id': self.scene.user_id}
-        )
+        # Получаем customer_id (заказчик - текущий пользователь)
+        from global_modules.brain_client import brain_client
+        
+        customers = await brain_client.get_users(telegram_id=self.scene.user_id)
+        customer_id = customers[0]['user_id'] if customers else None
 
-        if status and status == 200:
-            if isinstance(customer_id, list) and len(customer_id) > 0:
-                customer_id = customer_id[0]['user_id']
-            else:
-                customer_id = None
-
-        else:
-            customer_id = None
-
+        # Получаем executor_id
         executor_id = None
-        if self.scene.data['scene'].get('user', None):
-            executor_id, status = await brain_api.get(
-                '/user/get',
-                params={'tasker_id': self.scene.data['scene'].get(
-                    'user', None)}
-            )
-
-            if status and status == 200:
-                if isinstance(executor_id, list) and len(executor_id) > 0:
-                    executor_id = executor_id[0]['user_id']
-                else:
-                    executor_id = None
-
-            else:
-                executor_id = None
+        user_value = self.scene.data['scene'].get('user')
+        if user_value:
+            # user может быть либо user_id (UUID), либо tasker_id (int)
+            # Сначала пробуем как user_id
+            try:
+                executors = await brain_client.get_users(user_id=str(user_value))
+                if executors:
+                    executor_id = executors[0]['user_id']
+                    print(f"Найден исполнитель по user_id {user_value}: {executor_id}")
+            except Exception as e:
+                print(f"Ошибка получения исполнителя по user_id: {e}")
+            
+            # Если не нашли, пробуем как tasker_id (только если это число)
+            if not executor_id:
+                try:
+                    # Проверяем, является ли значение числом
+                    tasker_id = int(user_value)
+                    executors = await brain_client.get_users(tasker_id=tasker_id)
+                    if executors:
+                        executor_id = executors[0]['user_id']
+                        print(f"Найден исполнитель по tasker_id {tasker_id}: {executor_id}")
+                except (ValueError, TypeError):
+                    print(f"Значение {user_value} не является числом, пропускаем поиск по tasker_id")
+                except Exception as e:
+                    print(f"Ошибка получения исполнителя по tasker_id: {e}")
 
         res, status = await brain_api.post(
             '/card/create',

@@ -8,7 +8,7 @@ from .pages.select_department_page import SelectDepartmentPage
 from .pages.edit_about_page import EditAboutPage
 from .pages.filter_users_by_role_page import FilterUsersByRolePage
 from .pages.filter_users_by_department_page import FilterUsersByDepartmentPage
-from modules.api_client import insert_scene, load_scene, update_scene, delete_scene
+from global_modules.brain_client import brain_client
 
 class UsersScene(Scene):
     __scene_name__ = 'users'
@@ -25,7 +25,7 @@ class UsersScene(Scene):
     ]
 
 
-    __insert_function__ = staticmethod(insert_scene)
-    __load_function__ = staticmethod(load_scene)
-    __update_function__ = staticmethod(update_scene)
-    __delete_function__ = staticmethod(delete_scene)
+    __insert_function__ = staticmethod(brain_client.insert_scene)
+    __load_function__ = staticmethod(brain_client.load_scene)
+    __update_function__ = staticmethod(brain_client.update_scene)
+    __delete_function__ = staticmethod(brain_client.delete_scene)

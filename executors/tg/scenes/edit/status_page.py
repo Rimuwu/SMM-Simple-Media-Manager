@@ -1,5 +1,6 @@
 from tg.oms import Page
-from modules.api_client import update_card, get_cards, get_user_role, get_users, brain_api
+from modules.api_client import brain_api
+from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus
 from tg.oms.utils import callback_generator
 from modules.logs import executors_logger as logger
@@ -42,14 +43,14 @@ class StatusSetterPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
         
         if task_id:
-            cards = await get_cards(card_id=task_id)
+            cards = await brain_client.get_cards(card_id=task_id)
             if cards:
                 card = cards[0]
                 status = card.get('status')
                 need_check = card.get('need_check', True)
                 
                 # Проверяем роль пользователя
-                user_role = await get_user_role(self.scene.user_id)
+                user_role = await brain_client.get_user_role(self.scene.user_id)
                 is_editor_or_admin = user_role in ['admin', 'editor']
                 
                 # Если статус "Создано" - кнопка "Взять в работу"
@@ -118,7 +119,7 @@ class StatusSetterPage(Page):
                 if status in [CardStatus.edited.value, CardStatus.review.value, CardStatus.ready.value]:
                     # Проверяем, является ли пользователь исполнителем этой задачи
                     executor_id = card.get('executor_id')
-                    users = await get_users(telegram_id=self.scene.user_id)
+                    users = await brain_client.get_users(telegram_id=self.scene.user_id)
                     current_user_id = str(users[0].get('user_id')) if users else None
                     is_executor = current_user_id and str(executor_id) == current_user_id
                     
@@ -141,7 +142,7 @@ class StatusSetterPage(Page):
         
         if task_id:
             # Получаем user_id текущего пользователя
-            users = await get_users(telegram_id=self.scene.user_id)
+            users = await brain_client.get_users(telegram_id=self.scene.user_id)
             executor_id = None
             if users:
                 executor_id = str(users[0].get('user_id'))
@@ -149,7 +150,7 @@ class StatusSetterPage(Page):
             logger.info(f"Пользователь {self.scene.user_id} перевел задачу {task_id} в статус 'В работе' (executor_id={executor_id})")
             
             # Обновляем статус и исполнителя
-            await update_card(card_id=task_id, status=CardStatus.edited, executor_id=executor_id)
+            await brain_client.update_card(card_id=task_id, status=CardStatus.edited, executor_id=executor_id)
             await self.scene.update_key('scene', 'status', '✏️ В работе')
             await callback.answer('✅ Статус изменен на "В работе"', show_alert=True)
             await self.scene.update_page('main-page')
@@ -163,7 +164,7 @@ class StatusSetterPage(Page):
         
         if task_id:
             logger.info(f"Пользователь {self.scene.user_id} отправил задачу {task_id} на проверку")
-            await update_card(card_id=task_id, status=CardStatus.review)
+            await brain_client.update_card(card_id=task_id, status=CardStatus.review)
             await self.scene.update_key('scene', 'status', '🔍 На проверке')
             await callback.answer('✅ Статус изменен на "На проверке"', show_alert=True)
             await self.scene.update_page('main-page')
@@ -177,7 +178,7 @@ class StatusSetterPage(Page):
         
         if task_id:
             logger.info(f"Пользователь {self.scene.user_id} завершил задачу {task_id} (статус 'Готова')")
-            await update_card(card_id=task_id, status=CardStatus.ready)
+            await brain_client.update_card(card_id=task_id, status=CardStatus.ready)
             await self.scene.update_key('scene', 'status', '✅ Готова')
             await callback.answer('✅ Задача завершена!', show_alert=True)
             await self.scene.update_page('main-page')
@@ -193,7 +194,7 @@ class StatusSetterPage(Page):
             logger.info(f"Пользователь {self.scene.user_id} завершил задачу {task_id} без отправки")
             # Устанавливаем need_send=False и сбрасываем send_time
             # Статус будет автоматически изменён на sent в brain-api
-            await update_card(
+            await brain_client.update_card(
                 card_id=task_id, 
                 status=CardStatus.ready,
                 need_send=False,
@@ -233,3 +234,4 @@ class StatusSetterPage(Page):
                 await callback.answer(f'❌ Ошибка: {error_msg}', show_alert=True)
         else:
             await callback.answer('❌ Ошибка: задача не найдена', show_alert=True)
+

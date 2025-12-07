@@ -2,7 +2,7 @@ from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from global_modules.classes.enums import UserRole
-from modules.api_client import update_user
+from global_modules.brain_client import brain_client
 
 class SelectRolePage(RadioTypeScene):
     __page_name__ = 'select-role'
@@ -46,7 +46,7 @@ class SelectRolePage(RadioTypeScene):
         edit_mode = self.scene.data['scene'].get('edit_mode')
         if edit_mode:
             user_id = self.scene.data['scene'].get('selected_user')
-            await update_user(user_id, role=role)
+            await brain_client.update_user(user_id, role=role)
 
             await self.scene.update_key('scene', 
                                         'edit_mode', False)
@@ -56,3 +56,4 @@ class SelectRolePage(RadioTypeScene):
             await self.scene.update_key('scene',
                                         'new_user_role', role)
             await self.scene.update_page('select-kaiten-user')
+

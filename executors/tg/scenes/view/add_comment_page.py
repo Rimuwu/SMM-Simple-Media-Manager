@@ -2,7 +2,8 @@ from modules.utils import get_display_name
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import brain_api, get_cards, get_users, get_kaiten_users_dict
+from modules.api_client import brain_api
+from global_modules.brain_client import brain_client
 
 class AddCommentPage(TextTypeScene):
     __page_name__ = 'add-comment'
@@ -18,7 +19,7 @@ class AddCommentPage(TextTypeScene):
         
         if task:
             card_id = task.get('card_id')
-            cards = await get_cards(card_id=card_id)
+            cards = await brain_client.get_cards(card_id=card_id)
             
             if cards:
                 card = cards[0]
@@ -26,9 +27,9 @@ class AddCommentPage(TextTypeScene):
 
                 if editor_notes:
                     # Получаем всех пользователей для отображения имен
-                    users = await get_users()
+                    users = await brain_client.get_users()
                     users_dict = {str(u['user_id']): u for u in users} if users else {}
-                    kaiten_users = await get_kaiten_users_dict()
+                    kaiten_users = await brain_client.get_kaiten_users_dict()
                     
                     # Форматируем комментарии с учетом лимита символов
                     formatted_notes = []
@@ -44,7 +45,7 @@ class AddCommentPage(TextTypeScene):
                         
                         author_name = 'Неизвестный'
                         if author_id:
-                            author_users = await get_users(user_id=author_id)
+                            author_users = await brain_client.get_users(user_id=author_id)
                             if author_users:
                                 user_data = author_users[0]
                                 author_name = await get_display_name(
@@ -140,8 +141,7 @@ class AddCommentPage(TextTypeScene):
         telegram_id = self.scene.user_id
 
         # Получаем информацию о пользователе
-        from modules.api_client import get_users
-        users = await get_users(telegram_id=telegram_id)
+        users = await brain_client.get_users(telegram_id=telegram_id)
         if not users or not isinstance(users, list) or len(users) == 0:
             await callback.answer("❌ Пользователь не найден")
             return

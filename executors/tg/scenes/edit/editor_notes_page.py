@@ -1,7 +1,7 @@
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import get_cards, get_kaiten_users_dict, update_card, get_users, add_editor_note
+from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus
 
 class EditorNotesPage(Page):
@@ -13,7 +13,7 @@ class EditorNotesPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
         
         if task_id:
-            cards = await get_cards(card_id=task_id)
+            cards = await brain_client.get_cards(card_id=task_id)
             if cards:
                 card = cards[0]
                 editor_notes = card.get('editor_notes', [])
@@ -26,7 +26,7 @@ class EditorNotesPage(Page):
                     displayed_count = 0
                     
                     # Получаем kaiten_users один раз
-                    kaiten_users = await get_kaiten_users_dict()
+                    kaiten_users = await brain_client.get_kaiten_users_dict()
                     
                     # Идем от последнего к первому (новые комментарии первыми)
                     for i, note in enumerate(reversed(editor_notes), 1):
@@ -36,7 +36,7 @@ class EditorNotesPage(Page):
                         
                         author_name = 'Неизвестный'
                         if author_id:
-                            author_users = await get_users(user_id=author_id)
+                            author_users = await brain_client.get_users(user_id=author_id)
                             if author_users:
                                 user_data = author_users[0]
                                 author_name = await get_display_name(
@@ -81,7 +81,7 @@ class EditorNotesPage(Page):
         # Проверяем статус задачи
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            cards = await get_cards(card_id=task_id)
+            cards = await brain_client.get_cards(card_id=task_id)
             if cards:
                 card = cards[0]
                 status = card.get('status')
@@ -116,7 +116,7 @@ class EditorNotesPage(Page):
         
         if task_id:
             # Обновляем статус в базе
-            await update_card(
+            await brain_client.update_card(
                 card_id=task_id,
                 status=CardStatus.edited
             )
@@ -160,7 +160,7 @@ class EditorNotesPage(Page):
             telegram_id = self.scene.user_id
             
             # Получаем user_id из базы по telegram_id
-            users = await get_users(telegram_id=telegram_id)
+            users = await brain_client.get_users(telegram_id=telegram_id)
             
             if not users:
                 await message.answer('❌ Пользователь не найден в системе')
@@ -185,3 +185,4 @@ class EditorNotesPage(Page):
     async def back_to_main(self, callback, args):
         """Возврат на главную страницу"""
         await self.scene.update_page('main-page')
+

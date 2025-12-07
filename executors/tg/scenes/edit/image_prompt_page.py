@@ -5,7 +5,7 @@ from datetime import datetime
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import  update_card, get_users, get_kaiten_users_dict
+from global_modules.brain_client import brain_client
 from modules.constants import SETTINGS
 
 
@@ -109,7 +109,7 @@ class ImagePromptPage(Page):
         # Сохраняем в БД
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            await update_card(task_id, image_prompt=text)
+            await brain_client.update_card(task_id, image_prompt=text)
         
         await self.scene.update_message()
     
@@ -143,11 +143,11 @@ class ImagePromptPage(Page):
                 pass
         
         # Получаем имена исполнителя и заказчика
-        kaiten_users = await get_kaiten_users_dict()
+        kaiten_users = await brain_client.get_kaiten_users_dict()
 
         executor_name = "Не назначен"
         if card.get('executor_id'):
-            executor_users = await get_users(user_id=card['executor_id'])
+            executor_users = await brain_client.get_users(user_id=card['executor_id'])
             if executor_users and isinstance(executor_users[0], dict):
                 executor_name = await get_display_name(
                     executor_users[0]['telegram_id'], 
@@ -157,7 +157,7 @@ class ImagePromptPage(Page):
 
         customer_name = "Не указан"
         if card.get('customer_id'):
-            customer_users = await get_users(user_id=card['customer_id'])
+            customer_users = await brain_client.get_users(user_id=card['customer_id'])
             if customer_users and isinstance(customer_users[0], dict):
                 customer_name = await get_display_name(
                     customer_users[0]['telegram_id'], 
@@ -198,7 +198,7 @@ class ImagePromptPage(Page):
             
             # Сохраняем ID сообщения
             task_id = self.scene.data['scene'].get('task_id')
-            await update_card(task_id, prompt_message=sent_message.message_id)
+            await brain_client.update_card(task_id, prompt_message=sent_message.message_id)
             
             await self.scene.update_key('scene', 'prompt_sent', True)
             await callback.answer("✅ Сообщение отправлено дизайнерам", show_alert=True)

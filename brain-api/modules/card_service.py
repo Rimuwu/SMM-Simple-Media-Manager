@@ -1,9 +1,54 @@
 from datetime import datetime
 from typing import Optional
 from models.User import User
+from models.Card import Card
 from modules.api_client import executors_api
 from modules.kaiten import kaiten
 from modules.constants import ApiEndpoints
+from modules.logs import brain_logger as logger
+
+
+async def increment_reviewers_tasks(card: Card):
+    """
+    Увеличивает счётчик tasks_checked для всех редакторов,
+    которые оставили комментарии в editor_notes (не is_customer).
+    """
+    if not card.editor_notes:
+        return
+    
+    # Собираем уникальных авторов комментариев (не заказчиков)
+    reviewer_ids = set()
+    for note in card.editor_notes:
+        if not note.get('is_customer', False):
+            author_id = note.get('author')
+            if author_id:
+                reviewer_ids.add(str(author_id))
+    
+    # Увеличиваем счётчики для каждого редактора
+    for reviewer_id in reviewer_ids:
+        try:
+            reviewer = await User.get_by_key('user_id', reviewer_id)
+            if reviewer:
+                await reviewer.update(tasks_checked=reviewer.tasks_checked + 1)
+                logger.info(f"Увеличен счётчик проверенных задач для редактора {reviewer.user_id}")
+        except Exception as e:
+            logger.error(f"Ошибка увеличения счётчика проверенных задач для {reviewer_id}: {e}")
+
+
+async def increment_customer_tasks(customer_id: str):
+    """
+    Увеличивает счётчик созданных задач у заказчика.
+    """
+    if not customer_id:
+        return
+    
+    try:
+        customer = await User.get_by_key('user_id', customer_id)
+        if customer:
+            await customer.update(tasks_created=customer.tasks_created + 1)
+            logger.info(f"Увеличен счётчик созданных задач для заказчика {customer.user_id}")
+    except Exception as e:
+        logger.error(f"Ошибка увеличения счётчика созданных задач: {e}")
 
 async def notify_executor(executor_id: str, message: str, task_id: Optional[str] = None, skip_if_page: Optional[str] = None):
     """

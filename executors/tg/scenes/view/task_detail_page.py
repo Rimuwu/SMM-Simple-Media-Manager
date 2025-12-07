@@ -2,11 +2,11 @@ from os import getenv
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import get_cards, brain_api, get_users, get_kaiten_users_dict
+from modules.api_client import brain_api
+from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
-from modules.api_client import get_user_role
 from modules.constants import SETTINGS
 from tg.utils.viewers import viewers_manager
 from modules.logs import executors_logger as logger
@@ -21,7 +21,7 @@ class TaskDetailPage(Page):
         
         if role is None:
             telegram_id = self.scene.user_id
-            user_role = await get_user_role(telegram_id)
+            user_role = await brain_client.get_user_role(telegram_id)
             await self.scene.update_key('scene', 'user_role', user_role or None)
 
         # Регистрируем просмотр
@@ -54,7 +54,7 @@ class TaskDetailPage(Page):
             return
 
         # Получаем информацию о задаче
-        tasks = await get_cards(card_id=task_id)
+        tasks = await brain_client.get_cards(card_id=task_id)
         if not tasks:
             return
         
@@ -70,8 +70,8 @@ class TaskDetailPage(Page):
         }
 
         # Получаем пользователей для отображения имен
-        all_users = await get_users()
-        kaiten_users = await get_kaiten_users_dict()
+        all_users = await brain_client.get_users()
+        kaiten_users = await brain_client.get_kaiten_users_dict()
         
         # Форматируем исполнителя
         executor_id = task.get('executor_id')

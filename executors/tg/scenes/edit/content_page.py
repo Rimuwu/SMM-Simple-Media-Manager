@@ -1,5 +1,5 @@
 from tg.oms.models.text_page import TextTypeScene
-from modules.api_client import update_card
+from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
 from aiogram.types import Message, MessageEntity
 
@@ -134,7 +134,7 @@ class ContentSetterPage(TextTypeScene):
         # Обновляем карточку
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            await update_card(
+            await brain_client.update_card(
                 card_id=task_id,
                 content=formatted_text
             )

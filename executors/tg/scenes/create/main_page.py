@@ -4,7 +4,7 @@ from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import SETTINGS
-from modules.api_client import get_users, get_kaiten_users_dict, get_user_role
+from global_modules.brain_client import brain_client, get_kaiten_users_dict
 
 debug = getenv('DEBUG', 'False') == 'True'
 
@@ -76,7 +76,7 @@ class MainPage(Page):
         user_id = data.get('user')
         if user_id:
             # Получаем информацию о пользователе
-            users = await get_users()
+            users = await brain_client.get_users()
             user_data = next((u for u in users if str(u['user_id']) == str(user_id)), None) if users else None
 
             if user_data:
@@ -171,7 +171,7 @@ class MainPage(Page):
     
     async def to_page_preworker(self, to_page_buttons: dict) -> dict:
         """Фильтруем кнопки - editor-check только для админов"""
-        user_role = await get_user_role(self.scene.user_id)
+        user_role = await brain_client.get_user_role(self.scene.user_id)
         
         # Кнопка настройки проверки редактором доступна только админам
         if user_role != 'admin' and 'editor-check' in to_page_buttons:

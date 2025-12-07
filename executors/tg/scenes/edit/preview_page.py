@@ -4,7 +4,8 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message, BufferedInputFile
 from aiogram import Bot
 from tg.oms import Page
-from modules.api_client import get_cards, brain_api, get_kaiten_files
+from modules.api_client import brain_api
+from global_modules.brain_client import brain_client
 from modules.post_generator import generate_post
 from modules.constants import SETTINGS, CLIENTS
 
@@ -124,7 +125,7 @@ class PreviewPage(Page):
         
         try:
             # Получаем список файлов из Kaiten
-            response = await get_kaiten_files(task_id)
+            response = await brain_client.get_kaiten_files(task_id)
             if not response or not response.get('files'):
                 return []
             

@@ -1,5 +1,5 @@
 from tg.oms.common_pages import TagsSelectorPage
-from modules.api_client import update_card
+from global_modules.brain_client import brain_client
 
 
 class TagsSetterPage(TagsSelectorPage):
@@ -16,7 +16,7 @@ class TagsSetterPage(TagsSelectorPage):
             return False
         
         # Обновляем карточку
-        success = await update_card(
+        success = await brain_client.update_card(
             card_id=task_id,
             tags=tags_list
         )

@@ -1,10 +1,3 @@
-"""
-Модуль для управления задачами сброса статистики.
-
-При старте API проверяет наличие задач сброса месячной и годовой статистики.
-Если задачи отсутствуют, создаёт их на следующее 1-е число.
-"""
-
 from datetime import datetime
 from uuid import uuid4
 from models.ScheduledTask import ScheduledTask

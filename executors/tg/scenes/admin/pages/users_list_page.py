@@ -1,6 +1,6 @@
 from modules.utils import get_display_name
 from tg.oms import Page
-from modules.api_client import get_users, get_kaiten_users_dict
+from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
 from global_modules.classes.enums import Department
 
@@ -58,13 +58,13 @@ class UsersListPage(Page):
         
         # Получаем пользователей с фильтрами
         if filter_role and filter_department:
-            users = await get_users(role=filter_role, department=filter_department)
+            users = await brain_client.get_users(role=filter_role, department=filter_department)
         elif filter_role:
-            users = await get_users(role=filter_role)
+            users = await brain_client.get_users(role=filter_role)
         elif filter_department:
-            users = await get_users(department=filter_department)
+            users = await brain_client.get_users(department=filter_department)
         else:
-            users = await get_users()
+            users = await brain_client.get_users()
         
         buttons = []
         
@@ -75,7 +75,7 @@ class UsersListPage(Page):
             'editor': '🖋️'
         }
         
-        kaiten_users_dict = await get_kaiten_users_dict()
+        kaiten_users_dict = await brain_client.get_kaiten_users_dict()
         
         for user in users:
             if not isinstance(user, dict):
@@ -180,3 +180,4 @@ class UsersListPage(Page):
         await self.scene.update_key('edit-about', 'about_text', '')
         
         await self.scene.update_page('add-user')
+

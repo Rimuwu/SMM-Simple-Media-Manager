@@ -31,7 +31,7 @@ class Page:
             self.__page_name__ = page_name
 
         self.json_args = self.__json_args__ + [
-            'row_width', 'enable_topages'
+            'row_width', 'enable_topages', 'parse_mode'
             ]
         self.__scene__: SceneModel = scene
         self.__page__ = scene.pages.get(
@@ -44,6 +44,7 @@ class Page:
 
         self.row_width: int = 3 # Ширина ряда кнопок по умолчанию
         self.enable_topages: bool = True # Включены ли кнопки перехода по страницам
+        self.parse_mode: Optional[str] = None # Режим парсинга сообщений (Markdown, HTML и т.д.)
 
         # Добавляем все данные из json страницы в атрибуты страницы
         for key, value in self.__page__.json_data.items():

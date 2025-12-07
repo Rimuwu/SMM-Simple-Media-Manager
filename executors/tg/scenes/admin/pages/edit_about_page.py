@@ -1,7 +1,7 @@
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import update_user
+from global_modules.brain_client import brain_client
 
 class EditAboutPage(TextTypeScene):
     __page_name__ = 'edit-about'
@@ -51,7 +51,7 @@ class EditAboutPage(TextTypeScene):
         edit_mode = self.scene.data['scene'].get('edit_mode')
         if edit_mode:
             user_id = self.scene.data['scene'].get('selected_user')
-            await update_user(user_id, about=about_text)
+            await brain_client.update_user(user_id, about=about_text)
 
             await self.scene.update_key('scene', 
                                         'edit_mode', False)
@@ -60,13 +60,13 @@ class EditAboutPage(TextTypeScene):
 
         else:
             # Создаем пользователя со всеми данными
-            from modules.api_client import create_user
+            from global_modules.brain_client import brain_client
             telegram_id = self.scene.data['scene'].get('new_user_id')
             role = self.scene.data['scene'].get('new_user_role')
             tasker_id = self.scene.data['scene'].get('new_user_tasker_id')
             department = self.scene.data['scene'].get('new_user_department')
             
-            result = await create_user(
+            result = await brain_client.create_user(
                 telegram_id=telegram_id,
                 role=role,
                 tasker_id=tasker_id,
@@ -92,3 +92,4 @@ class EditAboutPage(TextTypeScene):
         """Переопределяем метод из TextTypeScene"""
         await self.scene.update_key('scene', 'about_text', text)
         await self.scene.update_message()
+

@@ -6,7 +6,7 @@ from .main_page import MainPage
 from .finish_page import FinishPage
 from .tags_page import TagsPage
 from .files_page import FilesPage
-from modules.api_client import insert_scene, load_scene, update_scene, delete_scene
+from global_modules.brain_client import brain_client
 from .cancel import CancelPage
 from .image import Image
 from .send_page import SendDatePage
@@ -32,7 +32,7 @@ class CreateTaskScene(Scene):
     ]
 
     # Привязываем функции для работы с БД
-    __insert_function__ = staticmethod(insert_scene)
-    __load_function__ = staticmethod(load_scene)
-    __update_function__ = staticmethod(update_scene)
-    __delete_function__ = staticmethod(delete_scene)
+    __insert_function__ = staticmethod(brain_client.insert_scene)
+    __load_function__ = staticmethod(brain_client.load_scene)
+    __update_function__ = staticmethod(brain_client.update_scene)
+    __delete_function__ = staticmethod(brain_client.delete_scene)

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import get_cards, get_users
+from global_modules.brain_client import brain_client
 from global_modules.classes.enums import UserRole, CardStatus
 
 filter_names = {
@@ -75,7 +75,7 @@ class TaskListPage(Page):
         selected_filter = self.scene.data['scene'].get('selected_filter')
         
         # Получаем информацию о пользователе
-        users = await get_users(telegram_id=telegram_id)
+        users = await brain_client.get_users(telegram_id=telegram_id)
         if not users:
             await self.scene.update_key('scene', 'tasks', [])
             print(f"Failed to load user info for telegram_id {telegram_id}")
@@ -89,33 +89,33 @@ class TaskListPage(Page):
 
         if selected_filter == 'my-tasks':
             # Задачи где пользователь исполнитель
-            tasks = await get_cards(executor_id=user_uuid)
+            tasks = await brain_client.get_cards(executor_id=user_uuid)
 
         elif selected_filter == 'all-tasks':
             # Все задачи (только для админа)
-            tasks = await get_cards()
+            tasks = await brain_client.get_cards()
 
         elif selected_filter == 'created-by-me':
             # Задачи созданные пользователем
-            tasks = await get_cards(customer_id=user_uuid)
+            tasks = await brain_client.get_cards(customer_id=user_uuid)
         elif selected_filter == 'for-review':
             # Задачи на проверку
-            tasks = await get_cards(status=CardStatus.review)
+            tasks = await brain_client.get_cards(status=CardStatus.review)
         elif selected_filter == 'department-tasks':
             # Задачи отдела - получаем всех пользователей из отдела и их задачи
             department = user.get('department')
             if department:
                 # Получаем всех пользователей из этого отдела
-                department_users = await get_users(department=department)
+                department_users = await brain_client.get_users(department=department)
                 # Собираем все задачи этих пользователей
                 all_department_tasks = []
                 for dept_user in department_users:
                     dept_user_id = dept_user['user_id']
                     # Получаем задачи где пользователь исполнитель
-                    executor_tasks = await get_cards(executor_id=dept_user_id)
+                    executor_tasks = await brain_client.get_cards(executor_id=dept_user_id)
                     all_department_tasks.extend(executor_tasks)
                     # Получаем задачи созданные пользователем
-                    customer_tasks = await get_cards(customer_id=dept_user_id)
+                    customer_tasks = await brain_client.get_cards(customer_id=dept_user_id)
                     all_department_tasks.extend(customer_tasks)
                 
                 # Убираем дубликаты по card_id
@@ -134,9 +134,9 @@ class TaskListPage(Page):
             filter_user_id = self.scene.data['scene'].get('filter_user_id')
             if filter_user_id:
                 # Получаем задачи где пользователь исполнитель
-                executor_tasks = await get_cards(executor_id=filter_user_id)
+                executor_tasks = await brain_client.get_cards(executor_id=filter_user_id)
                 # Получаем задачи созданные пользователем
-                customer_tasks = await get_cards(customer_id=filter_user_id)
+                customer_tasks = await brain_client.get_cards(customer_id=filter_user_id)
                 
                 # Объединяем и убираем дубликаты
                 all_tasks = executor_tasks + customer_tasks
@@ -155,14 +155,14 @@ class TaskListPage(Page):
             filter_department = self.scene.data['scene'].get('filter_department')
             if filter_department:
                 # Получаем всех пользователей из отдела
-                department_users = await get_users(department=filter_department)
+                department_users = await brain_client.get_users(department=filter_department)
                 
                 all_department_tasks = []
                 for dept_user in department_users:
                     dept_user_id = dept_user['user_id']
-                    executor_tasks = await get_cards(executor_id=dept_user_id)
+                    executor_tasks = await brain_client.get_cards(executor_id=dept_user_id)
                     all_department_tasks.extend(executor_tasks)
-                    customer_tasks = await get_cards(customer_id=dept_user_id)
+                    customer_tasks = await brain_client.get_cards(customer_id=dept_user_id)
                     all_department_tasks.extend(customer_tasks)
                 
                 # Убираем дубликаты

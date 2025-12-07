@@ -1,7 +1,7 @@
 
 from pprint import pprint
 from modules.kaiten import kaiten
-from modules.json_get import open_settings
+from global_modules.json_get import open_settings
 import json
 from modules.logs import brain_logger as logger
 from typing import Dict, List, Any, Optional

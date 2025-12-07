@@ -43,7 +43,7 @@ class UserSelectorPage(RadioTypeScene):
                 
                 # Получаем пользователей из Kaiten для тех, у кого есть tasker_id
                 self.kaiten_users = await get_kaiten_users_dict()
-        
+
         # Формируем опции для выбора
         self.options = {}
         for user in self.users_data:

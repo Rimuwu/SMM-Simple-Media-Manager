@@ -1,6 +1,6 @@
 from modules.utils import get_display_name
 from tg.oms import Page
-from modules.api_client import get_users, delete_user, get_kaiten_users_dict
+from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
 from os import getenv
 
@@ -14,7 +14,7 @@ class UserDetailPage(Page):
         if not user_id: return
 
         self.user = None
-        users = await get_users(telegram_id=user_id)
+        users = await brain_client.get_users(telegram_id=user_id)
         if not users: return
 
         self.user = users[0]
@@ -65,7 +65,7 @@ class UserDetailPage(Page):
         department_display = department_names.get(department_value, department_value)
 
         # Получаем имя через get_display_name
-        kaiten_users = await get_kaiten_users_dict()
+        kaiten_users = await brain_client.get_kaiten_users_dict()
         display_name = await get_display_name(
             self.user['telegram_id'],
             kaiten_users,
@@ -167,7 +167,7 @@ class UserDetailPage(Page):
     @Page.on_callback('delete-user')
     async def on_delete(self, callback, args):
         user_id = self.scene.data['scene'].get('selected_user')
-        await delete_user(user_id)
+        await brain_client.delete_user(user_id)
 
         await callback.answer("✅ Пользователь удалён")
         await self.scene.update_page('users-list')
@@ -195,3 +195,4 @@ class UserDetailPage(Page):
     @Page.on_callback('users-list')
     async def on_back(self, callback, args):
         await self.scene.update_page('users-list')
+

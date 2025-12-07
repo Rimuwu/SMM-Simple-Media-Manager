@@ -4,7 +4,7 @@
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import get_users, get_kaiten_users_dict
+from global_modules.brain_client import brain_client
 
 
 class SelectUserFilterPage(Page):
@@ -12,7 +12,7 @@ class SelectUserFilterPage(Page):
 
     async def data_preparate(self) -> None:
         # Загружаем список всех пользователей
-        users = await get_users()
+        users = await brain_client.get_users()
         await self.scene.update_key('scene', 'filter_users', users or [])
         await self.scene.update_key('scene', 'filter_user_page', 0)
 
@@ -24,7 +24,7 @@ class SelectUserFilterPage(Page):
 
         users = self.scene.data['scene'].get('filter_users', [])
         current_page = self.scene.data['scene'].get('filter_user_page', 0)
-        kaiten_users = await get_kaiten_users_dict()
+        kaiten_users = await brain_client.get_kaiten_users_dict()
 
         # По 8 пользователей на страницу
         users_per_page = 8

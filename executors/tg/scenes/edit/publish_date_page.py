@@ -1,5 +1,5 @@
 from tg.oms import Page
-from modules.api_client import update_card
+from global_modules.brain_client import brain_client
 
 class PublishDateSetterPage(Page):
     
@@ -25,7 +25,7 @@ class PublishDateSetterPage(Page):
         # Обновляем карточку
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            await update_card(
+            await brain_client.update_card(
                 card_id=task_id,
                 send_time=iso_date
             )

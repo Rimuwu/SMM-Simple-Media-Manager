@@ -1,7 +1,7 @@
 from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import create_user, update_user, get_kaiten_users
+from global_modules.brain_client import brain_client
 
 class SelectKaitenUserPage(RadioTypeScene):
     __page_name__ = 'select-kaiten-user'
@@ -13,7 +13,7 @@ class SelectKaitenUserPage(RadioTypeScene):
 
     async def data_preparate(self):
         # Загружаем виртуальных пользователей Kaiten
-        kaiten_users_list = await get_kaiten_users()
+        kaiten_users_list = await brain_client.get_kaiten_users()
         
         if kaiten_users_list:
             self.options = {
@@ -65,7 +65,7 @@ class SelectKaitenUserPage(RadioTypeScene):
         
         if edit_mode:
             user_id = self.scene.data['scene'].get('selected_user')
-            await update_user(user_id, tasker_id=tasker_id)
+            await brain_client.update_user(user_id, tasker_id=tasker_id)
             await self.scene.update_key('scene', 'edit_mode', False)
             await self.scene.update_page('user-detail')
 
@@ -73,3 +73,4 @@ class SelectKaitenUserPage(RadioTypeScene):
             await self.scene.update_key('scene',
                                         'new_user_tasker_id', tasker_id)
             await self.scene.update_page('select-department')
+

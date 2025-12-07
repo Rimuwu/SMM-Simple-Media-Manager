@@ -1,7 +1,7 @@
 from modules.utils import get_display_name
 from tg.oms.common_pages import UserSelectorPage
-from modules.api_client import update_card
 from modules.api_client import brain_api
+from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus
 
 class AssignExecutorPage(UserSelectorPage):
@@ -54,7 +54,7 @@ class AssignExecutorPage(UserSelectorPage):
                 update_params['status'] = CardStatus.edited
 
             # Обновляем карточку
-            result = await update_card(**update_params)
+            result = await brain_client.update_card(**update_params)
             success = result is not None
             print("Update executor response:", result)
 

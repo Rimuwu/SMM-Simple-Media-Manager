@@ -1,7 +1,5 @@
-
-
 from typing import Any
-from modules.json_get import open_properties
+from global_modules.json_get import open_properties
 
 properties = open_properties() or {}
 

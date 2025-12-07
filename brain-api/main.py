@@ -31,7 +31,7 @@ async def create_sheduler():
     global scheduler
 
     executors_status = 0
-    while executors_status != True:
+    while not executors_status:
         brain_logger.info("Ожидание запуска executors-api...")
         await asyncio.sleep(3)
 
@@ -87,6 +87,6 @@ app = get_fastapi_app(
         kaiten_router, kaiten_files_router, user_router,
         scene_router
     ],
-    # api_logger=brain_logger
+    api_logger=brain_logger
 )
-# app.add_middleware(RequestLoggingMiddleware, logger=brain_logger)
+app.add_middleware(RequestLoggingMiddleware, logger=brain_logger)

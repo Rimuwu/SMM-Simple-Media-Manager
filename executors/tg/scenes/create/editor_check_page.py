@@ -1,5 +1,5 @@
 from tg.oms import Page
-from modules.api_client import get_user_role
+from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
 from modules.logs import executors_logger as logger
 

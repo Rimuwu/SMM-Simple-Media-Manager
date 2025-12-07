@@ -167,7 +167,7 @@ class Scene:
         if not only_buttons:
             text: str = await page.content_worker()
         else: text = page.__page__.content
-        
+
         if self.scene.settings.parse_mode == "Markdown":
             text = self.clear_message_for_markdown(text)
 

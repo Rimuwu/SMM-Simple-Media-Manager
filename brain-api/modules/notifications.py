@@ -1,17 +1,10 @@
-"""
-Модуль для отправки уведомлений по карточкам.
-
-Содержит функции, которые могут быть запланированы через TaskScheduler.
-"""
-
-import logging
 from models.Card import Card, CardStatus
 from models.User import User
 from global_modules.classes.enums import UserRole
 from modules.api_client import executors_api
 from modules.constants import ApiEndpoints
 from datetime import datetime
-from modules.json_get import open_settings
+from global_modules.json_get import open_settings
 from modules.logs import brain_logger as logger
 
 # logger = logging.getLogger(__name__)
