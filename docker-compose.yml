@@ -14,6 +14,20 @@ services:
     restart: unless-stopped
     networks:
       - smm_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app_user} -d ${POSTGRES_DB:-app}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 500M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
   
   brain:
     build: 
@@ -29,7 +43,8 @@ services:
     ports:
       - "127.0.0.1:8010:8000"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
@@ -42,6 +57,14 @@ services:
       timeout: 1s
       retries: 10
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
   calendar:
     build: 
@@ -55,12 +78,27 @@ services:
     ports:
       - "127.0.0.1:8011:8001"
     depends_on:
-      - brain
+      brain:
+        condition: service_healthy
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
     networks:
       - smm_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
   executors:
     build: 
@@ -90,6 +128,56 @@ services:
       - ./sessions:/sessions:rw
     networks:
       - smm_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  backup:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-app}
+      - POSTGRES_USER=${POSTGRES_USER:-app_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-app_password}
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-7}
+      - BACKUP_COMPRESS=true
+      - TZ=Europe/Moscow
+    volumes:
+      - ./backups:/backups:rw
+      - ./scripts/backup_postgres.py:/backup_postgres.py:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - smm_network
+    restart: unless-stopped
+    command: >
+      sh -c "apk add --no-cache python3 &&
+             while true; do
+               python3 /backup_postgres.py;
+               echo 'Next backup in 24 hours...';
+               sleep 86400;
+             done"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
 
 volumes:
   postgres_data:
