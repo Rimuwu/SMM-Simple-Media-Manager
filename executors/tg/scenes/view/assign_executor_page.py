@@ -1,3 +1,4 @@
+from modules.utils import get_display_name
 from tg.oms.common_pages import UserSelectorPage
 from modules.api_client import update_card
 from modules.api_client import brain_api
@@ -73,10 +74,11 @@ class AssignExecutorPage(UserSelectorPage):
                 )
                 if selected_user and isinstance(selected_user, dict):
                     # Получаем отображаемое имя пользователя
-                    display_name = await self.get_display_name(
-                        selected_user,
-                        self.kaiten_users,
-                        self.scene.__bot__
+                    display_name = await get_display_name(
+                        selected_user['telegram_id'], 
+                        self.kaiten_users, 
+                        self.scene.__bot__, 
+                        selected_user.get('tasker_id')
                     )
                     
                     telegram_id = selected_user.get('telegram_id')

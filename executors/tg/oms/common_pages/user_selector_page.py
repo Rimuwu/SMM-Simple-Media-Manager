@@ -2,7 +2,7 @@ from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms.utils import callback_generator
 from modules.api_client import get_users, get_kaiten_users_dict
 from typing import Optional, Callable
-from modules.utils import get_telegram_user
+from modules.utils import get_display_name
 
 class UserSelectorPage(RadioTypeScene):
     """
@@ -60,10 +60,11 @@ class UserSelectorPage(RadioTypeScene):
                     continue
             
             user_id = str(user['user_id'])
-            display_name = await self.get_display_name(
-                user, 
+            display_name = await get_display_name(
+                user['telegram_id'], 
                 self.kaiten_users, 
-                self.scene.__bot__
+                self.scene.__bot__, 
+                user.get('tasker_id')
             )
             self.options[user_id] = display_name
 
@@ -76,10 +77,11 @@ class UserSelectorPage(RadioTypeScene):
             # Ищем пользователя в загруженных данных
             user_data = next((u for u in self.users_data if str(u.get('user_id')) == str(current_user_id)), None)
             if user_data:
-                current_user_name = await self.get_display_name(
-                    user_data,
-                    self.kaiten_users,
-                    self.scene.__bot__
+                current_user_name = await get_display_name(
+                    user_data['telegram_id'], 
+                    self.kaiten_users, 
+                    self.scene.__bot__, 
+                    user_data.get('tasker_id')
                 )
         
         # Формируем переменные для подстановки в шаблон
