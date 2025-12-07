@@ -64,7 +64,8 @@ class UserSelectorPage(RadioTypeScene):
                 user['telegram_id'], 
                 self.kaiten_users, 
                 self.scene.__bot__, 
-                user.get('tasker_id')
+                user.get('tasker_id'),
+                short=True
             )
             self.options[user_id] = display_name
 
