@@ -1,7 +1,7 @@
+from modules.utils import get_display_name
 from tg.oms import Page
 from modules.api_client import get_users, get_kaiten_users_dict
 from tg.oms.utils import callback_generator
-from tg.oms.common_pages import UserSelectorPage
 from global_modules.classes.enums import Department
 
 # Маппинг отделов на читаемые имена
@@ -82,8 +82,8 @@ class UsersListPage(Page):
                 continue
             role_icon = roles.get(user.get('role', ''), "👤")
 
-            name = await UserSelectorPage.get_display_name(
-                user, kaiten_users_dict, self.scene.bot
+            name = await get_display_name(
+                user['telegram_id'], kaiten_users_dict, self.scene.__bot__, user.get('tasker_id')
             )
             buttons.append({
                 "text": f"{role_icon} {name}",

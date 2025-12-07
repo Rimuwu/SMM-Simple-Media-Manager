@@ -1,10 +1,10 @@
 from datetime import datetime
 from os import getenv
+from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import SETTINGS
-from modules.api_client import brain_api, get_users, get_kaiten_users_dict, get_user_role
-from tg.oms.common_pages import UserSelectorPage
+from modules.api_client import get_users, get_kaiten_users_dict, get_user_role
 
 debug = getenv('DEBUG', 'False') == 'True'
 
@@ -82,10 +82,11 @@ class MainPage(Page):
             if user_data:
                 kaiten_users = await get_kaiten_users_dict() if user_data.get('tasker_id') else {}
                 
-                display_name = await UserSelectorPage.get_display_name(
-                    user_data, 
-                    kaiten_users, 
-                    self.scene.__bot__
+                display_name = await get_display_name(
+                    user_data['telegram_id'],
+                    kaiten_users,
+                    self.scene.__bot__,
+                    user_data.get('tasker_id')
                 )
                 add_vars['user'] = display_name
             else:

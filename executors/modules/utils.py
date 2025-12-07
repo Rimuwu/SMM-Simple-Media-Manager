@@ -24,7 +24,8 @@ async def get_display_name(
                     telegram_id: int,
                     kaiten_users: dict, 
                     bot=None,
-                    tasker_id: Optional[str] = None
+                    tasker_id: Optional[str] = None,
+                    short: bool = False
                 ) -> str:
     """
     Получить отображаемое имя пользователя.
@@ -40,14 +41,17 @@ async def get_display_name(
         if bot and telegram_id:
             chat = await get_telegram_user(bot, telegram_id)
             if chat:
+                if short:
+                    return f"{kaiten_users[tasker_id]}"
                 return f"{kaiten_users[tasker_id]} (@{chat.username})" if chat.username else kaiten_users[tasker_id]
-        else:
-            return kaiten_users[tasker_id]
+        return kaiten_users[tasker_id]
 
     if bot and telegram_id:
 
         chat = await get_telegram_user(bot, telegram_id)
         if chat:
+            if short:
+                return f"{chat.full_name}"
             return f"{chat.full_name} (@{chat.username})" if chat.username else chat.full_name
 
-    return f"{telegram_id}"
+    return f"user_{telegram_id}"

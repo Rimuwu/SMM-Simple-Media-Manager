@@ -2,11 +2,11 @@
 Страница для отправки ТЗ дизайнерам
 """
 from datetime import datetime
+from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import get_cards, update_card, get_users, get_kaiten_users_dict
+from modules.api_client import  update_card, get_users, get_kaiten_users_dict
 from modules.constants import SETTINGS
-from tg.oms.common_pages.user_selector_page import UserSelectorPage
 
 
 class ImagePromptPage(Page):
@@ -144,25 +144,27 @@ class ImagePromptPage(Page):
         
         # Получаем имена исполнителя и заказчика
         kaiten_users = await get_kaiten_users_dict()
-        
+
         executor_name = "Не назначен"
         if card.get('executor_id'):
             executor_users = await get_users(user_id=card['executor_id'])
             if executor_users and isinstance(executor_users[0], dict):
-                executor_name = await UserSelectorPage.get_display_name(
-                    executor_users[0], kaiten_users, self.scene.__bot__
+                executor_name = await get_display_name(
+                    executor_users[0]['telegram_id'], 
+                    kaiten_users, self.scene.__bot__, 
+                    executor_users[0].get('tasker_id')
                 )
-        
+
         customer_name = "Не указан"
         if card.get('customer_id'):
             customer_users = await get_users(user_id=card['customer_id'])
             if customer_users and isinstance(customer_users[0], dict):
-                customer_name = await UserSelectorPage.get_display_name(
-                    customer_users[0], kaiten_users, self.scene.__bot__
+                customer_name = await get_display_name(
+                    customer_users[0]['telegram_id'], 
+                    kaiten_users, self.scene.__bot__, 
+                    customer_users[0].get('tasker_id')
                 )
-        
-        task_name = card.get('name', 'Без названия')
-        
+
         # Формируем сообщение
         message_text = (
             f"🤖 _Это сообщение создано автоматически._\n\n"

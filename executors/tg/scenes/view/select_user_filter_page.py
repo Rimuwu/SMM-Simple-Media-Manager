@@ -1,10 +1,10 @@
 """
 Страница выбора пользователя для фильтрации задач (только для админов)
 """
+from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.api_client import get_users, get_kaiten_users_dict
-from tg.oms.common_pages.user_selector_page import UserSelectorPage
 
 
 class SelectUserFilterPage(Page):
@@ -21,24 +21,25 @@ class SelectUserFilterPage(Page):
 
     async def buttons_worker(self) -> list[dict]:
         result = []
-        
+
         users = self.scene.data['scene'].get('filter_users', [])
         current_page = self.scene.data['scene'].get('filter_user_page', 0)
         kaiten_users = await get_kaiten_users_dict()
-        
+
         # По 8 пользователей на страницу
         users_per_page = 8
         start_index = current_page * users_per_page
         end_index = min(start_index + users_per_page, len(users))
-        
+
         current_users = users[start_index:end_index]
-        
+
         for idx, user in enumerate(current_users):
             # Получаем имя пользователя
-            display_name = await UserSelectorPage.get_display_name(
-                user, kaiten_users, self.scene.__bot__
+            display_name = await get_display_name(
+                user['telegram_id'], kaiten_users, self.scene.__bot__, 
+                user.get('tasker_id')
             )
-            
+
             # Используем индекс вместо UUID для сокращения callback_data
             user_index = start_index + idx
             

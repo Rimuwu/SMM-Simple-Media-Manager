@@ -1,10 +1,6 @@
-
-
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
-from modules.logs import executors_logger as logger
 from modules.executors_manager import manager
-from aiogram import F
 from aiogram.filters import Command
 
 from tg.oms.manager import scene_manager
@@ -24,15 +20,17 @@ async def users_command(message: Message, bot: Bot):
             bot
         ).start()
     except ValueError:
-        # Если сцена уже существует, удаляем её и создаем новую
-        scene_manager.remove_scene(message.from_user.id)
+        n_s = scene_manager.get_scene(message.from_user.id)
+        if n_s:
+            await n_s.end()
+
         await scene_manager.create_scene(
             message.from_user.id,
             UsersScene,
             bot
         ).start()
-        
+
 @dp.message(Command('users'))
-async def users_command(message: Message, bot: Bot):
+async def users_command_nau(message: Message, bot: Bot):
     """Управление пользователями"""
     await message.answer("У вас нет прав для использования этой команды.")

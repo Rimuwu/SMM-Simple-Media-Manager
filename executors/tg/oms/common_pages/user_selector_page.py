@@ -89,38 +89,6 @@ class UserSelectorPage(RadioTypeScene):
         }
         
         return self.append_variables(**variables)
-    
-    @staticmethod
-    async def get_display_name(user_data: dict, 
-                               kaiten_users: dict, 
-                               bot=None
-                               ) -> str:
-        """
-        Получить отображаемое имя пользователя.
-        
-        Args:
-            user_data: Данные пользователя из БД
-            kaiten_users: Словарь пользователей Kaiten {id: name}
-            bot: Экземпляр бота для получения имени из Telegram
-        """
-        tasker_id = user_data.get('tasker_id')
-        telegram_id = user_data.get('telegram_id')
-
-        if tasker_id and tasker_id in kaiten_users:
-            if bot and telegram_id:
-                chat = await get_telegram_user(bot, telegram_id)
-                if chat:
-                    return f"{kaiten_users[tasker_id]} (@{chat.username})" if chat.username else kaiten_users[tasker_id]
-            else:
-                return kaiten_users[tasker_id]
-
-        if bot and telegram_id:
-
-            chat = await get_telegram_user(bot, telegram_id)
-            if chat:
-                return f"{chat.full_name} (@{chat.username})" if chat.username else chat.full_name
-
-        return f"{telegram_id}"
 
     async def buttons_worker(self):
         buttons = await super().buttons_worker()

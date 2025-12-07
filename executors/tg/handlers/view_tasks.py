@@ -28,12 +28,10 @@ async def cmd_view_tasks(message: Message):
         )
         await sc.start()
     except ValueError as e:
-        # Если сцена уже существует, удаляем и создаем новую
         n_s = scene_manager.get_scene(message.from_user.id)
         if n_s:
             await n_s.end()
-        
-        scene_manager.remove_scene(message.from_user.id)
+
         sc = scene_manager.create_scene(
             message.from_user.id,
             ViewTasksScene,

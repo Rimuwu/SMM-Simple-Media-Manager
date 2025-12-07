@@ -1,5 +1,3 @@
-
-
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, CallbackQuery
 from global_modules.classes.enums import CardStatus

@@ -86,6 +86,8 @@ async def text_getter(card: dict, tag: str,
                 )
                 if tg_user:
                     username = f'@{tg_user.username}' if tg_user.username else f'`{tg_user.full_name}`'
+                else:
+                    username = f"ID: {card.get(i)}"
             else:
                 username = f"ID: {card.get(i)} (ошибка получения)"
         else:

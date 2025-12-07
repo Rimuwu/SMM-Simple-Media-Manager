@@ -8,6 +8,11 @@
             "values_creatable_by_users": false,
             "show_on_facade": true,
             "values": {
+                "content": {
+                    "id": 16250862,
+                    "name": "Контент",
+                    "tag": "Content"
+                },
                 "news": {
                     "id": 16248105,
                     "name": "Новости | События",

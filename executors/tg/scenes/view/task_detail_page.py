@@ -1,15 +1,13 @@
 from os import getenv
-from datetime import datetime
+from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import get_cards, brain_api, delete_scene, get_users, get_kaiten_users_dict
+from modules.api_client import get_cards, brain_api, get_users, get_kaiten_users_dict
 from global_modules.classes.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
 from modules.api_client import get_user_role
-from tg.oms import Scene
 from modules.constants import SETTINGS
-from tg.oms.common_pages import UserSelectorPage
 from tg.utils.viewers import viewers_manager
 from modules.logs import executors_logger as logger
 
@@ -81,10 +79,10 @@ class TaskDetailPage(Page):
         if executor_id:
             user_data = next((u for u in all_users if str(u['user_id']) == str(executor_id)), None)
             if user_data:
-                executor_name = await UserSelectorPage.get_display_name(
-                    user_data, 
-                    kaiten_users, 
-                    self.scene.__bot__
+                executor_name = await get_display_name(
+                    user_data['telegram_id'], 
+                    kaiten_users, self.scene.__bot__, 
+                    user_data.get('tasker_id')
                 )
 
         # Форматируем заказчика
@@ -93,10 +91,10 @@ class TaskDetailPage(Page):
         if customer_id:
             user_data = next((u for u in all_users if str(u['user_id']) == str(customer_id)), None)
             if user_data:
-                customer_name = await UserSelectorPage.get_display_name(
-                    user_data, 
-                    kaiten_users, 
-                    self.scene.__bot__
+                customer_name = await get_display_name(
+                    user_data['telegram_id'], 
+                    kaiten_users, self.scene.__bot__,
+                    user_data.get('tasker_id')
                 )
         
         # Форматируем дедлайн

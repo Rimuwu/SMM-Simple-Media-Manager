@@ -1,7 +1,7 @@
+from modules.utils import get_display_name
 from tg.oms import Page
 from modules.api_client import get_users, delete_user, get_kaiten_users_dict
 from tg.oms.utils import callback_generator
-from tg.oms.common_pages.user_selector_page import UserSelectorPage
 from os import getenv
 
 superuser_id = int(getenv("ADMIN_ID", 0))
@@ -66,10 +66,11 @@ class UserDetailPage(Page):
 
         # Получаем имя через get_display_name
         kaiten_users = await get_kaiten_users_dict()
-        display_name = await UserSelectorPage.get_display_name(
-            self.user,
+        display_name = await get_display_name(
+            self.user['telegram_id'],
             kaiten_users,
-            self.scene.__bot__
+            self.scene.__bot__,
+            self.user.get('tasker_id')
         )
 
         return self.content.format(

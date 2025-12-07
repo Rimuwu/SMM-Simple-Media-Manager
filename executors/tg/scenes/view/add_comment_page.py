@@ -1,8 +1,8 @@
+from modules.utils import get_display_name
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.api_client import brain_api, get_cards, get_users, get_kaiten_users_dict
-from tg.oms.common_pages import UserSelectorPage
 
 class AddCommentPage(TextTypeScene):
     __page_name__ = 'add-comment'
@@ -47,8 +47,10 @@ class AddCommentPage(TextTypeScene):
                             author_users = await get_users(user_id=author_id)
                             if author_users:
                                 user_data = author_users[0]
-                                author_name = await UserSelectorPage.get_display_name(
-                                    user_data, kaiten_users, self.scene.__bot__
+                                author_name = await get_display_name(
+                                    user_data['telegram_id'], 
+                                    kaiten_users, self.scene.__bot__, 
+                                    user_data.get('tasker_id')
                                 )
 
                         # Формируем текст комментария с пометкой для заказчика
@@ -56,9 +58,9 @@ class AddCommentPage(TextTypeScene):
                             note_text = f"📋 {len(editor_notes) - i + 1}. *Заказчик* ({author_name}):\n`{content}`"
                         else:
                             note_text = f"💬 {len(editor_notes) - i + 1}. от {author_name}:\n`{content}`"
-                        
+
                         note_length = len(note_text) + 2  # +2 для "\n\n"
-                        
+
                         # Проверяем, не превысим ли лимит
                         if total_length + note_length <= max_length:
                             formatted_notes.insert(0, note_text)

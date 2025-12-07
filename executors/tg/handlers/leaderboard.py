@@ -1,6 +1,3 @@
-"""
-Обработчик команды лидерборда
-"""
 from typing import Any
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message

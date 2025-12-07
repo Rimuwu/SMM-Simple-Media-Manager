@@ -1,4 +1,5 @@
 from datetime import datetime
+from modules.utils import get_display_name
 from tg.oms.utils import callback_generator
 from tg.oms import Page
 from modules.api_client import brain_api, get_users, get_kaiten_users_dict
@@ -100,10 +101,11 @@ class FinishPage(Page):
             if user_data:
                 kaiten_users = await get_kaiten_users_dict() if user_data.get('tasker_id') else {}
                 
-                display_name = await UserSelectorPage.get_display_name(
-                    user_data, 
-                    kaiten_users, 
-                    self.scene.__bot__
+                display_name = await get_display_name(
+                    user_data['telegram_id'],
+                    kaiten_users,
+                    self.scene.__bot__,
+                    user_data.get('tasker_id')
                 )
                 add_vars['user'] = display_name
             else:

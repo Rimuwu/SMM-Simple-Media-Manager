@@ -1,5 +1,4 @@
 
-from pprint import pprint
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
@@ -17,7 +16,6 @@ from routers.scene import router as scene_router
 from global_modules.api_configurate import get_fastapi_app
 
 from modules.logs import brain_logger
-from modules.kaiten import kaiten
 from modules.config_kaiten import sync_kaiten_settings
 from modules.scheduler import TaskScheduler
 from modules.reset_tasks import init_reset_tasks

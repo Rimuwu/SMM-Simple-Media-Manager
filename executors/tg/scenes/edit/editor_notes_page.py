@@ -1,8 +1,8 @@
+from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.api_client import get_cards, get_kaiten_users_dict, update_card, get_users, add_editor_note
 from global_modules.classes.enums import CardStatus
-from tg.oms.common_pages import UserSelectorPage
 
 class EditorNotesPage(Page):
     
@@ -19,10 +19,6 @@ class EditorNotesPage(Page):
                 editor_notes = card.get('editor_notes', [])
 
                 if editor_notes:
-                    # Получаем всех пользователей для отображения имен
-                    users = await get_users()
-                    users_dict = {str(u['user_id']): u for u in users} if users else {}
-                    
                     # Форматируем комментарии с учетом лимита символов
                     formatted_notes = []
                     total_length = 0
@@ -43,8 +39,12 @@ class EditorNotesPage(Page):
                             author_users = await get_users(user_id=author_id)
                             if author_users:
                                 user_data = author_users[0]
-                                author_name = await UserSelectorPage.get_display_name(
-                                        user_data, kaiten_users, self.scene.__bot__
+                                author_name = await get_display_name(
+                                        user_data['telegram_id'], 
+                                        kaiten_users, 
+                                        self.scene.__bot__, 
+                                        user_data.get('tasker_id'),
+                                        short=True
                                     )
 
                         # Формируем текст комментария с пометкой для заказчика
