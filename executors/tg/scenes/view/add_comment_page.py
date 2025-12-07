@@ -114,14 +114,6 @@ class AddCommentPage(TextTypeScene):
             "ignore_row": True
         })
 
-        buttons.append({
-            "text": "🔙 Назад",
-            "callback_data": callback_generator(
-                self.scene.__scene_name__,
-                'task-detail'
-            ),
-            "ignore_row": True
-        })
         return buttons
 
     @Page.on_callback('send-comment')

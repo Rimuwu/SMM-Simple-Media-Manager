@@ -168,7 +168,8 @@ class Scene:
             text: str = await page.content_worker()
         else: text = page.__page__.content
 
-        if self.scene.settings.parse_mode == "Markdown":
+        parse_mode = page.get_parse_mode()
+        if parse_mode == "Markdown":
             text = self.clear_message_for_markdown(text)
 
         buttons: list[dict] = await page.buttons_worker()
@@ -208,7 +209,7 @@ class Scene:
                     self.user_id, 
                     prepared_image,
                     caption=content,
-                    parse_mode=self.scene.settings.parse_mode,
+                    parse_mode=page.get_parse_mode(),
                     reply_markup=markup
                 )
             else:
@@ -216,14 +217,14 @@ class Scene:
                 message = await self.__bot__.send_message(
                     self.user_id, 
                     content, 
-                    parse_mode=self.scene.settings.parse_mode,
+                    parse_mode=page.get_parse_mode(),
                     reply_markup=markup
                 )
         else:
             message = await self.__bot__.send_message(
                 self.user_id, 
                 content, 
-                parse_mode=self.scene.settings.parse_mode,
+                parse_mode=page.get_parse_mode(),
                 reply_markup=markup
             )
 
@@ -274,7 +275,7 @@ class Scene:
                         media=InputMediaPhoto(
                             media=prepared_image, 
                             caption=content,
-                            parse_mode=self.scene.settings.parse_mode
+                            parse_mode=page.get_parse_mode()
                             ),
                         reply_markup=markup
                     )
@@ -285,7 +286,7 @@ class Scene:
                         chat_id=self.user_id,
                         message_id=self.message_id,
                         text=content,
-                        parse_mode=self.scene.settings.parse_mode,
+                        parse_mode=page.get_parse_mode(),
                         reply_markup=markup
                     )
             else:
@@ -293,7 +294,7 @@ class Scene:
                     chat_id=self.user_id,
                     message_id=self.message_id,
                     text=content,
-                    parse_mode=self.scene.settings.parse_mode,
+                    parse_mode=page.get_parse_mode(),
                     reply_markup=markup
                 )
 

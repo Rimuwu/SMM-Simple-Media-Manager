@@ -2,6 +2,7 @@ from tg.oms.models.text_page import TextTypeScene
 from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
 from aiogram.types import Message, MessageEntity
+import re
 
 class ContentSetterPage(TextTypeScene):
     
@@ -10,42 +11,63 @@ class ContentSetterPage(TextTypeScene):
     __next_page__ = 'main-page'
     checklist = False
     
-    def _convert_entities_to_markdown(self, text: str, entities: list[MessageEntity]) -> str:
-        """Конвертирует Telegram entities в Markdown формат"""
-        if not entities:
-            return text
+    def _convert_html_to_markdown(self, html_text: str) -> str:
+        """Конвертирует HTML в Markdown формат согласно Telegram entities"""
+        if not html_text:
+            return ""
         
-        # Сортируем entities по offset в обратном порядке
-        sorted_entities = sorted(entities, key=lambda e: e.offset, reverse=True)
+        text = html_text
         
-        result = text
-        for entity in sorted_entities:
-            start = entity.offset
-            end = entity.offset + entity.length
-            entity_text = text[start:end]
-            
-            # Конвертируем в зависимости от типа
-            if entity.type == "bold":
-                replacement = f"**{entity_text}**"
-            elif entity.type == "italic":
-                replacement = f"*{entity_text}*"
-            elif entity.type == "code":
-                replacement = f"`{entity_text}`"
-            elif entity.type == "pre":
-                language = entity.language or ""
-                replacement = f"```{language}\n{entity_text}\n```"
-            elif entity.type == "text_link":
-                replacement = f"[{entity_text}]({entity.url})"
-            elif entity.type == "underline":
-                replacement = f"__{entity_text}__"
-            elif entity.type == "strikethrough":
-                replacement = f"~~{entity_text}~~"
-            else:
-                continue
-            
-            result = result[:start] + replacement + result[end:]
+        # Pre с языком: <pre language="c++">code</pre> → ```c++\ncode\n```
+        # Обрабатываем ДО обычного <pre>, чтобы не потерять атрибут language
+        text = re.sub(r'<pre language="([^"]*)">(.*?)</pre>', r'```\1\n\2\n```', text, flags=re.DOTALL)
         
-        return result
+        # Pre без языка: <pre>text</pre> → ```\ntext\n```
+        text = re.sub(r'<pre>(.*?)</pre>', r'```\n\1\n```', text, flags=re.DOTALL)
+        
+        # Blockquote: <blockquote>text</blockquote> → каждая строка начинается с >
+        def convert_blockquote(match):
+            content = match.group(1)
+            lines = content.split('\n')
+            quoted_lines = [f'>{line}' for line in lines]
+            return '\n'.join(quoted_lines)
+        
+        text = re.sub(r'<blockquote>(.*?)</blockquote>', convert_blockquote, text, flags=re.DOTALL)
+        
+        # Bold: <b>text</b> или <strong>text</strong> → **text**
+        text = re.sub(r'<b>(.*?)</b>', r'**\1**', text, flags=re.DOTALL)
+        text = re.sub(r'<strong>(.*?)</strong>', r'**\1**', text, flags=re.DOTALL)
+        
+        # Italic: <i>text</i> или <em>text</em> → *text*
+        text = re.sub(r'<i>(.*?)</i>', r'*\1*', text, flags=re.DOTALL)
+        text = re.sub(r'<em>(.*?)</em>', r'*\1*', text, flags=re.DOTALL)
+        
+        # Underline: <u>text</u> → __text__ (Markdown Extended)
+        text = re.sub(r'<u>(.*?)</u>', r'__\1__', text, flags=re.DOTALL)
+        
+        # Strikethrough: <s>text</s> или <strike>text</strike> или <del>text</del> → ~~text~~
+        text = re.sub(r'<s>(.*?)</s>', r'~~\1~~', text, flags=re.DOTALL)
+        text = re.sub(r'<strike>(.*?)</strike>', r'~~\1~~', text, flags=re.DOTALL)
+        text = re.sub(r'<del>(.*?)</del>', r'~~\1~~', text, flags=re.DOTALL)
+        
+        # Code: <code>text</code> → `text`
+        text = re.sub(r'<code>(.*?)</code>', r'`\1`', text, flags=re.DOTALL)
+        
+        # Links: <a href="url">text</a> → [text](url)
+        text = re.sub(r'<a href="(.*?)">(.*?)</a>', r'[\2](\1)', text, flags=re.DOTALL)
+        
+        # Убираем оставшиеся HTML теги
+        text = re.sub(r'<[^>]+>', '', text)
+        
+        # Декодируем HTML entities
+        text = text.replace('&lt;', '<')
+        text = text.replace('&gt;', '>')
+        text = text.replace('&amp;', '&')
+        text = text.replace('&quot;', '"')
+        text = text.replace('&#x27;', "'")
+        text = text.replace('&nbsp;', ' ')
+        
+        return text
     
     async def data_preparate(self) -> None:
         await super().data_preparate()
@@ -54,9 +76,11 @@ class ContentSetterPage(TextTypeScene):
         post = self.scene.get_key('scene', 'content')
 
         if not post:
-            post = '_Контент не задан._'
+            post = '<i>Контент не задан.</i>'
         else:
-            post = f'```Контент {post}```'
+            # Конвертируем HTML в Markdown для отображения
+            markdown_post = self._convert_html_to_markdown(post)
+            post = f'<pre language="Контент">{markdown_post}</pre>'
 
         return self.append_variables(content_block=post)
 
@@ -107,13 +131,10 @@ class ContentSetterPage(TextTypeScene):
 
     @TextTypeScene.on_text('str')
     async def handle_text(self, message: Message, value: str):
-        # Получаем текст и entities для форматирования
+        # Получаем текст в HTML формате (сохраняем форматирование)
         text = message.text or ""
-        entities = message.entities or []
-        
-        # Конвертируем entities в Markdown
-        # formatted_text = self._convert_entities_to_markdown(text, entities)
-        formatted_text = message.html_text or text
+        print(message.md_text)
+        html_text = message.html_text or text
 
         self.clear_content()
         if self.checklist: return
@@ -128,15 +149,15 @@ class ContentSetterPage(TextTypeScene):
             await self.scene.update_message()
             return
 
-        # Сохраняем контент с форматированием в сцену
-        await self.scene.update_key('scene', self.scene_key, formatted_text)
+        # Сохраняем контент в HTML формате (для хранения)
+        await self.scene.update_key('scene', self.scene_key, html_text)
         
-        # Обновляем карточку
+        # Обновляем карточку (сохраняем в HTML)
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
             await brain_client.update_card(
                 card_id=task_id,
-                content=formatted_text
+                content=html_text
             )
 
         # Переходим к следующей странице
