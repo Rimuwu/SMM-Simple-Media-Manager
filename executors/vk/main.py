@@ -338,6 +338,109 @@ class VKExecutor(BaseExecutor):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    async def upload_video_to_wall(self, video_path: str, 
+                                   title: Optional[str] = None,
+                                   description: Optional[str] = None) -> dict:
+        """
+        Загрузить видео для поста на стену группы.
+        
+        Args:
+            video_path: Путь к видеофайлу
+            title: Название видео
+            description: Описание видео
+        """
+        import requests
+        import os
+        
+        # Проверяем наличие user token (для загрузки видео требуется)
+        if not self.vk_user:
+            logger.error("VK: User token не настроен - невозможно загрузить видео")
+            return {"success": False, "error": "User token not configured. Set VK_USER_TOKEN env variable."}
+
+        max_attempts = 3
+        last_error = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                logger.info(f"VK: Попытка {attempt}/{max_attempts} загрузки видео {video_path} для группы {self.group_id}")
+
+                # Получаем сервер загрузки видео
+                save_params = {
+                    "group_id": self.group_id,
+                    "is_private": 0,
+                }
+                if title:
+                    save_params["name"] = title
+                if description:
+                    save_params["description"] = description
+
+                upload_server = self.vk_user.video.save(**save_params)
+                upload_url = upload_server['upload_url']
+                logger.info(f"VK: Получен сервер загрузки видео: {upload_url[:50]}...")
+
+                # Загружаем видео
+                filename = os.path.basename(video_path)
+                with open(video_path, 'rb') as video_file:
+                    files = {'video_file': (filename, video_file)}
+                    response = requests.post(upload_url, files=files)
+
+                if response.status_code != 200:
+                    logger.warning(f"VK: HTTP {response.status_code}: {response.text[:200]}")
+                    last_error = f"HTTP {response.status_code}"
+                    if attempt < max_attempts:
+                        await asyncio.sleep(2 * attempt)
+                        continue
+                    else:
+                        return {"success": False, "error": last_error}
+
+                try:
+                    upload_result = response.json()
+                except Exception as json_err:
+                    logger.warning(f"VK: Ошибка парсинга JSON: {json_err}")
+                    last_error = f"JSON parse error"
+                    if attempt < max_attempts:
+                        await asyncio.sleep(2 * attempt)
+                        continue
+                    else:
+                        return {"success": False, "error": last_error}
+
+                logger.info(f"VK: Ответ сервера загрузки видео: {upload_result}")
+
+                # Видео загружено, формируем attachment
+                video_id = upload_server.get('video_id') or upload_result.get('video_id')
+                owner_id = upload_server.get('owner_id') or upload_result.get('owner_id')
+                
+                if not video_id or not owner_id:
+                    logger.warning(f"VK: Не удалось получить video_id или owner_id: {upload_result}")
+                    last_error = "Video upload failed - missing video_id"
+                    if attempt < max_attempts:
+                        await asyncio.sleep(2 * attempt)
+                        continue
+                    else:
+                        return {"success": False, "error": last_error}
+
+                attachment = f"video{owner_id}_{video_id}"
+                logger.info(f"VK: Attachment видео создан успешно с попытки {attempt}: {attachment}")
+
+                return {
+                    "success": True, 
+                    "attachment": attachment, 
+                    "video_id": video_id,
+                    "owner_id": owner_id
+                }
+
+            except Exception as e:
+                logger.warning(f"VK: Попытка {attempt}/{max_attempts} - ошибка загрузки видео: {e}")
+                last_error = str(e)
+                if attempt < max_attempts:
+                    await asyncio.sleep(2 * attempt)
+                    continue
+                else:
+                    logger.error(f"VK: Все {max_attempts} попыток загрузки видео исчерпаны", exc_info=True)
+                    return {"success": False, "error": last_error}
+
+        return {"success": False, "error": last_error or "Unknown error"}
+
     async def get_upload_server_wall(self) -> dict:
         """Получить сервер для загрузки фото на стену"""
         try:

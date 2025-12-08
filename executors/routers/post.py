@@ -10,7 +10,7 @@ from modules.executors_manager import manager
 from modules.constants import CLIENTS
 from modules.logs import executors_logger as logger
 from modules.post_generator import generate_post
-from modules.api_client import brain_api
+from modules.post_sender import download_kaiten_files, detect_media_type
 from global_modules.timezone import now_naive as moscow_now
 
 router = APIRouter(prefix="/post", tags=["Post"])
@@ -19,65 +19,6 @@ router = APIRouter(prefix="/post", tags=["Post"])
 # Формат: {card_id: {client_key: {"scheduled": bool, "sent": bool, "message_id": int}}}
 scheduled_posts: dict = {}
 
-
-async def download_kaiten_files(task_id: int, file_names: list[str]) -> list[bytes]:
-    """
-    Скачать файлы из Kaiten по именам.
-    
-    Args:
-        task_id: ID карточки в Kaiten
-        file_names: Список имён файлов для скачивания
-    
-    Returns:
-        Список байтовых данных файлов
-    """
-    if not task_id or not file_names:
-        return []
-    
-    downloaded_files = []
-    
-    try:
-        # Получаем список файлов карточки
-        response, status = await brain_api.get(f"/kaiten/get-files/{task_id}")
-        
-        if status != 200 or not response.get('files'):
-            logger.warning(f"No files found for task {task_id}")
-            return []
-        
-        kaiten_files = response['files']
-        
-        # Ищем файлы по именам и скачиваем
-        for file_name in file_names:
-            target_file = next(
-                (f for f in kaiten_files if f.get('name') == file_name),
-                None
-            )
-            
-            if not target_file:
-                logger.warning(f"File '{file_name}' not found in task {task_id}")
-                continue
-            
-            file_id = target_file.get('id')
-            if not file_id:
-                continue
-            
-            # Скачиваем файл
-            file_data, dl_status = await brain_api.get(
-                f"/kaiten/files/{file_id}",
-                params={"task_id": task_id},
-                return_bytes=True
-            )
-            
-            if dl_status == 200 and isinstance(file_data, bytes):
-                downloaded_files.append(file_data)
-                logger.info(f"Downloaded file '{file_name}' ({len(file_data)} bytes)")
-            else:
-                logger.error(f"Failed to download file '{file_name}'")
-    
-    except Exception as e:
-        logger.error(f"Error downloading files from Kaiten: {e}", exc_info=True)
-    
-    return downloaded_files
 
 class PostScheduleRequest(BaseModel):
     """Запрос на планирование поста"""
@@ -269,42 +210,54 @@ async def send_post(request: PostSendRequest):
         post_image_names = request.post_images or []
 
         # Скачиваем файлы из Kaiten если есть
-        downloaded_images = []
+        downloaded_files = []
         if post_image_names and request.task_id:
-            downloaded_images = await download_kaiten_files(request.task_id, post_image_names)
-            logger.info(f"Downloaded {len(downloaded_images)} images from Kaiten for card {request.card_id}")
+            downloaded_files = await download_kaiten_files(request.task_id, post_image_names)
+            logger.info(f"Downloaded {len(downloaded_files)} files from Kaiten for card {request.card_id}")
 
         if executor_type == "vk":
             executor: "VkExecutor" = executor  # type: ignore
 
-            # Для VK - загружаем фото и создаём пост
+            # Для VK - загружаем фото/видео и создаём пост
             attachments = []
-            if downloaded_images:
-                logger.info(f"VK: Начинаю загрузку {len(downloaded_images)} изображений для поста")
+            if downloaded_files:
+                logger.info(f"VK: Начинаю загрузку {len(downloaded_files)} файлов для поста")
 
                 import tempfile
                 import os as os_module
 
-                for idx, img_data in enumerate(downloaded_images):
+                for idx, file_info in enumerate(downloaded_files):
+                    file_data = file_info['data']
+                    file_type = file_info['type']
+                    file_name = file_info['name']
+                    
                     logger.info(
-                        f"VK: Обработка изображения {idx + 1}/{len(downloaded_images)}, размер: {len(img_data)} bytes")
+                        f"VK: Обработка файла {idx + 1}/{len(downloaded_files)}, "
+                        f"тип: {file_type}, размер: {len(file_data)} bytes")
 
                     # Сохраняем во временный файл для загрузки
-                    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-                        tmp_file.write(img_data)
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file_name}") as tmp_file:
+                        tmp_file.write(file_data)
                         tmp_path = tmp_file.name
 
                     logger.info(f"VK: Сохранено во временный файл: {tmp_path}")
 
                     try:
-                        upload_result = await executor.upload_photo_to_wall(tmp_path)
-                        logger.info(f"VK: Результат загрузки фото: {upload_result}")
+                        if file_type == 'photo':
+                            upload_result = await executor.upload_photo_to_wall(tmp_path)
+                            logger.info(f"VK: Результат загрузки фото: {upload_result}")
+                        elif file_type == 'video':
+                            upload_result = await executor.upload_video_to_wall(tmp_path)
+                            logger.info(f"VK: Результат загрузки видео: {upload_result}")
+                        else:
+                            logger.warning(f"VK: Неподдерживаемый тип файла: {file_type}, пропускаю")
+                            continue
 
                         if upload_result.get('success') and upload_result.get('attachment'):
                             attachments.append(upload_result['attachment'])
                             logger.info(f"VK: Attachment добавлен: {upload_result['attachment']}")
                         else:
-                            logger.error(f"VK: Ошибка загрузки фото: {upload_result.get('error')}")
+                            logger.error(f"VK: Ошибка загрузки {file_type}: {upload_result.get('error')}")
 
                     finally:
                         os_module.unlink(tmp_path)
@@ -320,25 +273,43 @@ async def send_post(request: PostSendRequest):
         elif executor_type == "telegram":
             executor: "TelegramExecutor" = executor  # type: ignore
 
-            # Для Telegram - проверяем наличие фото
-            if downloaded_images:
-                # Отправляем с фото (bytes данные)
-                if len(downloaded_images) == 1:
-                    # Одно фото - send_photo
-                    result = await executor.send_photo(
-                        chat_id=chat_id,
-                        photo=downloaded_images[0],  # bytes
-                        caption=post_text
-                    )
+            # Для Telegram - проверяем наличие медиа файлов
+            if downloaded_files:
+                # Разделяем на фото и видео
+                photos = [f for f in downloaded_files if f['type'] == 'photo']
+                videos = [f for f in downloaded_files if f['type'] == 'video']
+                
+                if len(downloaded_files) == 1:
+                    # Одиночный файл
+                    file_info = downloaded_files[0]
+                    if file_info['type'] == 'photo':
+                        result = await executor.send_photo(
+                            chat_id=chat_id,
+                            photo=file_info['data'],
+                            caption=post_text
+                        )
+                    elif file_info['type'] == 'video':
+                        result = await executor.send_video(
+                            chat_id=chat_id,
+                            video=file_info['data'],
+                            caption=post_text
+                        )
+                    else:
+                        # Неизвестный тип - отправляем как документ
+                        result = await executor.send_document(
+                            chat_id=chat_id,
+                            document=file_info['data'],
+                            caption=post_text
+                        )
                 else:
-                    # Несколько фото - media group
+                    # Несколько файлов - media group
                     result = await executor.send_media_group(
                         chat_id=chat_id,
-                        media=downloaded_images,  # list[bytes]
+                        media=downloaded_files,  # list[dict] с type и data
                         caption=post_text
                     )
             else:
-                # Без фото - просто текст
+                # Без медиа - просто текст
                 result = await executor.send_message(
                     chat_id=chat_id,
                     text=post_text
@@ -361,10 +332,10 @@ async def send_post(request: PostSendRequest):
                 "sent_at": moscow_now().isoformat(),
                 "message_id": result.get('message_id') or result.get('post_id'),
                 "executor_name": executor_name,
-                "images_count": len(downloaded_images)
+                "files_count": len(downloaded_files)
             }
 
-            logger.info(f"Post sent successfully for card {request.card_id}, client {request.client_key}, images: {len(downloaded_images)}")
+            logger.info(f"Post sent successfully for card {request.card_id}, client {request.client_key}, files: {len(downloaded_files)}")
             return {
                 "success": True, 
                 "message_id": result.get('message_id') or result.get('post_id')

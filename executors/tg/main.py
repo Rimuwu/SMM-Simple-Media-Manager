@@ -137,6 +137,90 @@ class TelegramExecutor(BaseExecutor):
             logger.error(f"Error sending photo: {e}")
             return {"success": False, "error": str(e)}
 
+    async def send_video(self, 
+                         chat_id: str,
+                         video: bytes,
+                         caption: Optional[str] = None,
+                         parse_mode: Optional[str] = 'HTML',
+                         list_markup: Optional[list] = None,
+                         row_width: int = 3,
+                         reply_to_message_id: Optional[int] = None
+                         ) -> dict:
+        """
+        Отправить видео.
+        
+        Args:
+            chat_id: ID чата
+            video: bytes данные видео
+            caption: Подпись
+            parse_mode: Режим парсинга
+            list_markup: Кнопки
+            row_width: Ширина ряда кнопок
+            reply_to_message_id: ID сообщения для ответа
+        """
+        from aiogram.types import BufferedInputFile
+        
+        markup = list_to_inline(list_markup or [], row_width=row_width) if list_markup else None
+        
+        try:
+            video_input = BufferedInputFile(video, filename="video.mp4")
+            
+            result = await self.bot.send_video(
+                chat_id=chat_id,
+                video=video_input,
+                caption=caption,
+                parse_mode=parse_mode,
+                reply_markup=markup,
+                reply_to_message_id=reply_to_message_id
+            )
+            return {"success": True, "message_id": result.message_id}
+        except Exception as e:
+            logger.error(f"Error sending video: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def send_document(self, 
+                            chat_id: str,
+                            document: bytes,
+                            caption: Optional[str] = None,
+                            filename: str = "file",
+                            parse_mode: Optional[str] = 'HTML',
+                            list_markup: Optional[list] = None,
+                            row_width: int = 3,
+                            reply_to_message_id: Optional[int] = None
+                            ) -> dict:
+        """
+        Отправить документ.
+        
+        Args:
+            chat_id: ID чата
+            document: bytes данные документа
+            caption: Подпись
+            filename: Имя файла
+            parse_mode: Режим парсинга
+            list_markup: Кнопки
+            row_width: Ширина ряда кнопок
+            reply_to_message_id: ID сообщения для ответа
+        """
+        from aiogram.types import BufferedInputFile
+        
+        markup = list_to_inline(list_markup or [], row_width=row_width) if list_markup else None
+        
+        try:
+            document_input = BufferedInputFile(document, filename=filename)
+            
+            result = await self.bot.send_document(
+                chat_id=chat_id,
+                document=document_input,
+                caption=caption,
+                parse_mode=parse_mode,
+                reply_markup=markup,
+                reply_to_message_id=reply_to_message_id
+            )
+            return {"success": True, "message_id": result.message_id}
+        except Exception as e:
+            logger.error(f"Error sending document: {e}")
+            return {"success": False, "error": str(e)}
+
     async def send_media_group(self,
                                chat_id: str,
                                media: list,
@@ -145,16 +229,16 @@ class TelegramExecutor(BaseExecutor):
                                reply_to_message_id: Optional[int] = None
                                ) -> dict:
         """
-        Отправить группу медиа (несколько фото).
+        Отправить группу медиа (фото и видео).
         
         Args:
             chat_id: ID чата
-            media: Список bytes данных или словарей с file_id
-            caption: Подпись (применяется к первому фото)
+            media: Список bytes данных, словарей с file_id или dict с {data, type, name}
+            caption: Подпись (применяется к первому элементу)
             parse_mode: Режим парсинга
             reply_to_message_id: ID сообщения для ответа
         """
-        from aiogram.types import InputMediaPhoto, BufferedInputFile
+        from aiogram.types import InputMediaPhoto, InputMediaVideo, BufferedInputFile
         
         try:
             media_group = []
@@ -165,7 +249,7 @@ class TelegramExecutor(BaseExecutor):
                 
                 # Определяем тип данных
                 if isinstance(item, bytes):
-                    # bytes данные - конвертируем в BufferedInputFile
+                    # bytes данные - конвертируем в BufferedInputFile (как фото по умолчанию)
                     photo_input = BufferedInputFile(item, filename=f"photo_{idx}.png")
                     media_group.append(InputMediaPhoto(
                         media=photo_input,
@@ -173,15 +257,40 @@ class TelegramExecutor(BaseExecutor):
                         parse_mode=item_parse_mode
                     ))
                 elif isinstance(item, dict):
-                    # Словарь с file_id (старый формат для совместимости)
-                    file_id = item.get('file_id')
-                    if not file_id:
-                        continue
-                    media_group.append(InputMediaPhoto(
-                        media=file_id,
-                        caption=item_caption,
-                        parse_mode=item_parse_mode
-                    ))
+                    # Новый формат: {data: bytes, type: str, name: str}
+                    if 'data' in item and 'type' in item:
+                        file_data = item['data']
+                        file_type = item['type']
+                        file_name = item.get('name', f"file_{idx}")
+                        
+                        if file_type == 'photo':
+                            media_input = BufferedInputFile(file_data, filename=file_name)
+                            media_group.append(InputMediaPhoto(
+                                media=media_input,
+                                caption=item_caption,
+                                parse_mode=item_parse_mode
+                            ))
+                        elif file_type == 'video':
+                            media_input = BufferedInputFile(file_data, filename=file_name)
+                            media_group.append(InputMediaVideo(
+                                media=media_input,
+                                caption=item_caption,
+                                parse_mode=item_parse_mode
+                            ))
+                        else:
+                            # Неизвестный тип - пропускаем в media group
+                            logger.warning(f"Unsupported media type in group: {file_type}")
+                            continue
+                    else:
+                        # Старый формат: словарь с file_id
+                        file_id = item.get('file_id')
+                        if not file_id:
+                            continue
+                        media_group.append(InputMediaPhoto(
+                            media=file_id,
+                            caption=item_caption,
+                            parse_mode=item_parse_mode
+                        ))
                 elif isinstance(item, str):
                     # Строка - file_id или URL
                     media_group.append(InputMediaPhoto(
