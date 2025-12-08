@@ -122,7 +122,7 @@ class TelegramExecutor(BaseExecutor):
         try:
             # Если photo - bytes, конвертируем в BufferedInputFile
             if isinstance(photo, bytes):
-                photo = BufferedInputFile(photo, filename="photo.jpg")
+                photo = BufferedInputFile(photo, filename="photo.png")
             
             result = await self.bot.send_photo(
                 chat_id=chat_id,
@@ -166,7 +166,7 @@ class TelegramExecutor(BaseExecutor):
                 # Определяем тип данных
                 if isinstance(item, bytes):
                     # bytes данные - конвертируем в BufferedInputFile
-                    photo_input = BufferedInputFile(item, filename=f"photo_{idx}.jpg")
+                    photo_input = BufferedInputFile(item, filename=f"photo_{idx}.png")
                     media_group.append(InputMediaPhoto(
                         media=photo_input,
                         caption=item_caption,

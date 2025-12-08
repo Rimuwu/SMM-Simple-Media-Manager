@@ -110,6 +110,68 @@ class KaitenClient:
             self._is_initialized = False
             logger.info("Kaiten client session closed")
 
+    def _detect_content_type(self, file_data: bytes, file_name: str) -> str:
+        """
+        Определяет content_type файла по magic bytes или расширению.
+        
+        Args:
+            file_data: Бинарные данные файла
+            file_name: Имя файла
+            
+        Returns:
+            MIME тип файла
+        """
+        # Определяем по magic bytes
+        if len(file_data) >= 8:
+            # PNG
+            if file_data[:8] == b'\x89PNG\r\n\x1a\n':
+                return 'image/png'
+            # JPEG
+            if file_data[:2] == b'\xff\xd8':
+                return 'image/jpeg'
+            # GIF
+            if file_data[:6] in (b'GIF87a', b'GIF89a'):
+                return 'image/gif'
+            # WebP
+            if file_data[:4] == b'RIFF' and len(file_data) >= 12 and file_data[8:12] == b'WEBP':
+                return 'image/webp'
+            # BMP
+            if file_data[:2] == b'BM':
+                return 'image/bmp'
+            # PDF
+            if file_data[:4] == b'%PDF':
+                return 'application/pdf'
+            # MP4/MOV
+            if len(file_data) >= 12 and file_data[4:8] == b'ftyp':
+                return 'video/mp4'
+        
+        # Определяем по расширению
+        ext_map = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.bmp': 'image/bmp',
+            '.svg': 'image/svg+xml',
+            '.pdf': 'application/pdf',
+            '.mp4': 'video/mp4',
+            '.mov': 'video/quicktime',
+            '.avi': 'video/avi',
+            '.webm': 'video/webm',
+            '.txt': 'text/plain',
+            '.json': 'application/json',
+            '.xml': 'application/xml',
+            '.zip': 'application/zip',
+        }
+        
+        if '.' in file_name:
+            ext = '.' + file_name.rsplit('.', 1)[1].lower()
+            if ext in ext_map:
+                return ext_map[ext]
+        
+        return 'application/octet-stream'
+
     async def _request(self, method: str, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
         """Выполняет HTTP запрос к API с поддержкой повторов и лимитом запросов в секунду."""
         # Автоматически инициализируем клиент если он не инициализирован
@@ -554,9 +616,12 @@ class KaitenClient:
         Returns:
             Информация о загруженном файле
         """
+        # Определяем content_type по расширению или magic bytes
+        content_type = self._detect_content_type(file_data, file_name)
+        
         # Для загрузки файлов создаем отдельную сессию без Content-Type заголовка
         data = aiohttp.FormData()
-        data.add_field('file', file_data, filename=file_name)
+        data.add_field('file', file_data, filename=file_name, content_type=content_type)
 
         # API Kaiten требует PUT запрос для загрузки файлов
         endpoint = KaitenConfig.ENDPOINT_CARD_FILES.format(card_id=card_id)

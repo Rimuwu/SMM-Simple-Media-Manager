@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import aiohttp
 from modules.executors_manager import manager
 from modules.constants import CLIENTS
 from modules.logs import executors_logger as logger
@@ -255,79 +254,72 @@ async def send_post(request: PostSendRequest):
             tags=request.tags,
             client_key=request.client_key
         )
-        
+
         # Преобразуем client_id
         try:
             chat_id = int(client_id)
         except ValueError:
             chat_id = client_id
-        
+
         # Определяем тип исполнителя и вызываем соответствующий метод
         executor_type = executor.get_type()
         result = None
-        
+
         # Получаем имена файлов для отправки
         post_image_names = request.post_images or []
-        
+
         # Скачиваем файлы из Kaiten если есть
         downloaded_images = []
         if post_image_names and request.task_id:
             downloaded_images = await download_kaiten_files(request.task_id, post_image_names)
             logger.info(f"Downloaded {len(downloaded_images)} images from Kaiten for card {request.card_id}")
-        
+
         if executor_type == "vk":
+            executor: "VkExecutor" = executor  # type: ignore
+
             # Для VK - загружаем фото и создаём пост
             attachments = []
             if downloaded_images:
                 logger.info(f"VK: Начинаю загрузку {len(downloaded_images)} изображений для поста")
+
                 import tempfile
                 import os as os_module
+
                 for idx, img_data in enumerate(downloaded_images):
-                    logger.info(f"VK: Обработка изображения {idx + 1}/{len(downloaded_images)}, размер: {len(img_data)} bytes")
+                    logger.info(
+                        f"VK: Обработка изображения {idx + 1}/{len(downloaded_images)}, размер: {len(img_data)} bytes")
+
                     # Сохраняем во временный файл для загрузки
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+                    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
                         tmp_file.write(img_data)
                         tmp_path = tmp_file.name
+
                     logger.info(f"VK: Сохранено во временный файл: {tmp_path}")
+
                     try:
                         upload_result = await executor.upload_photo_to_wall(tmp_path)
                         logger.info(f"VK: Результат загрузки фото: {upload_result}")
+
                         if upload_result.get('success') and upload_result.get('attachment'):
                             attachments.append(upload_result['attachment'])
                             logger.info(f"VK: Attachment добавлен: {upload_result['attachment']}")
                         else:
                             logger.error(f"VK: Ошибка загрузки фото: {upload_result.get('error')}")
+
                     finally:
                         os_module.unlink(tmp_path)
                         logger.info(f"VK: Временный файл удалён: {tmp_path}")
-                
+
                 logger.info(f"VK: Всего attachments для поста: {attachments}")
-            
+
             result = await executor.create_wall_post(
                 text=post_text,
                 attachments=attachments if attachments else None
             )
-        elif executor_type == "telegram_pyrogram":
-            # Для Telegram Pyrogram (TP)
-            if downloaded_images:
-                if len(downloaded_images) == 1:
-                    result = await executor.send_photo(
-                        chat_id=chat_id,
-                        photo=downloaded_images[0],
-                        caption=post_text
-                    )
-                else:
-                    result = await executor.send_media_group(
-                        chat_id=chat_id,
-                        media=downloaded_images,
-                        caption=post_text
-                    )
-            else:
-                result = await executor.send_message(
-                    chat_id=chat_id,
-                    text=post_text
-                )
+
         elif executor_type == "telegram":
+            executor: "TelegramExecutor" = executor  # type: ignore
+
             # Для Telegram - проверяем наличие фото
             if downloaded_images:
                 # Отправляем с фото (bytes данные)
@@ -357,12 +349,12 @@ async def send_post(request: PostSendRequest):
                 chat_id=chat_id,
                 text=post_text
             )
-        
+
         if result and result.get('success'):
             # Сохраняем информацию об отправленном посте
             if request.card_id not in scheduled_posts:
                 scheduled_posts[request.card_id] = {}
-            
+
             scheduled_posts[request.card_id][request.client_key] = {
                 "scheduled": False,
                 "sent": True,
@@ -371,7 +363,7 @@ async def send_post(request: PostSendRequest):
                 "executor_name": executor_name,
                 "images_count": len(downloaded_images)
             }
-            
+
             logger.info(f"Post sent successfully for card {request.card_id}, client {request.client_key}, images: {len(downloaded_images)}")
             return {
                 "success": True, 
@@ -381,7 +373,7 @@ async def send_post(request: PostSendRequest):
             error_msg = result.get('error') if result else 'Unknown error'
             logger.error(f"Failed to send post: {error_msg}")
             return {"success": False, "error": error_msg}
-            
+
     except Exception as e:
         logger.error(f"Error sending post: {e}", exc_info=True)
         return {"success": False, "error": str(e)}

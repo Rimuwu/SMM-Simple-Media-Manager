@@ -4,7 +4,7 @@ import vk_api
 from vk_api.vk_api import VkApiMethod
 from modules.executor import BaseExecutor
 from modules.post_generator import clean_html, convert_hyperlinks_to_vk
-from typing import Optional, Dict, List, Any
+from typing import Literal, Optional, Dict, List, Any
 from modules.logs import executors_logger as logger
 
 
@@ -76,25 +76,30 @@ class VKExecutor(BaseExecutor):
 
     # Методы для работы с постами на стене
     async def create_wall_post(self, text: str, attachments: Optional[List[str]] = None, 
-                              from_group: bool = True, signed: bool = False) -> dict:
+                              from_group: bool = True, signed: bool = False,
+                              primary_attachments_mode: Literal['grid', None] = 'grid'
+                              ) -> dict:
         """Создать пост на стене сообщества"""
         try:
             logger.info(f"VK: Создание поста на стене группы {self.group_id}")
             logger.info(f"VK: Текст: {text[:100]}..." if len(text) > 100 else f"VK: Текст: {text}")
             logger.info(f"VK: Attachments: {attachments}")
-            
+
             params = {
                 "owner_id": -abs(self.group_id),  # Отрицательный ID для сообществ
                 "message": self._format_text_for_vk(text),
                 "from_group": 1 if from_group else 0,
                 "signed": 1 if signed else 0,
-                "primary_attachments_mode": 'grid'
             }
-            
+
+            if primary_attachments_mode:
+                params["primary_attachments_mode"] = primary_attachments_mode
+                logger.info(f"VK: Установлен режим primary_attachments_mode='{primary_attachments_mode}' для поста")
+
             if attachments:
                 params["attachments"] = ",".join(attachments)
                 logger.info(f"VK: Добавлены attachments в пост: {params['attachments']}")
-            
+
             result = self.vk.wall.post(**params)
             logger.info(f"VK: Пост создан успешно, post_id: {result.get('post_id')}")
             return {"success": True, "post_id": result["post_id"]}
@@ -202,56 +207,122 @@ class VKExecutor(BaseExecutor):
         Требует user_token, так как групповой токен не поддерживает photos.getWallUploadServer.
         """
         import requests
-        
-        try:
-            logger.info(f"VK: Начинаю загрузку фото {photo_path} для группы {self.group_id}")
-            
-            # Проверяем наличие user token
-            if not self.vk_user:
-                logger.error("VK: User token не настроен - невозможно загрузить фото")
-                return {"success": False, "error": "User token not configured. Set VK_USER_TOKEN env variable."}
-            
-            # Получаем сервер загрузки фото на стену (требует user token)
-            upload_server = self.vk_user.photos.getWallUploadServer(group_id=self.group_id)
-            upload_url = upload_server['upload_url']
-            logger.info(f"VK: Получен сервер загрузки photos: {upload_url[:50]}...")
-            
-            # Загружаем файл
-            with open(photo_path, 'rb') as f:
-                response = requests.post(upload_url, files={'photo': f})
-            
-            upload_result = response.json()
-            logger.info(f"VK: Ответ сервера загрузки: {upload_result}")
-            
-            if 'photo' not in upload_result or not upload_result.get('photo'):
-                logger.error(f"VK: Ошибка загрузки на сервер: {upload_result}")
-                return {"success": False, "error": f"Upload failed: {upload_result}"}
-            
-            # Сохраняем фото (тоже через user token)
-            saved_photo = self.vk_user.photos.saveWallPhoto(
-                group_id=self.group_id,
-                photo=upload_result['photo'],
-                server=upload_result['server'],
-                hash=upload_result['hash']
-            )
-            logger.info(f"VK: Фото сохранено: {saved_photo}")
-            
-            if not saved_photo or len(saved_photo) == 0:
-                logger.error(f"VK: Ошибка сохранения фото: {saved_photo}")
-                return {"success": False, "error": "Photo save failed"}
-            
-            # Формируем attachment
-            photo_data = saved_photo[0]
-            attachment = f"photo{photo_data['owner_id']}_{photo_data['id']}"
-            logger.info(f"VK: Attachment создан: {attachment}")
-            
-            return {"success": True, "attachment": attachment, "photo_data": photo_data}
-            
-        except Exception as e:
-            logger.error(f"VK: Ошибка загрузки фото: {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
+        import os
+        from modules.file_utils import detect_file_type_by_bytes
 
-    async def upload_document_to_wall(self, doc_path: str, title: str = None) -> dict:
+        # Проверяем наличие user token
+        if not self.vk_user:
+            logger.error("VK: User token не настроен - невозможно загрузить фото")
+            return {"success": False, "error": "User token not configured. Set VK_USER_TOKEN env variable."}
+
+        max_attempts = 5
+        last_error = None
+
+        # Читаем файл для определения типа по magic bytes
+        with open(photo_path, 'rb') as f:
+            file_content = f.read()
+        
+        # Определяем тип изображения через общую функцию
+        mime_type, extension, file_type = detect_file_type_by_bytes(file_content)
+        
+        # Формируем имя файла с правильным расширением
+        original_filename = os.path.basename(photo_path)
+        if '.' in original_filename:
+            # Файл уже имеет расширение - используем его
+            filename = original_filename
+        else:
+            # Временный файл без расширения - добавляем определённое расширение
+            filename = original_filename + extension
+        
+        logger.info(f"VK: Загрузка файла {photo_path}, filename={filename}, mime_type={mime_type}, size={len(file_content)} bytes")
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                logger.info(f"VK: Попытка {attempt}/{max_attempts} загрузки фото {photo_path} для группы {self.group_id}")
+
+                # Получаем сервер загрузки фото на стену (требует user token)
+                upload_server = self.vk_user.photos.getWallUploadServer(group_id=self.group_id)
+                upload_url = upload_server['upload_url']
+                logger.info(f"VK: Получен сервер загрузки photos: {upload_url[:50]}...")
+
+                # Отправляем с явным указанием имени файла и типа (file_content уже прочитан выше)
+                files = {'photo': (filename, file_content, mime_type)}
+                response = requests.post(upload_url, files=files)
+
+                # Проверяем ответ сервера
+                if response.status_code != 200:
+                    logger.warning(f"VK: HTTP {response.status_code}: {response.text[:200]}")
+                    last_error = f"HTTP {response.status_code}"
+                    if attempt < max_attempts:
+                        await asyncio.sleep(2 * attempt)
+                        continue
+                    else:
+                        return {"success": False, "error": last_error}
+
+                try:
+                    upload_result = response.json()
+                except Exception as json_err:
+                    logger.warning(f"VK: Ошибка парсинга JSON: {json_err}, response: {response.text[:200]}")
+                    last_error = f"JSON parse error: {response.text[:100]}"
+                    if attempt < max_attempts:
+                        await asyncio.sleep(2 * attempt)
+                        continue
+                    else:
+                        return {"success": False, "error": last_error}
+
+                logger.info(f"VK: Ответ сервера загрузки: {upload_result}")
+
+                # Проверяем, что фото загружено (photo не пустой и не '[]')
+                photo_data_str = upload_result.get('photo', '')
+                if not photo_data_str or photo_data_str == '[]':
+                    logger.warning(f"VK: Попытка {attempt}/{max_attempts} - фото не загружено на сервер: {upload_result}")
+                    last_error = f"Upload failed - empty photo response: {upload_result}"
+                    if attempt < max_attempts:
+                        await asyncio.sleep(2 * attempt)
+                        continue
+                    else:
+                        logger.error(f"VK: Все {max_attempts} попыток загрузки фото исчерпаны")
+                        return {"success": False, "error": last_error}
+
+                # Сохраняем фото (тоже через user token)
+                saved_photo = self.vk_user.photos.saveWallPhoto(
+                    group_id=self.group_id,
+                    photo=upload_result['photo'],
+                    server=upload_result['server'],
+                    hash=upload_result['hash']
+                )
+                logger.info(f"VK: Фото сохранено: {saved_photo}")
+
+                if not saved_photo or len(saved_photo) == 0:
+                    logger.warning(f"VK: Попытка {attempt}/{max_attempts} - ошибка сохранения фото: {saved_photo}")
+
+                    last_error = "Photo save failed"
+                    if attempt < max_attempts:
+                        await asyncio.sleep(2 * attempt)
+                        continue
+                    else:
+                        logger.error(f"VK: Все {max_attempts} попыток загрузки фото исчерпаны")
+                        return {"success": False, "error": last_error}
+
+                # Формируем attachment
+                photo_data = saved_photo[0]
+                attachment = f"photo{photo_data['owner_id']}_{photo_data['id']}"
+                logger.info(f"VK: Attachment создан успешно с попытки {attempt}: {attachment}")
+
+                return {"success": True, "attachment": attachment, "photo_data": photo_data}
+
+            except Exception as e:
+                logger.warning(f"VK: Попытка {attempt}/{max_attempts} - ошибка загрузки фото: {e}")
+                last_error = str(e)
+                if attempt < max_attempts:
+                    await asyncio.sleep(2 * attempt)
+                    continue
+                else:
+                    logger.error(f"VK: Все {max_attempts} попыток загрузки фото исчерпаны", exc_info=True)
+                    return {"success": False, "error": last_error}
+
+    async def upload_document_to_wall(self, doc_path: str, 
+                                      title: Optional[str] = None) -> dict:
         """Загрузить документ для поста на стену"""
         try:
             from vk_api import VkUpload

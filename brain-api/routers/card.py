@@ -104,29 +104,43 @@ async def create_card(card_data: CardCreate):
                 due_date_time_present=True,
                 properties=properties,
                 type_id=card_type,
-                position=1,
-                executor_id=card_data.executor_id,
+                position=1
             )
 
             card_id = res.id
-            
+
             executor_ = await User.get_by_key('user_id', card_data.executor_id)
             customer_ = await User.get_by_key('user_id', card_data.customer_id)
-            
+
             if card_id:
-                kaiten_card = await client.get_card(card_id)
-                members = await kaiten_card.get_members()
-                for member in members:
-                    await client.remove_card_member(
-                        card_id,
-                        member['id']
-                    )
+                try:
+                    kaiten_card = await client.get_card(card_id)
+                    members = await kaiten_card.get_members()
+                    for member in members:
+                        await client.remove_card_member(
+                            card_id,
+                            member.user_id
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Ошибка при получении/очистке членов карточки Kaiten: {e}"
+                        )
 
-                if executor_ and kaiten_card:
-                    await kaiten_card.add_member(executor_.tasker_id)
+                try:
+                    if executor_ and kaiten_card and executor_.tasker_id:
+                        await kaiten_card.add_member(executor_.tasker_id)
+                except Exception as e:
+                    logger.error(
+                        f"Ошибка при добавлении исполнителя в карточку Kaiten: {e}"
+                        )
 
-                if customer_ and kaiten_card:
-                    await kaiten_card.add_member(customer_.tasker_id)
+                try:
+                    if customer_ and kaiten_card and customer_.tasker_id:
+                        await kaiten_card.add_member(customer_.tasker_id)
+                except Exception as e:
+                    logger.error(
+                        f"Ошибка при добавлении заказчика в карточку Kaiten: {e}"
+                        )
 
     except Exception as e:
         logger.error(f"Ошибка при создании карточки в Kaiten: {e}")
@@ -138,8 +152,10 @@ async def create_card(card_data: CardCreate):
         task_id=card_id,
         clients=card_data.channels,
         tags=card_data.tags,
-        deadline=datetime.fromisoformat(card_data.deadline) if card_data.deadline else None,
-        send_time=datetime.fromisoformat(card_data.send_time) if card_data.send_time else None,
+        deadline=datetime.fromisoformat(
+            card_data.deadline) if card_data.deadline else None,
+        send_time=datetime.fromisoformat(
+            card_data.send_time) if card_data.send_time else None,
         image_prompt=card_data.image_prompt,
         customer_id=card_data.customer_id,
         executor_id=card_data.executor_id,

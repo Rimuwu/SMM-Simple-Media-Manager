@@ -206,15 +206,20 @@ class FinishPage(Page):
 
                 # Загружаем файлы если они есть
                 files = data.get('files', [])
+                uploaded_count = 0
                 if files:
-                    await self._upload_files_to_card(card_id, files)
+                    uploaded_count = await brain_client.upload_files_to_card(
+                        card_id=card_id,
+                        files=files,
+                        bot=self.scene.__bot__
+                    )
 
                 await self.scene.end()
 
                 await self.scene.__bot__.send_message(
                     self.scene.user_id,
                     f'Задача: "{data["name"]}" успешно создана c ID: {card_id}\n'
-                    f'📎 Загружено файлов: {len(files)}'
+                    f'📎 Загружено файлов: {uploaded_count}'
                 )
             else:
                 await self.scene.__bot__.send_message(
@@ -226,55 +231,3 @@ class FinishPage(Page):
                 self.scene.user_id,
                 f'❌ Произошла ошибка при создании задачи: {res.get("error", "Неизвестная ошибка 2") if res else "Ошибка сервера"}'
             )
-    
-    async def _upload_files_to_card(self, card_id: str, files: list):
-        """Загрузка файлов в карточку Kaiten"""
-        import aiohttp
-        
-        uploaded_count = 0
-        
-        for file_info in files:
-            try:
-                # Получаем файл от Telegram
-                file_id = file_info.get('file_id')
-                file_name = file_info.get('name', 'file')
-                
-                # Скачиваем файл
-                tg_file = await self.scene.__bot__.get_file(file_id)
-                
-                if not tg_file or not tg_file.file_path:
-                    print(f"Не удалось получить путь к файлу {file_name}")
-                    continue
-                
-                # Скачиваем содержимое файла
-                file_bytes = await self.scene.__bot__.download_file(tg_file.file_path)
-                
-                if not file_bytes:
-                    print(f"Не удалось скачать файл {file_name}")
-                    continue
-                
-                file_content = file_bytes.read()
-                
-                # Формируем multipart/form-data и отправляем напрямую через aiohttp
-                form_data = aiohttp.FormData()
-                form_data.add_field('card_id', str(card_id))
-                form_data.add_field('file', file_content, filename=file_name)
-                
-                # Загружаем файл в Kaiten через API
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f'{brain_api.base_url}/kaiten/upload-file',
-                        data=form_data
-                    ) as response:
-                        if response.status == 200:
-                            uploaded_count += 1
-                            print(f"Файл {file_name} успешно загружен")
-                        else:
-                            error_text = await response.text()
-                            print(f"Ошибка загрузки файла {file_name}: статус {response.status}, ответ: {error_text}")
-                
-            except Exception as e:
-                # Логируем ошибку но продолжаем загружать остальные файлы
-                print(f"Ошибка загрузки файла {file_info.get('name')}: {e}")
-        
-        return uploaded_count

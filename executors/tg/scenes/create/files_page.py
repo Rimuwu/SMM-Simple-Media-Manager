@@ -1,11 +1,15 @@
 from asyncio import sleep
-from typing import Optional
-import io
 from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
 from tg.oms import Page
 from tg.oms.utils import callback_generator, list_to_inline
-from PIL import Image
 from modules.logs import executors_logger as logger
+from modules.file_utils import (
+    generate_unique_filename,
+    is_image_by_mime_or_extension,
+    download_telegram_file,
+    convert_image_to_png,
+    detect_file_type_by_bytes
+)
 
 
 class FilesPage(Page):
@@ -17,6 +21,10 @@ class FilesPage(Page):
         """Инициализация значений по умолчанию"""
         self.max_files = 10  # Максимальное количество файлов
         self.allowed_types = ['photo', 'document', 'video']  # Разрешенные типы файлов
+
+    def _get_existing_names(self, files: list) -> set:
+        """Получает множество существующих имён файлов"""
+        return {f.get('name', '') for f in files}
 
     async def data_preparate(self) -> None:
         """Подготовка данных страницы"""
@@ -189,11 +197,16 @@ class FilesPage(Page):
         # Получаем самую большую версию фото
         photo = message.photo[-1]
         
+        # Генерируем уникальное имя
+        base_name = 'photo.png'
+        existing_names = self._get_existing_names(files)
+        unique_name = generate_unique_filename(base_name, existing_names)
+        
         file_info = {
             'type': 'photo',
             'file_id': photo.file_id,
             'file_unique_id': photo.file_unique_id,
-            'name': f'photo_{len(files) + 1}.jpg',
+            'name': unique_name,
             'size': photo.file_size
         }
         
@@ -213,6 +226,7 @@ class FilesPage(Page):
             return
         
         file_info = None
+        existing_names = self._get_existing_names(files)
         
         # Проверяем тип сообщения
         if message.document:
@@ -221,47 +235,30 @@ class FilesPage(Page):
             file_name_orig = doc.file_name or ''
             
             # Проверяем, является ли документ изображением
-            image_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff']
-            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.tif']
-            
-            is_image = (
-                mime_type in image_mimes or
-                any(file_name_orig.lower().endswith(ext) for ext in image_extensions)
-            )
+            is_image = is_image_by_mime_or_extension(mime_type, file_name_orig)
             
             if is_image:
-                # Конвертируем в фото
+                # Конвертируем в PNG
                 try:
-                    file = await self.scene.__bot__.get_file(doc.file_id)
-                    if not file.file_path:
-                        await message.answer('❌ Не удалось получить файл')
-                        return
-                        
-                    file_data = await self.scene.__bot__.download_file(file.file_path)
-                    if not file_data:
+                    raw_data = await download_telegram_file(self.scene.__bot__, doc.file_id)
+                    if not raw_data:
                         await message.answer('❌ Не удалось скачать файл')
                         return
-                        
-                    raw_data = file_data.read()
                     
-                    # Конвертируем в JPEG
-                    image = Image.open(io.BytesIO(raw_data))
-                    if image.mode in ('RGBA', 'LA', 'P'):
-                        background = Image.new('RGB', image.size, (255, 255, 255))
-                        if image.mode == 'P':
-                            image = image.convert('RGBA')
-                        background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
-                        image = background
-                    elif image.mode != 'RGB':
-                        image = image.convert('RGB')
-                    
-                    output = io.BytesIO()
-                    image.save(output, format='JPEG', quality=95)
-                    jpeg_data = output.getvalue()
+                    # Конвертируем в PNG
+                    png_data = convert_image_to_png(raw_data)
                     
                     # Отправляем как фото и получаем file_id
-                    new_photo_name = f'photo_{len(files) + 1}.jpg'
-                    photo_file = BufferedInputFile(jpeg_data, filename=new_photo_name)
+                    if file_name_orig:
+                        if '.' in file_name_orig:
+                            base_name = file_name_orig.rsplit('.', 1)[0] + '.png'
+                        else:
+                            base_name = file_name_orig + '.png'
+                    else:
+                        base_name = 'photo.png'
+
+                    unique_name = generate_unique_filename(base_name, existing_names)
+                    photo_file = BufferedInputFile(png_data, filename=unique_name)
                     
                     sent_msg = await self.scene.__bot__.send_photo(
                         chat_id=self.scene.user_id,
@@ -280,7 +277,7 @@ class FilesPage(Page):
                         'type': 'photo',
                         'file_id': new_photo.file_id,
                         'file_unique_id': new_photo.file_unique_id,
-                        'name': new_photo_name,
+                        'name': unique_name,
                         'size': new_photo.file_size
                     }
                     
@@ -295,44 +292,58 @@ class FilesPage(Page):
                 except Exception as e:
                     logger.error(f"Ошибка конвертации документа в фото: {e}")
                     # Если конвертация не удалась, сохраняем как документ
+                    fallback_name = doc.file_name or 'document'
+                    unique_fallback_name = generate_unique_filename(fallback_name, existing_names)
+                    
                     file_info = {
                         'type': 'document',
                         'file_id': doc.file_id,
                         'file_unique_id': doc.file_unique_id,
-                        'name': doc.file_name or f'document_{len(files) + 1}',
+                        'name': unique_fallback_name,
                         'size': doc.file_size,
                         'mime_type': doc.mime_type
                     }
             else:
                 # Обычный документ (не изображение)
+                base_name = doc.file_name or 'document'
+                unique_name = generate_unique_filename(base_name, existing_names)
+                
                 file_info = {
                     'type': 'document',
                     'file_id': doc.file_id,
                     'file_unique_id': doc.file_unique_id,
-                    'name': doc.file_name or f'document_{len(files) + 1}',
+                    'name': unique_name,
                     'size': doc.file_size,
                     'mime_type': doc.mime_type
                 }
         elif message.video:
             video = message.video
+            base_name = video.file_name or 'video.mp4'
+            unique_name = generate_unique_filename(base_name, existing_names)
+            
             file_info = {
                 'type': 'video',
                 'file_id': video.file_id,
                 'file_unique_id': video.file_unique_id,
-                'name': video.file_name or f'video_{len(files) + 1}',
+                'name': unique_name,
                 'size': video.file_size,
                 'duration': video.duration
             }
+
         elif message.photo:
             photos = message.photo
-            for photo in photos:
-                file_info = {
-                    'type': 'photo',
-                    'file_id': photo.file_id,
-                    'file_unique_id': photo.file_unique_id,
-                    'name': f'photo_{len(files) + 1}.jpg',
-                    'size': photo.file_size
-                }
+            photo = photos[-1]  # Берём самое большое фото
+
+            base_name = 'photo.png'
+            unique_name = generate_unique_filename(base_name, existing_names)
+
+            file_info = {
+                'type': 'photo',
+                'file_id': photo.file_id,
+                'file_unique_id': photo.file_unique_id,
+                'name': unique_name,
+                'size': photo.file_size
+            }
 
         if file_info:
             files.append(file_info)
@@ -341,7 +352,7 @@ class FilesPage(Page):
             await self.scene.update_message()
 
             try:
-                await sleep(5)  # Небольшая задержка для корректной отправки
+                await sleep(2)
                 await ms.delete()
             except:
                 pass

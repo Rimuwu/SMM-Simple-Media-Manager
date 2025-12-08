@@ -284,6 +284,291 @@ class BrainAPIClient:
         
         return None
 
+    async def notify_executor(self, card_id: str, message: str) -> bool:
+        """
+        Отправить уведомление исполнителю карточки.
+        
+        Args:
+            card_id: UUID карточки
+            message: Текст уведомления
+            
+        Returns:
+            True если уведомление отправлено успешно
+        """
+        data = {
+            "card_id": str(card_id),
+            "message": message
+        }
+        
+        result, status = await self.api.post("/card/notify-executor", data=data)
+        
+        return status == 200
+
+    async def upload_files_to_card(
+        self,
+        card_id: str,
+        files: list[dict],
+        bot = None
+    ) -> int:
+        """
+        Загрузка списка файлов в карточку Kaiten.
+        
+        Args:
+            card_id: UUID карточки
+            files: Список файлов в формате:
+                [{'file_id': str, 'name': str, 'type': str, 'mime_type': str}, ...]
+                или
+                [{'data': bytes, 'name': str, 'mime_type': str}, ...]
+            bot: Telegram Bot instance для скачивания файлов (если передан file_id)
+            
+        Returns:
+            Количество успешно загруженных файлов
+        """
+        uploaded_count = 0
+        
+        for file_info in files:
+            try:
+                file_name = file_info.get('name', 'file')
+                file_type = file_info.get('type', 'document')
+                mime_type = file_info.get('mime_type')
+                
+                # Получаем данные файла
+                if 'data' in file_info:
+                    # Данные переданы напрямую
+                    file_content = file_info['data']
+                elif 'file_id' in file_info and bot:
+                    # Нужно скачать из Telegram
+                    from modules.file_utils import download_telegram_file
+                    file_content = await download_telegram_file(bot, file_info['file_id'])
+                    if not file_content:
+                        print(f"Не удалось скачать файл {file_name}")
+                        continue
+                else:
+                    print(f"Нет данных для файла {file_name}")
+                    continue
+                
+                # Определяем нужно ли конвертировать в PNG
+                from modules.file_utils import is_image_by_mime_or_extension
+                is_image = file_type == 'photo' or is_image_by_mime_or_extension(mime_type, file_name)
+                
+                # Загружаем файл
+                success = await self.upload_file_to_kaiten(
+                    card_id=card_id,
+                    file_data=file_content,
+                    file_name=file_name,
+                    convert_to_png=is_image
+                )
+                
+                if success:
+                    uploaded_count += 1
+                    print(f"Файл {file_name} успешно загружен")
+                else:
+                    print(f"Ошибка загрузки файла {file_name}")
+                    
+            except Exception as e:
+                print(f"Ошибка загрузки файла {file_info.get('name')}: {e}")
+        
+        return uploaded_count
+
+    async def upload_file_to_kaiten(
+        self, 
+        card_id: str, 
+        file_data: bytes, 
+        file_name: str,
+        content_type: Optional[str] = None,
+        convert_to_png: bool = True
+    ) -> bool:
+        """
+        Загружает файл в карточку Kaiten.
+        
+        Args:
+            card_id: UUID карточки из базы данных
+            file_data: Бинарные данные файла
+            file_name: Имя файла
+            content_type: MIME тип (определяется автоматически если не указан)
+            convert_to_png: Конвертировать изображения в PNG
+            
+        Returns:
+            True если загрузка успешна
+        """
+        import aiohttp
+
+        try:
+            # Определяем тип файла
+            is_image = self._is_image_file(file_data, file_name)
+            
+            # Конвертируем изображения в PNG если нужно
+            if is_image and convert_to_png:
+                file_data = self._convert_to_png(file_data)
+                # Меняем расширение на .png
+                if '.' in file_name:
+                    file_name = file_name.rsplit('.', 1)[0] + '.png'
+                else:
+                    file_name = file_name + '.png'
+                content_type = 'image/png'
+            
+            # Нормализуем имя файла (убираем проблемные символы)
+            file_name = self._sanitize_filename(file_name)
+            
+            # Определяем content_type если не указан
+            if not content_type:
+                content_type = self._detect_content_type(file_data, file_name)
+            
+            # Формируем multipart/form-data
+            form_data = aiohttp.FormData()
+            form_data.add_field('card_id', str(card_id))
+            form_data.add_field(
+                'file',
+                file_data,
+                filename=file_name,
+                content_type=content_type
+            )
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f'{self.api.base_url}/kaiten/upload-file',
+                    data=form_data
+                ) as resp:
+                    if resp.status == 200:
+                        return True
+                    else:
+                        error_text = await resp.text()
+                        print(f"Ошибка загрузки файла в Kaiten: {error_text}")
+                        return False
+                        
+        except Exception as e:
+            print(f"Ошибка upload_file_to_kaiten: {e}")
+            return False
+    
+    def _sanitize_filename(self, filename: str) -> str:
+        """
+        Нормализует имя файла для безопасной передачи.
+        Если имя содержит не-ASCII символы - заменяет на стандартное.
+        """
+        import re
+        import time
+        
+        if not filename:
+            return f'file_{int(time.time())}'
+        
+        # Получаем расширение
+        if '.' in filename:
+            name_part, ext = filename.rsplit('.', 1)
+            ext = '.' + ext.lower()
+        else:
+            name_part = filename
+            ext = ''
+        
+        # Проверяем, содержит ли имя не-ASCII символы
+        if not name_part.isascii():
+            # Определяем тип файла по расширению
+            image_exts = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}
+            video_exts = {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
+            
+            timestamp = int(time.time())
+            if ext in image_exts:
+                return f'photo_{timestamp}{ext}'
+            elif ext in video_exts:
+                return f'video_{timestamp}{ext}'
+            else:
+                return f'file_{timestamp}{ext}'
+        
+        # Заменяем опасные символы для файловой системы
+        name_part = re.sub(r'[<>:"/\\|?*]', '_', name_part)
+        
+        # Убираем множественные пробелы и подчёркивания
+        name_part = re.sub(r'[\s_]+', '_', name_part)
+        
+        # Убираем точки в начале (скрытые файлы)
+        name_part = name_part.lstrip('.')
+        
+        # Ограничиваем длину
+        max_name_len = 200 - len(ext)
+        if len(name_part) > max_name_len:
+            name_part = name_part[:max_name_len]
+        
+        result = name_part + ext
+        return result if result and result != ext else f'file_{int(time.time())}{ext}'
+    
+    def _is_image_file(self, file_data: bytes, file_name: str) -> bool:
+        """Проверяет, является ли файл изображением"""
+        # По magic bytes
+        if len(file_data) >= 8:
+            if file_data[:8] == b'\x89PNG\r\n\x1a\n':
+                return True
+            if file_data[:2] == b'\xff\xd8':
+                return True
+            if file_data[:6] in (b'GIF87a', b'GIF89a'):
+                return True
+            if file_data[:4] == b'RIFF' and len(file_data) >= 12 and file_data[8:12] == b'WEBP':
+                return True
+            if file_data[:2] == b'BM':
+                return True
+        
+        # По расширению
+        if file_name:
+            ext = file_name.lower().rsplit('.', 1)[-1] if '.' in file_name else ''
+            if ext in ('png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff', 'tif'):
+                return True
+        
+        return False
+    
+    def _convert_to_png(self, file_data: bytes) -> bytes:
+        """Конвертирует изображение в PNG"""
+        import io
+        from PIL import Image
+        
+        image = Image.open(io.BytesIO(file_data))
+        
+        # Конвертируем в RGBA для поддержки прозрачности
+        if image.mode not in ('RGBA', 'RGB'):
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            elif image.mode in ('LA', 'L'):
+                image = image.convert('RGBA')
+            else:
+                image = image.convert('RGBA')
+        
+        output = io.BytesIO()
+        image.save(output, format='PNG', optimize=True)
+        return output.getvalue()
+    
+    def _detect_content_type(self, file_data: bytes, file_name: str) -> str:
+        """Определяет content_type файла"""
+        # По magic bytes
+        if len(file_data) >= 8:
+            if file_data[:8] == b'\x89PNG\r\n\x1a\n':
+                return 'image/png'
+            if file_data[:2] == b'\xff\xd8':
+                return 'image/jpeg'
+            if file_data[:6] in (b'GIF87a', b'GIF89a'):
+                return 'image/gif'
+            if file_data[:4] == b'RIFF' and len(file_data) >= 12 and file_data[8:12] == b'WEBP':
+                return 'image/webp'
+            if file_data[:4] == b'%PDF':
+                return 'application/pdf'
+            if len(file_data) >= 12 and file_data[4:8] == b'ftyp':
+                return 'video/mp4'
+        
+        # По расширению
+        ext_map = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.pdf': 'application/pdf',
+            '.mp4': 'video/mp4',
+            '.mov': 'video/quicktime',
+        }
+        
+        if '.' in file_name:
+            ext = '.' + file_name.rsplit('.', 1)[1].lower()
+            if ext in ext_map:
+                return ext_map[ext]
+        
+        return 'application/octet-stream'
+
 
 # Создаём инстанс по умолчанию для использования в executors
 brain_client = BrainAPIClient()
@@ -305,3 +590,6 @@ add_editor_note = brain_client.add_editor_note
 get_kaiten_users = brain_client.get_kaiten_users
 get_kaiten_users_dict = brain_client.get_kaiten_users_dict
 get_kaiten_files = brain_client.get_kaiten_files
+upload_file_to_kaiten = brain_client.upload_file_to_kaiten
+upload_files_to_card = brain_client.upload_files_to_card
+notify_executor = brain_client.notify_executor

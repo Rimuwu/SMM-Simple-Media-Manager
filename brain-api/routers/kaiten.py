@@ -73,4 +73,3 @@ async def upload_file(
     except Exception as e:
         brain_logger.error(f"Ошибка загрузки файла в Kaiten: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ошибка загрузки файла: {str(e)}")
-                

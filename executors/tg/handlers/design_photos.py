@@ -1,13 +1,12 @@
-import io
 from typing import Optional
-import aiohttp
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
-from PIL import Image
 from modules.executors_manager import manager
 from modules.api_client import brain_api
 from modules.constants import SETTINGS
 from modules.logs import executors_logger as logger
+from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension
+from global_modules.brain_client import brain_client
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp  # type: ignore
@@ -30,71 +29,41 @@ async def find_card_by_reply(reply_message_id: int) -> Optional[dict]:
         return None
 
 
-async def upload_image_to_kaiten(card_id: str, file_data: bytes, file_name: str):
-    """Загружает изображение в Kaiten и уведомляет исполнителя"""
+async def upload_image_to_kaiten(card_id: str, file_data: bytes, file_name: str) -> bool:
+    """
+    Загружает изображение в Kaiten и уведомляет исполнителя.
+    Использует общий метод из brain_client.
+    """
     try:
-        form_data = aiohttp.FormData()
-        form_data.add_field('card_id', str(card_id))
-        form_data.add_field(
-            'file',
-            file_data,
-            filename=file_name,
-            content_type='image/jpeg'
+        # Загружаем файл через общий метод
+        success = await brain_client.upload_file_to_kaiten(
+            card_id=card_id,
+            file_data=file_data,
+            file_name=file_name,
+            convert_to_png=True
         )
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                'http://brain:8000/kaiten/upload-file',
-                data=form_data
-            ) as resp:
-                if resp.status == 200:
-                    logger.info(f"Файл {file_name} загружен для задачи {card_id}")
-
-                    # Уведомляем исполнителя
-                    try:
-                        notify_data = {
-                            "card_id": str(card_id),
-                            "message": "🖼 К вашей задаче добавлено новое изображение от дизайнеров!"
-                        }
-                        async with session.post(
-                            'http://brain:8000/card/notify-executor',
-                            json=notify_data
-                        ) as notify_resp:
-                            if notify_resp.status == 200:
-                                logger.info(f"Уведомление отправлено исполнителю задачи {card_id}")
-                    except Exception as notify_err:
-                        logger.error(f"Ошибка отправки уведомления: {notify_err}")
-
-                    return True
-                else:
-                    error_text = await resp.text()
-                    logger.error(f"Ошибка загрузки файла: {error_text}")
-                    return False
+        if success:
+            logger.info(f"Файл {file_name} загружен для задачи {card_id}")
+            
+            # Уведомляем исполнителя через общий метод
+            notify_success = await brain_client.notify_executor(
+                card_id=card_id,
+                message="🖼 К вашей задаче добавлено новое изображение от дизайнеров!"
+            )
+            
+            if notify_success:
+                logger.info(f"Уведомление отправлено исполнителю задачи {card_id}")
+            else:
+                logger.warning(f"Не удалось отправить уведомление для задачи {card_id}")
+            
+            return True
+        else:
+            return False
+            
     except Exception as e:
         logger.error(f"Ошибка загрузки файла: {e}")
         return False
-
-
-def convert_to_jpeg(file_data: bytes) -> bytes:
-    """Конвертирует изображение в JPEG"""
-    try:
-        image = Image.open(io.BytesIO(file_data))
-        # Конвертируем в RGB если нужно (для PNG с прозрачностью)
-        if image.mode in ('RGBA', 'LA', 'P'):
-            background = Image.new('RGB', image.size, (255, 255, 255))
-            if image.mode == 'P':
-                image = image.convert('RGBA')
-            background.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
-            image = background
-        elif image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        output = io.BytesIO()
-        image.save(output, format='JPEG', quality=95)
-        return output.getvalue()
-    except Exception as e:
-        logger.error(f"Ошибка конвертации изображения: {e}")
-        raise
 
 
 @dp.message(F.photo, F.reply_to_message)
@@ -123,23 +92,20 @@ async def handle_design_photo_reply(message: Message):
     
     try:
         photo = message.photo[-1]
-        file = await bot.get_file(photo.file_id)
-        if not file.file_path:
-            await message.reply("⚠️ Не удалось получить файл.", parse_mode="Markdown")
-            return
-
-        file_data = await bot.download_file(file.file_path)
+        
+        # Скачиваем через общую функцию
+        file_data = await download_telegram_file(bot, photo.file_id)
         if not file_data:
             await message.reply("⚠️ Не удалось скачать файл.", parse_mode="Markdown")
             return
 
-        file_name = f"design_{message.from_user.id}_{message.message_id}.jpg"
+        file_name = f"design_{message.from_user.id}_{message.message_id}.png"
         card_id = card.get('card_id')
         if not card_id:
             await message.reply("⚠️ Ошибка: не найден ID задачи.", parse_mode="Markdown")
             return
 
-        success = await upload_image_to_kaiten(str(card_id), file_data.read(), file_name)
+        success = await upload_image_to_kaiten(str(card_id), file_data, file_name)
 
         if success:
             await message.reply("✅ Фото добавлено к задаче!", parse_mode="Markdown")
@@ -155,7 +121,7 @@ async def handle_design_photo_reply(message: Message):
 async def handle_design_document_reply(message: Message):
     """
     Обработчик документов от дизайнеров.
-    Отклоняет документы и просит отправить фото.
+    Принимает изображения-документы и конвертирует в PNG.
     """
     design_group = SETTINGS.get('design_group')
 
@@ -171,12 +137,53 @@ async def handle_design_document_reply(message: Message):
     if not card:
         return
 
-    # Отправляем сообщение что нужно фото
-    await message.reply(
-        "⚠️ Пожалуйста, отправьте изображение как **фото**, а не как файл/документ.\n\n"
-        "💡 Чтобы отправить как фото:\n"
-        "1. Выберите изображение\n"
-        "2. Убедитесь что опция «Сжать изображение» включена\n"
-        "3. Не отправляйте как «Файл»",
-        parse_mode="Markdown"
-    )
+    if not message.document or not message.from_user:
+        return
+    
+    doc = message.document
+    mime_type = doc.mime_type or ''
+    file_name_orig = doc.file_name or ''
+    
+    # Проверяем, является ли документ изображением
+    is_image = is_image_by_mime_or_extension(mime_type, file_name_orig)
+    
+    if not is_image:
+        # Отправляем сообщение что нужно фото
+        await message.reply(
+            "⚠️ Пожалуйста, отправьте изображение как **фото**, а не как файл/документ.\n\n"
+            "💡 Чтобы отправить как фото:\n"
+            "1. Выберите изображение\n"
+            "2. Убедитесь что опция «Сжать изображение» включена\n"
+            "3. Не отправляйте как «Файл»",
+            parse_mode="Markdown"
+        )
+        return
+    
+    # Это изображение-документ - обрабатываем
+    logger.info(f"Получено изображение-документ для задачи {card['card_id']} от {message.from_user.id}")
+    
+    try:
+        # Скачиваем через общую функцию
+        file_data = await download_telegram_file(bot, doc.file_id)
+        if not file_data:
+            await message.reply("⚠️ Не удалось скачать файл.", parse_mode="Markdown")
+            return
+
+        base_name = f"design_{message.from_user.id}_{message.message_id}"
+        file_name = f"{base_name}.png"
+
+        card_id = card.get('card_id')
+        if not card_id:
+            await message.reply("⚠️ Ошибка: не найден ID задачи.", parse_mode="Markdown")
+            return
+
+        success = await upload_image_to_kaiten(str(card_id), file_data, file_name)
+
+        if success:
+            await message.reply("✅ Изображение добавлено к задаче!", parse_mode="Markdown")
+        else:
+            await message.reply("⚠️ Не удалось загрузить изображение.", parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"Ошибка обработки документа-изображения: {e}")
+        await message.reply(f"⚠️ Ошибка: {str(e)[:100]}", parse_mode="Markdown")

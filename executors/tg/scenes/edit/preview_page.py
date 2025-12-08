@@ -191,7 +191,7 @@ class PreviewPage(Page):
             if downloaded_images:
                 if len(downloaded_images) == 1:
                     # Одно фото
-                    photo = BufferedInputFile(downloaded_images[0], filename="preview.jpg")
+                    photo = BufferedInputFile(downloaded_images[0], filename="preview.png")
                     await callback.message.answer_photo(
                         photo=photo,
                         caption=post_text,
@@ -204,7 +204,7 @@ class PreviewPage(Page):
                     
                     media_group = []
                     for idx, img_data in enumerate(downloaded_images):
-                        photo_input = BufferedInputFile(img_data, filename=f"preview_{idx}.jpg")
+                        photo_input = BufferedInputFile(img_data, filename=f"preview_{idx}.png")
                         caption = post_text if idx == 0 else None
                         parse_mode = "html" if idx == 0 else None
                         media_group.append(InputMediaPhoto(
@@ -212,7 +212,7 @@ class PreviewPage(Page):
                             caption=caption,
                             parse_mode=parse_mode
                         ))
-                    
+
                     if media_group:
                         ms = await self.scene.__bot__.send_media_group(
                             chat_id=callback.message.chat.id,
