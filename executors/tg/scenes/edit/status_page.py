@@ -38,44 +38,69 @@ class StatusSetterPage(Page):
 
     async def buttons_worker(self):
         buttons = await super().buttons_worker()
-        
+
         # Получаем текущий статус задачи
         task_id = self.scene.data['scene'].get('task_id')
+        if not task_id:
+            return buttons
+
+        cards = await brain_client.get_cards(card_id=task_id)
+        if not cards:
+            return buttons
+
+        card = cards[0]
+        status = card.get('status')
+        need_check = card.get('need_check', True)
+        executor_id = card.get('executor_id')
+
+        # Получаем информацию о пользователе
+        user_role = await brain_client.get_user_role(self.scene.user_id)
+        users = await brain_client.get_users(telegram_id=self.scene.user_id)
+        current_user_id = str(users[0].get('user_id')) if users else None
         
-        if task_id:
-            cards = await brain_client.get_cards(card_id=task_id)
-            if cards:
-                card = cards[0]
-                status = card.get('status')
-                need_check = card.get('need_check', True)
-                
-                # Проверяем роль пользователя
-                user_role = await brain_client.get_user_role(self.scene.user_id)
-                is_editor_or_admin = user_role in ['admin', 'editor']
-                
-                # Если статус "Создано" - кнопка "Взять в работу"
-                if status == CardStatus.pass_.value:
+        # Флаги ролей
+        is_admin = user_role == 'admin'
+        is_editor = user_role == 'editor'
+        is_copywriter = user_role == 'copywriter'
+        is_editor_or_admin = is_admin or is_editor
+        is_executor = current_user_id and str(executor_id) == current_user_id
+        
+        can_complete = await self.can_complete()
+
+        if status == CardStatus.pass_.value:
+            # Любой может взять в работу
+            buttons.append({
+                'text': '✏️ Взять в работу',
+                'callback_data': callback_generator(
+                    self.scene.__scene_name__,
+                    'set_edited',
+                    'set_executor'
+                )
+            })
+
+        elif status == CardStatus.edited.value:
+            if can_complete:
+                # Если проверка не нужна (need_check=False)
+                if not need_check:
                     buttons.append({
-                        'text': '✏️ Взять в работу',
+                        'text': '✅ Завершить',
                         'callback_data': callback_generator(
                             self.scene.__scene_name__,
-                            'set_edited'
+                            'set_ready'
                         )
                     })
-                
-                # Если статус "В работе"
-                elif status == CardStatus.edited.value and await self.can_complete():
-                    # Если need_check=False - сразу кнопка завершения
-                    if not need_check:
-                        buttons.append({
-                            'text': '✅ Завершить',
-                            'callback_data': callback_generator(
-                                self.scene.__scene_name__,
-                                'set_ready'
-                            )
-                        })
-                    else:
-                        # Иначе - отправить на проверку
+                    buttons.append({
+                        'text': '🚫 Завершить без отправки',
+                        'callback_data': callback_generator(
+                            self.scene.__scene_name__,
+                            'set_ready_no_send',
+                        ),
+                        'ignore_row': True
+                    })
+                # Если нужна проверка
+                else:
+                    # Копирайтер и админ могут отправить на проверку
+                    if is_copywriter or is_admin:
                         buttons.append({
                             'text': '🔍 Отправить на проверку',
                             'callback_data': callback_generator(
@@ -84,9 +109,16 @@ class StatusSetterPage(Page):
                             )
                         })
 
-                # Если статус "На проверке" - кнопки для редактора/админа
-                elif status == CardStatus.review.value:
-                    if await self.can_complete():
+                    # Редактор/админ могут сразу завершить без отправки
+                    if is_editor_or_admin:
+                        buttons.append({
+                            'text': '🚫 Завершить без отправки',
+                            'callback_data': callback_generator(
+                                self.scene.__scene_name__,
+                                'set_ready_no_send',
+                            ),
+                            'next_line': True
+                        })
                         buttons.append({
                             'text': '✅ Завершить',
                             'callback_data': callback_generator(
@@ -94,63 +126,94 @@ class StatusSetterPage(Page):
                                 'set_ready'
                             )
                         })
-                    buttons.append({
-                        'text': '🔙 Вернуть на доработку',
-                        'callback_data': callback_generator(
-                            self.scene.__scene_name__,
-                            'set_edited'
-                        )
-                    })
 
-                # Кнопка "Завершить без отправки" для редактора/админа
-                # Доступна если статус "В работе" или "На проверке" и можно завершить
-                if is_editor_or_admin and status in [CardStatus.edited.value, CardStatus.review.value]:
-                    if await self.can_complete():
-                        buttons.append({
-                            'text': '🚫 Завершить без отправки',
-                            'callback_data': callback_generator(
-                                self.scene.__scene_name__,
-                                'set_ready_no_send'
-                            )
-                        })
-                
-                # Кнопка "Вернуть на форум" для админа и исполнителя
-                # Доступна если статус "В работе", "На проверке" или "Готова"
-                if status in [CardStatus.edited.value, CardStatus.review.value, CardStatus.ready.value]:
-                    # Проверяем, является ли пользователь исполнителем этой задачи
-                    executor_id = card.get('executor_id')
-                    users = await brain_client.get_users(telegram_id=self.scene.user_id)
-                    current_user_id = str(users[0].get('user_id')) if users else None
-                    is_executor = current_user_id and str(executor_id) == current_user_id
-                    
-                    if is_editor_or_admin or is_executor:
-                        buttons.append({
-                            'text': '📤 Вернуть на форум',
-                            'callback_data': callback_generator(
-                                self.scene.__scene_name__,
-                                'return_to_forum'
-                            ), 
-                            'ignore_row': True
-                        })
+            # Вернуть на форум (исполнитель или админ)
+            if is_executor or is_admin:
+                buttons.append({
+                    'text': '📤 Вернуть на форум',
+                    'callback_data': callback_generator(
+                        self.scene.__scene_name__,
+                        'return_to_forum'
+                    ), 
+                    'ignore_row': True
+                })
+
+        elif status == CardStatus.review.value:
+            # Редактор/админ могут завершить или вернуть
+            if can_complete:
+                buttons.append({
+                    'text': '✅ Завершить',
+                    'callback_data': callback_generator(
+                        self.scene.__scene_name__,
+                        'set_ready'
+                    )
+                })
+
+            buttons.append({
+                'text': '🔙 Вернуть на доработку',
+                'callback_data': callback_generator(
+                    self.scene.__scene_name__,
+                    'set_edited',
+                    'no_set_executor'
+                )
+            })
+            
+            # Редактор/админ могут завершить без отправки
+            if is_editor_or_admin and can_complete:
+                buttons.append({
+                    'text': '🚫 Завершить без отправки',
+                    'callback_data': callback_generator(
+                        self.scene.__scene_name__,
+                        'set_ready_no_send',
+                    ),
+                    'ignore_row': True
+                })
+            
+            # Вернуть на форум (исполнитель или админ)
+            if is_executor or is_admin:
+                buttons.append({
+                    'text': '📤 Вернуть на форум',
+                    'callback_data': callback_generator(
+                        self.scene.__scene_name__,
+                        'return_to_forum'
+                    ), 
+                    'ignore_row': True
+                })
+
+        elif status == CardStatus.ready.value:
+            # Вернуть на форум (исполнитель или админ)
+            if is_executor or is_admin:
+                buttons.append({
+                    'text': '🔙 Вернуть на доработку',
+                    'callback_data': callback_generator(
+                        self.scene.__scene_name__,
+                        'set_edited',
+                        'no_set_executor'
+                    )
+                })
 
         return buttons
 
     @Page.on_callback('set_edited')
-    async def set_edited_status(self, callback, args):
+    async def set_edited_status(self, callback, args: list):
         """Изменяет статус задачи на "В работе" и устанавливает исполнителя"""
         task_id = self.scene.data['scene'].get('task_id')
-        
+        set_executor = args[1] == 'set_executor'
+
         if task_id:
             # Получаем user_id текущего пользователя
             users = await brain_client.get_users(telegram_id=self.scene.user_id)
             executor_id = None
             if users:
                 executor_id = str(users[0].get('user_id'))
-            
+
             logger.info(f"Пользователь {self.scene.user_id} перевел задачу {task_id} в статус 'В работе' (executor_id={executor_id})")
-            
+
             # Обновляем статус и исполнителя
-            await brain_client.update_card(card_id=task_id, status=CardStatus.edited, executor_id=executor_id)
+            await brain_client.update_card(card_id=task_id, status=CardStatus.edited)
+            if set_executor:
+                await brain_client.update_card(card_id=task_id, executor_id=executor_id)
+
             await self.scene.update_key('scene', 'status', '✏️ В работе')
             await callback.answer('✅ Статус изменен на "В работе"', show_alert=True)
             await self.scene.update_page('main-page')
