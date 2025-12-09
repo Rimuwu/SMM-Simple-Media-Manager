@@ -585,10 +585,10 @@ async def update_card(card_data: CardUpdate):
             try:
                 from models.ScheduledTask import ScheduledTask
                 from uuid import UUID as PyUUID
-                
-                delete_at = moscow_now() + timedelta(days=2)
+
+                delete_at = moscow_now() + timedelta(days=0.5)
                 card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
-                
+
                 async with session_factory() as session:
                     task = ScheduledTask(
                         card_id=card_uuid,

@@ -294,7 +294,7 @@ async def finalize_card_publication(card: Card, **kwargs):
             from datetime import timedelta
             from uuid import UUID as PyUUID
             
-            delete_at = moscow_now() + timedelta(days=2)
+            delete_at = moscow_now() + timedelta(days=0.5)
             card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
             
             async with session_factory() as session:
