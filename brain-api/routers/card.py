@@ -244,9 +244,9 @@ async def get(task_id: Optional[str] = None,
             stmt = stmt.where(Card.customer_id == customer_id)
         if executor_id:
             stmt = stmt.where(Card.executor_id == executor_id)
-        if need_check is not None:
+        if need_check:
             stmt = stmt.where(Card.need_check == need_check)
-        if forum_message_id is not None:
+        if forum_message_id:
             stmt = stmt.where(Card.forum_message_id == forum_message_id)
         
         result_db = await session.execute(stmt)
