@@ -405,7 +405,7 @@ async def update_card(card_data: CardUpdate):
                     async with session_factory() as session:
                         await cancel_card_tasks(session, str(card.card_id))
                         print(f"Cancelled tasks for card {card.card_id} due to status change to edited")
-                        
+
                         # Восстанавливаем напоминания (дедлайны и т.д.), так как cancel_card_tasks удаляет всё
                         await card.refresh()
                         await schedule_card_notifications(session, card)
