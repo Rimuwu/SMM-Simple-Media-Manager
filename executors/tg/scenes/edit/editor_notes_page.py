@@ -3,6 +3,7 @@ from tg.oms import Page
 from tg.oms.utils import callback_generator
 from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus
+from global_modules.brain_client import add_editor_note
 
 class EditorNotesPage(Page):
     
@@ -140,21 +141,21 @@ class EditorNotesPage(Page):
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🗑️ Удалить", callback_data="delete_message")]
         ])
-        
+
         text = message.text
-        
+
         if not text or len(text) < 5:
             await message.answer('❌ Комментарий слишком короткий. Минимум 5 символов.',
                                  reply_markup=keyboard)
             return
-        
+
         if len(text) > 256:
             await message.answer('❌ Комментарий слишком длинный. Максимум 256 символа.', 
                                  reply_markup=keyboard)
             return
-        
+
         task_id = self.scene.data['scene'].get('task_id')
-        
+
         if task_id:
             # Получаем user_id текущего пользователя
             telegram_id = self.scene.user_id
@@ -172,8 +173,6 @@ class EditorNotesPage(Page):
             result = await add_editor_note(task_id, text, author_user_id)
 
             if result:
-                await message.answer('✅ Комментарий добавлен!', reply_markup=keyboard)
-                
                 # Перезагружаем страницу для обновления списка комментариев
                 await self.scene.update_page('editor-notes')
             else:

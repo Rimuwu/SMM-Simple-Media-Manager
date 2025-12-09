@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-PostgreSQL Backup Script with Rotation
-Автоматическое создание бэкапов PostgreSQL с ротацией старых файлов
-"""
-
 import os
 import subprocess
 import sys
