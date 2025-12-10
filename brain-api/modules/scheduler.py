@@ -354,10 +354,10 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
             )
             session.add(send_task)
             logger.info(f"Время отправки прошло, создана задача немедленной отправки для {client_key}")
-    
+
     # Создаём задачу финализации после отправки всех постов
-    # Выполняется через 2 минуты после последнего поста
-    finalize_time = (card.send_time if card.send_time > now else now) + timedelta(minutes=2)
+    # Выполняется через 1 минуту после последнего поста
+    finalize_time = (card.send_time if card.send_time > now else now) + timedelta(minutes=1)
     finalize_task = ScheduledTask(
         card_id=card_uuid,
         function_path="modules.notifications.finalize_card_publication",
@@ -366,7 +366,7 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
     )
     session.add(finalize_task)
     logger.info(f"Создана задача финализации публикации для карточки {card.card_id} на {finalize_time}")
-    
+
     await session.commit()
 
 

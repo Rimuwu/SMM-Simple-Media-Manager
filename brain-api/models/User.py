@@ -27,3 +27,4 @@ class User(Base, AsyncCRUDMixin):
     # Связи
     cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer", foreign_keys="[Card.customer_id]")
     executed_cards: Mapped[list["Card"]] = relationship("Card", back_populates="executor", foreign_keys="[Card.executor_id]")
+    edited_cards: Mapped[list["Card"]] = relationship("Card", back_populates="editor", foreign_keys="[Card.editor_id]")

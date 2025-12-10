@@ -379,31 +379,6 @@ async def finalize_card_publication(card: Card, **kwargs):
     except Exception as e:
         logger.error(f"Ошибка финализации публикации карточки {card.card_id}: {e}", exc_info=True)
 
-
-async def delete_sent_card(card_id: str):
-    """
-    Удаляет карточку из БД (не из Kaiten).
-    Вызывается через 2 дня после получения статуса sent.
-    """
-    try:
-        card = await Card.get_by_key('card_id', card_id)
-        if not card:
-            logger.info(f"Карточка {card_id} уже удалена или не найдена")
-            return
-        
-        # Проверяем, что статус всё ещё sent (может измениться)
-        if card.status != CardStatus.sent:
-            logger.info(f"Карточка {card_id} изменила статус, удаление отменено")
-            return
-        
-        # Удаляем карточку из БД
-        await card.delete()
-        logger.info(f"Карточка {card_id} удалена из БД")
-        
-    except Exception as e:
-        logger.error(f"Ошибка удаления карточки {card_id}: {e}", exc_info=True)
-
-
 async def get_leaderboard_text(period: str = "all") -> str:
     """
     Получить текст лидерборда.
@@ -422,11 +397,13 @@ async def get_leaderboard_text(period: str = "all") -> str:
         users = sorted(users, key=lambda u: u.task_per_year, reverse=True)
         period_name = "год"
         get_tasks = lambda u: u.task_per_year
+
     elif period == "month":
         users = await User.filter_by()
         users = sorted(users, key=lambda u: u.task_per_month, reverse=True)
         period_name = "месяц"
         get_tasks = lambda u: u.task_per_month
+
     else:  # all
         users = await User.filter_by()
         users = sorted(users, key=lambda u: u.tasks, reverse=True)

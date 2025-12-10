@@ -1,9 +1,6 @@
 from modules.api_client import executors_api
 from modules.constants import ApiEndpoints, SceneNames
 from modules.logs import brain_logger as logger
-from models.Card import Card
-from models.User import User
-from typing import Optional
 
 # ==================== Форум ====================
 
@@ -330,17 +327,27 @@ async def close_user_scene(telegram_id: int,
 
 # ==================== Уведомления ====================
 
-async def notify_user(telegram_id: int, message: str) -> bool:
+async def notify_user(telegram_id: int, 
+                      message: str,
+                      skip_if_page: str | None = None
+                      ) -> bool:
     """
     Отправить уведомление пользователю.
-    
+    Args:
+        telegram_id: Telegram ID пользователя
+        message: Текст сообщения
+        skip_if_page: Пропустить уведомление, если пользователь на этой странице
     Returns:
         True если успешно
     """
     try:
+        data = {"user_id": telegram_id, "message": message}
+        if skip_if_page:
+            data["skip_if_page"] = skip_if_page
+
         await executors_api.post(
             ApiEndpoints.NOTIFY_USER,
-            data={"user_id": telegram_id, "message": message}
+            data=data
         )
         return True
     except Exception as e:
@@ -348,7 +355,10 @@ async def notify_user(telegram_id: int, message: str) -> bool:
         return False
 
 
-async def notify_users(users: list, message: str) -> int:
+async def notify_users(users: list, 
+                       message: str,
+                       skip_if_page: str | None = None
+                       ) -> int:
     """
     Отправить уведомление списку пользователей.
 
@@ -361,7 +371,7 @@ async def notify_users(users: list, message: str) -> int:
     """
     success_count = 0
     for user in users:
-        if await notify_user(user.telegram_id, message):
+        if await notify_user(user.telegram_id, message, skip_if_page):
             success_count += 1
     return success_count
 

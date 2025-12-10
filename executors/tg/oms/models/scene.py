@@ -116,7 +116,7 @@ class Scene:
         if page_name not in self.scene.pages:
             await self.__bot__.send_message(
                 self.user_id,
-                f'❌ Ошибка получения станицы. Попробуйте войти в сцену заново.'
+                '❌ Ошибка получения станицы. Попробуйте войти в сцену заново.'
             )
             try:
                 await self.__bot__.delete_message(
@@ -300,7 +300,7 @@ class Scene:
 
         except Exception as e:
             if "message is not modified" in str(e):
-                print("OMS: Сообщение не изменилось, пропускаем обновление")
+                # print("OMS: Сообщение не изменилось, пропускаем обновление")
                 return
 
             print(f"OMS: Ошибка при обновлении сообщения: {e}")
@@ -366,7 +366,8 @@ class Scene:
             await self.__update_function__(user_id=self.user_id, data=self.data_to_save())
         return True
 
-    async def load_from_db(self, update_page: bool) -> bool:
+    async def load_from_db(self, 
+                           update_page: bool) -> bool:
         if not self.__load_function__:
             return False
 
@@ -395,7 +396,7 @@ class Scene:
                 )
             except Exception as e: pass
 
-        await self.update_key(page.__page_name__, 'last_message', message.text)
+        # await self.update_key(page.__page_name__, 'last_message', message.text)
         await page.post_handle('text')
 
     async def callback_handler(self, 
@@ -404,7 +405,7 @@ class Scene:
         page = self.current_page
         await page.callback_handler(callback, args)
 
-        await self.update_key(page.__page_name__, 'last_button', callback.data)
+        # await self.update_key(page.__page_name__, 'last_button', callback.data)
         await page.post_handle('button')
 
 
@@ -435,11 +436,7 @@ class Scene:
             Если ключа нет, он будет создан
             Аккуратно, value должен быть сериализуемым в JSON
         """
-        # stack = traceback.extract_stack()
-        # caller = stack[-2]
-        
-        # print(f"[update_key] Вызовов из: {caller.filename}:{caller.lineno} в {caller.name}")
-        
+
         if element in self.data:
             if key in self.data[element]:
                 self.data[element][key] = value.copy() if (

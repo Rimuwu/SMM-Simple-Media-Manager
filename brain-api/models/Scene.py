@@ -1,10 +1,9 @@
-from sqlalchemy import Integer, String, Text, BigInteger
+from sqlalchemy import String, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSON
-from typing import Optional
 from database.connection import Base
 from database.crud_mixins import AsyncCRUDMixin
-from database.annotated_types import uuidPK, createAT, updateAT
+from database.annotated_types import createAT, updateAT
 
 
 class Scene(Base, AsyncCRUDMixin):

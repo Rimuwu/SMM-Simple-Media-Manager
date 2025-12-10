@@ -48,6 +48,7 @@ class CardCreate(BaseModel):
 
     executor_id: Optional[str] = None # ID исполнителя в базе данных
     customer_id: Optional[str] = None # ID заказчика в базе данных
+    editor_id: Optional[str] = None  # ID редактора в базе данных
 
     # properties
     channels: Optional[list[str]] = None  # Список каналов для публикации
@@ -125,6 +126,7 @@ async def create_card(card_data: CardCreate):
                     logger.error(
                         f"Ошибка при получении/очистке членов карточки Kaiten: {e}"
                         )
+                    kaiten_card = None
 
                 try:
                     if executor_ and kaiten_card and executor_.tasker_id:
@@ -159,7 +161,8 @@ async def create_card(card_data: CardCreate):
         image_prompt=card_data.image_prompt,
         customer_id=card_data.customer_id,
         executor_id=card_data.executor_id,
-        need_check=card_data.need_check
+        need_check=card_data.need_check,
+        editor_id=card_data.editor_id
     )
 
     logger.info(f"Карточка создана в БД: {card.card_id} (Kaiten ID: {card_id})")
@@ -227,7 +230,8 @@ async def get(task_id: Optional[str] = None,
               customer_id: Optional[str] = None,
               executor_id: Optional[str] = None,
               need_check: Optional[bool] = None,
-              forum_message_id: Optional[int] = None
+              forum_message_id: Optional[int] = None,
+              editor_id: Optional[str] = None
               ):
     # Используем явный запрос с eager loading для связанных объектов
     async with session_factory() as session:
@@ -244,11 +248,13 @@ async def get(task_id: Optional[str] = None,
             stmt = stmt.where(Card.customer_id == customer_id)
         if executor_id:
             stmt = stmt.where(Card.executor_id == executor_id)
+        if editor_id:
+            stmt = stmt.where(Card.editor_id == editor_id)
         if need_check:
             stmt = stmt.where(Card.need_check == need_check)
         if forum_message_id:
             stmt = stmt.where(Card.forum_message_id == forum_message_id)
-        
+
         result_db = await session.execute(stmt)
         cards = result_db.scalars().all()
         
@@ -293,6 +299,7 @@ class CardUpdate(BaseModel):
     status: Optional[CardStatus] = None
     executor_id: Optional[str] = None
     customer_id: Optional[str] = None
+    editor_id: Optional[str] = None
     need_check: Optional[bool] = None
     need_send: Optional[bool] = None  # Нужно ли отправлять в каналы
     forum_message_id: Optional[int] = None
@@ -345,7 +352,7 @@ async def update_card(card_data: CardUpdate):
                 raise HTTPException(status_code=400, detail="Invalid date format for send_time")
 
     # Преобразуем UUID поля
-    for key in ['executor_id', 'customer_id']:
+    for key in ['executor_id', 'customer_id', 'editor_id']:
         if key in data and isinstance(data[key], str):
             try:
                 data[key] = _UUID(data[key])
@@ -355,252 +362,252 @@ async def update_card(card_data: CardUpdate):
     # Флаг для отслеживания, было ли сообщение форума уже обновлено при смене статуса
     forum_already_updated = False
 
-    if 'status' in data and data['status'] != card.status:
-        logger.info(f"Изменение статуса карточки {card.card_id}: {card.status} -> {data['status']}")
+    # if 'status' in data and data['status'] != card.status:
+    #     logger.info(f"Изменение статуса карточки {card.card_id}: {card.status} -> {data['status']}")
 
-        # Если статус изменился на review (ждет проверки)
-        if data['status'] == CardStatus.review:
-            forum_already_updated = True  # Помечаем что форум обновим здесь
+    #     # Если статус изменился на review (ждет проверки)
+    #     if data['status'] == CardStatus.review:
+    #         forum_already_updated = True  # Помечаем что форум обновим здесь
             
-            # Перемещаем карточку в Kaiten в колонку "На проверке"
-            if card.task_id and card.task_id != 0:
-                try:
-                    board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
-                    column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][1]['id']
-                    async with kaiten as client:
-                        await client.update_card(
-                            card.task_id, board_id=board_id, column_id=column_id)
-                        await client.add_comment(card.task_id, "🔍 Задача отправлена на проверку")
-                except Exception as e:
-                    print(f"Error moving card to review in Kaiten: {e}")
+    #         # Перемещаем карточку в Kaiten в колонку "На проверке"
+    #         if card.task_id and card.task_id != 0:
+    #             try:
+    #                 board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
+    #                 column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][1]['id']
+    #                 async with kaiten as client:
+    #                     await client.update_card(
+    #                         card.task_id, board_id=board_id, column_id=column_id)
+    #                     await client.add_comment(card.task_id, "🔍 Задача отправлена на проверку")
+    #             except Exception as e:
+    #                 print(f"Error moving card to review in Kaiten: {e}")
 
-            # Удаляем старое сообщение с форума
-            if card.forum_message_id:
-                if await delete_forum_message(str(card.card_id)):
-                    await card.update(forum_message_id=None)
+    #         # Удаляем старое сообщение с форума
+    #         if card.forum_message_id:
+    #             if await delete_forum_message(str(card.card_id)):
+    #                 await card.update(forum_message_id=None)
             
-            # Создаём новое сообщение на форуме со статусом review
-            await card.refresh()
-            message_id, _ = await update_forum_message(str(card.card_id), CardStatus.review.value)
-            if message_id:
-                await card.update(forum_message_id=message_id)
+    #         # Создаём новое сообщение на форуме со статусом review
+    #         await card.refresh()
+    #         message_id, _ = await update_forum_message(str(card.card_id), CardStatus.review.value)
+    #         if message_id:
+    #             await card.update(forum_message_id=message_id)
             
-            # Уведомляем админов и редакторов
-            recipients = []
-            admins = await User.filter_by(role=UserRole.admin)
-            editors = await User.filter_by(role=UserRole.editor)
-            if admins: recipients.extend(admins)
-            if editors: recipients.extend(editors)
-            recipients = list({u.user_id: u for u in recipients}.values())
+    #         # Уведомляем админов и редакторов
+    #         recipients = []
+    #         admins = await User.filter_by(role=UserRole.admin)
+    #         editors = await User.filter_by(role=UserRole.editor)
+    #         if admins: recipients.extend(admins)
+    #         if editors: recipients.extend(editors)
+    #         recipients = list({u.user_id: u for u in recipients}.values())
             
-            msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
-            await notify_users(recipients, msg)
+    #         msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
+    #         await notify_users(recipients, msg)
 
-        elif data['status'] == CardStatus.edited:
-            forum_already_updated = True  # Помечаем что форум обновим здесь
+    #     elif data['status'] == CardStatus.edited:
+    #         forum_already_updated = True  # Помечаем что форум обновим здесь
             
-            # Если статус меняется на edited (в работе), удаляем запланированные задачи публикации и превью
-            if card.status == CardStatus.ready:
-                try:
-                    async with session_factory() as session:
-                        await cancel_card_tasks(session, str(card.card_id))
-                        print(f"Cancelled tasks for card {card.card_id} due to status change to edited")
+    #         # Если статус меняется на edited (в работе), удаляем запланированные задачи публикации и превью
+    #         if card.status == CardStatus.ready:
+    #             try:
+    #                 async with session_factory() as session:
+    #                     await cancel_card_tasks(session, str(card.card_id))
+    #                     print(f"Cancelled tasks for card {card.card_id} due to status change to edited")
 
-                        # Восстанавливаем напоминания (дедлайны и т.д.), так как cancel_card_tasks удаляет всё
-                        await card.refresh()
-                        await schedule_card_notifications(session, card)
-                        print(f"Restored notifications for card {card.card_id}")
-                except Exception as e:
-                    print(f"Error canceling tasks: {e}")
+    #                     # Восстанавливаем напоминания (дедлайны и т.д.), так как cancel_card_tasks удаляет всё
+    #                     await card.refresh()
+    #                     await schedule_card_notifications(session, card)
+    #                     print(f"Restored notifications for card {card.card_id}")
+    #             except Exception as e:
+    #                 print(f"Error canceling tasks: {e}")
                 
-                # Удаляем превью из complete_topic
-                try:
-                    complete_message_ids = card.complete_message_id or {}
-                    await delete_all_complete_previews(complete_message_ids)
-                    await card.update(complete_message_id={})
-                    print(f"Deleted complete previews for card {card.card_id}")
-                except Exception as e:
-                    print(f"Error deleting complete previews: {e}")
+    #             # Удаляем превью из complete_topic
+    #             try:
+    #                 complete_message_ids = card.complete_message_id or {}
+    #                 await delete_all_complete_previews(complete_message_ids)
+    #                 await card.update(complete_message_id={})
+    #                 print(f"Deleted complete previews for card {card.card_id}")
+    #             except Exception as e:
+    #                 print(f"Error deleting complete previews: {e}")
 
-            board_id = settings['space'][
-                'boards'][KaitenBoardNames.IN_PROGRESS]['id']
-            column_id = settings['space'][
-                'boards'][KaitenBoardNames.IN_PROGRESS]['columns'][0]['id']
+    #         board_id = settings['space'][
+    #             'boards'][KaitenBoardNames.IN_PROGRESS]['id']
+    #         column_id = settings['space'][
+    #             'boards'][KaitenBoardNames.IN_PROGRESS]['columns'][0]['id']
 
-            if card.task_id != 0:
-                async with kaiten as client:
-                    await client.update_card(
-                        card.task_id,
-                        board_id=board_id,
-                        column_id=column_id
-                    )
+    #         if card.task_id != 0:
+    #             async with kaiten as client:
+    #                 await client.update_card(
+    #                     card.task_id,
+    #                     board_id=board_id,
+    #                     column_id=column_id
+    #                 )
 
-                    await client.add_comment(
-                        card.task_id,
-                        Messages.TASK_TAKEN
-                    )
+    #                 await client.add_comment(
+    #                     card.task_id,
+    #                     Messages.TASK_TAKEN
+    #                 )
             
-            # Обновляем сцену исполнителя
-            await update_task_scenes(str(card.card_id))
+    #         # Обновляем сцену исполнителя
+    #         await update_task_scenes(str(card.card_id))
             
-            # Сначала сохраняем executor_id в базу, чтобы форум показал исполнителя
-            if 'executor_id' in data:
-                await card.update(executor_id=data['executor_id'])
-                await card.refresh()
+    #         # Сначала сохраняем executor_id в базу, чтобы форум показал исполнителя
+    #         if 'executor_id' in data:
+    #             await card.update(executor_id=data['executor_id'])
+    #             await card.refresh()
 
-            # Обновляем сообщение на форуме
-            if card.forum_message_id:
-                message_id, _ = await update_forum_message(str(card.card_id), CardStatus.edited.value)
-                if message_id:
-                    await card.update(forum_message_id=message_id)
+    #         # Обновляем сообщение на форуме
+    #         if card.forum_message_id:
+    #             message_id, _ = await update_forum_message(str(card.card_id), CardStatus.edited.value)
+    #             if message_id:
+    #                 await card.update(forum_message_id=message_id)
 
-        need_send = data.get('need_send', card.need_send)
+    #     need_send = data.get('need_send', card.need_send)
 
-        # Обработка изменения статуса на ready - создаем задачи публикации
-        if data['status'] == CardStatus.ready:
-            # Перемещаем карточку в Kaiten в колонку "Готово"
-            if card.task_id and card.task_id != 0:
-                try:
-                    board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
-                    column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
-                    async with kaiten as client:
-                        await client.update_card(card.task_id, board_id=board_id, column_id=column_id)
-                        await client.add_comment(card.task_id, "✅ Задача готова к публикации")
-                except Exception as e:
-                    print(f"Error moving card to ready in Kaiten: {e}")
+    #     # Обработка изменения статуса на ready - создаем задачи публикации
+    #     if data['status'] == CardStatus.ready:
+    #         # Перемещаем карточку в Kaiten в колонку "Готово"
+    #         if card.task_id and card.task_id != 0:
+    #             try:
+    #                 board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
+    #                 column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
+    #                 async with kaiten as client:
+    #                     await client.update_card(card.task_id, board_id=board_id, column_id=column_id)
+    #                     await client.add_comment(card.task_id, "✅ Задача готова к публикации")
+    #             except Exception as e:
+    #                 print(f"Error moving card to ready in Kaiten: {e}")
 
-            # Закрываем сцену исполнителя
-            if card.executor_id:
-                executor = await User.get_by_key('user_id', card.executor_id)
-                if executor:
-                    await close_user_scene(executor.telegram_id)
+    #         # Закрываем сцену исполнителя
+    #         if card.executor_id:
+    #             executor = await User.get_by_key('user_id', card.executor_id)
+    #             if executor:
+    #                 await close_user_scene(executor.telegram_id)
 
-            # Планируем задачи публикации только если need_send = True
-            await card.refresh()
-            if need_send:
-                try:
-                    async with session_factory() as session:
-                        await schedule_post_tasks(session, card)
-                        print(f"Scheduled post tasks for card {card.card_id}")
-                except Exception as e:
-                    print(f"Error scheduling post tasks: {e}")
-            else:
-                # Если need_send=False, сразу меняем статус на sent и финализируем
-                logger.info(
-                    f"Карточка {card.card_id} не требует отправки (need_send=False), меняем статус на sent"
-                    )
-                await card.update(status=CardStatus.sent)
-                data['status'] = CardStatus.sent  # Меняем статус на sent, если не нужно отправлять
+    #         # Планируем задачи публикации только если need_send = True
+    #         await card.refresh()
+    #         if need_send:
+    #             try:
+    #                 async with session_factory() as session:
+    #                     await schedule_post_tasks(session, card)
+    #                     print(f"Scheduled post tasks for card {card.card_id}")
+    #             except Exception as e:
+    #                 print(f"Error scheduling post tasks: {e}")
+    #         else:
+    #             # Если need_send=False, сразу меняем статус на sent и финализируем
+    #             logger.info(
+    #                 f"Карточка {card.card_id} не требует отправки (need_send=False), меняем статус на sent"
+    #                 )
+    #             await card.update(status=CardStatus.sent)
+    #             data['status'] = CardStatus.sent  # Меняем статус на sent, если не нужно отправлять
 
-            # Обновляем сообщение на форуме со статусом ready
-            if need_send:
-                await card.refresh()
-                message_id, _ = await update_forum_message(str(card.card_id), CardStatus.ready.value)
-                if message_id:
-                    await card.update(forum_message_id=message_id)
-                forum_already_updated = True
+    #         # Обновляем сообщение на форуме со статусом ready
+    #         if need_send:
+    #             await card.refresh()
+    #             message_id, _ = await update_forum_message(str(card.card_id), CardStatus.ready.value)
+    #             if message_id:
+    #                 await card.update(forum_message_id=message_id)
+    #             forum_already_updated = True
 
-            # Отправляем превью постов в complete_topic для каждого клиента
-            try:
-                await card.refresh()
-                complete_message_ids = card.complete_message_id or {}
+    #         # Отправляем превью постов в complete_topic для каждого клиента
+    #         try:
+    #             await card.refresh()
+    #             complete_message_ids = card.complete_message_id or {}
                 
-                clients = card.clients or []
-                for client_key in clients:
-                    preview_res = await send_complete_preview(str(card.card_id), client_key)
-                    if preview_res.get("success"):
-                        complete_message_ids[client_key] = {
-                            "post_id": preview_res.get("post_id"),
-                            "post_ids": preview_res.get("post_ids", []),
-                            "info_id": preview_res.get("info_id")
-                        }
+    #             clients = card.clients or []
+    #             for client_key in clients:
+    #                 preview_res = await send_complete_preview(str(card.card_id), client_key)
+    #                 if preview_res.get("success"):
+    #                     complete_message_ids[client_key] = {
+    #                         "post_id": preview_res.get("post_id"),
+    #                         "post_ids": preview_res.get("post_ids", []),
+    #                         "info_id": preview_res.get("info_id")
+    #                     }
                 
-                if complete_message_ids:
-                    await card.update(complete_message_id=complete_message_ids)
-                    print(f"Sent complete previews for card {card.card_id}: {complete_message_ids}")
-            except Exception as e:
-                print(f"Error sending complete previews: {e}")
+    #             if complete_message_ids:
+    #                 await card.update(complete_message_id=complete_message_ids)
+    #                 print(f"Sent complete previews for card {card.card_id}: {complete_message_ids}")
+    #         except Exception as e:
+    #             print(f"Error sending complete previews: {e}")
 
-            # Уведомляем заказчика о готовности задачи
-            if card.customer_id:
-                customer = await User.get_by_key('user_id', card.customer_id)
-                if customer:
-                    deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
-                    message_text = (
-                        f"✅ Задача готова!\n\n"
-                        f"📝 Название: {card.name}\n"
-                        f"⏰ Дедлайн: {deadline_str}\n\n"
-                        f"Задача готова к публикации."
-                    )
-                    await notify_user(customer.telegram_id, message_text)
-                    print(f"Notified customer {customer.telegram_id} about ready card {card.card_id}")
+    #         # Уведомляем заказчика о готовности задачи
+    #         if card.customer_id:
+    #             customer = await User.get_by_key('user_id', card.customer_id)
+    #             if customer:
+    #                 deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
+    #                 message_text = (
+    #                     f"✅ Задача готова!\n\n"
+    #                     f"📝 Название: {card.name}\n"
+    #                     f"⏰ Дедлайн: {deadline_str}\n\n"
+    #                     f"Задача готова к публикации."
+    #                 )
+    #                 await notify_user(customer.telegram_id, message_text)
+    #                 print(f"Notified customer {customer.telegram_id} about ready card {card.card_id}")
 
-        # Обработка изменения статуса на sent (отправлено)
-        if data['status'] == CardStatus.sent:
-            # Перемещаем карточку в Kaiten в колонку "Готово"
-            try:
-                board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
-                # ID колонки "Готово" - 3-я колонка (индекс 2)
-                column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
+    #     # Обработка изменения статуса на sent (отправлено)
+    #     if data['status'] == CardStatus.sent:
+    #         # Перемещаем карточку в Kaiten в колонку "Готово"
+    #         try:
+    #             board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
+    #             # ID колонки "Готово" - 3-я колонка (индекс 2)
+    #             column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
                 
-                if card.task_id != 0:
-                    async with kaiten as client:
-                        await client.update_card(
-                            card.task_id,
-                            board_id=board_id,
-                            column_id=column_id
-                        )
-                        await client.add_comment(
-                            card.task_id,
-                            "🚀 Задача выполнена и отправлена!"
-                        )
-            except Exception as e:
-                print(f"Error moving card in Kaiten: {e}")
+    #             if card.task_id != 0:
+    #                 async with kaiten as client:
+    #                     await client.update_card(
+    #                         card.task_id,
+    #                         board_id=board_id,
+    #                         column_id=column_id
+    #                     )
+    #                     await client.add_comment(
+    #                         card.task_id,
+    #                         "🚀 Задача выполнена и отправлена!"
+    #                     )
+    #         except Exception as e:
+    #             print(f"Error moving card in Kaiten: {e}")
 
-            # Удаляем сообщение с форума
-            if card.forum_message_id:
-                if await delete_forum_message(str(card.card_id)):
-                    await card.update(forum_message_id=None)
+    #         # Удаляем сообщение с форума
+    #         if card.forum_message_id:
+    #             if await delete_forum_message(str(card.card_id)):
+    #                 await card.update(forum_message_id=None)
 
-            # Увеличиваем счетчик выполненных задач у исполнителя
-            if card.executor_id:
-                try:
-                    executor = await User.get_by_key('user_id', card.executor_id)
-                    if executor:
-                        await executor.update(
-                            tasks=executor.tasks + 1,
-                            task_per_month=executor.task_per_month + 1,
-                            task_per_year=executor.task_per_year + 1
-                        )
-                        print(f"Incremented task count for user {executor.user_id}")
-                except Exception as e:
-                    print(f"Error incrementing task count: {e}")
+    #         # Увеличиваем счетчик выполненных задач у исполнителя
+    #         if card.executor_id:
+    #             try:
+    #                 executor = await User.get_by_key('user_id', card.executor_id)
+    #                 if executor:
+    #                     await executor.update(
+    #                         tasks=executor.tasks + 1,
+    #                         task_per_month=executor.task_per_month + 1,
+    #                         task_per_year=executor.task_per_year + 1
+    #                     )
+    #                     print(f"Incremented task count for user {executor.user_id}")
+    #             except Exception as e:
+    #                 print(f"Error incrementing task count: {e}")
 
-            await increment_reviewers_tasks(card)
+    #         await increment_reviewers_tasks(card)
 
-            # Закрываем все сцены, связанные с этой задачей
-            await close_card_related_scenes(str(card.card_id))
+    #         # Закрываем все сцены, связанные с этой задачей
+    #         await close_card_related_scenes(str(card.card_id))
             
-            # Создаём задачу на удаление карточки через 2 дня
-            try:
-                from models.ScheduledTask import ScheduledTask
-                from uuid import UUID as PyUUID
+    #         # Создаём задачу на удаление карточки через 2 дня
+    #         try:
+    #             from models.ScheduledTask import ScheduledTask
+    #             from uuid import UUID as PyUUID
 
-                delete_at = moscow_now() + timedelta(days=0.5)
-                card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
+    #             delete_at = moscow_now() + timedelta(days=0.5)
+    #             card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
 
-                async with session_factory() as session:
-                    task = ScheduledTask(
-                        card_id=card_uuid,
-                        function_path="modules.notifications.delete_sent_card",
-                        execute_at=delete_at,
-                        arguments={"card_id": str(card.card_id)}
-                    )
-                    session.add(task)
-                    await session.commit()
-                    logger.info(f"Создана задача удаления карточки {card.card_id} на {delete_at}")
-            except Exception as e:
-                logger.error(f"Ошибка создания задачи удаления: {e}")
+    #             async with session_factory() as session:
+    #                 task = ScheduledTask(
+    #                     card_id=card_uuid,
+    #                     function_path="modules.notifications.delete_sent_card",
+    #                     execute_at=delete_at,
+    #                     arguments={"card_id": str(card.card_id)}
+    #                 )
+    #                 session.add(task)
+    #                 await session.commit()
+    #                 logger.info(f"Создана задача удаления карточки {card.card_id} на {delete_at}")
+    #         except Exception as e:
+    #             logger.error(f"Ошибка создания задачи удаления: {e}")
 
     if 'executor_id' in data:
         logger.info(f"Изменение исполнителя карточки {card.card_id}: {card.executor_id} -> {data['executor_id']}")

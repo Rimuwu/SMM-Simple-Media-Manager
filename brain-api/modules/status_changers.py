@@ -1,29 +1,18 @@
 import asyncio
-from datetime import datetime, timedelta
 from typing import Literal, Optional
 from uuid import UUID as _UUID
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from sqlalchemy.orm import selectinload
-from sqlalchemy import select
 from database.connection import session_factory
-from global_modules.classes.enums import CardType, ChangeType, UserRole
-from global_modules.timezone import now_naive as moscow_now
+from global_modules.classes.enums import UserRole
 from modules.kaiten import kaiten
-from modules.properties import multi_properties
-from global_modules.json_get import open_settings, open_properties
+from global_modules.json_get import open_settings
 from models.Card import Card, CardStatus
 from models.User import User
-from modules.calendar import create_calendar_event, delete_calendar_event, update_calendar_event
-from modules.scheduler import reschedule_post_tasks, schedule_card_notifications, cancel_card_tasks, reschedule_card_notifications, schedule_post_tasks
+from modules.scheduler import schedule_card_notifications, cancel_card_tasks, schedule_post_tasks
 from modules.constants import (
-    KaitenBoardNames, PropertyNames, 
+    KaitenBoardNames, 
     SceneNames, Messages
 )
-from modules.card_service import (
-    notify_executor, get_kaiten_user_name, add_kaiten_comment, 
-    update_kaiten_card_field, increment_reviewers_tasks, increment_customer_tasks
-)
+from modules.card_service import increment_reviewers_tasks
 from modules.executors_client import (
     send_forum_message, update_forum_message, delete_forum_message, delete_forum_message_by_id,
     send_complete_preview, update_complete_preview, delete_complete_preview, delete_all_complete_previews,
@@ -155,7 +144,6 @@ async def to_pass(
 
         await kc.update_card(
             card.task_id,
-            executor_id=None,
             board_id=BOARD_QUEUE_ID,
             column_id=COLUMN_QUEUE_FORUM_ID
         )
@@ -180,8 +168,7 @@ async def to_pass(
 
 async def to_edited(
           card: Optional[Card] = None,
-          card_id: Optional[_UUID] = None,
-          previous_status: Optional[CardStatus] = None
+          card_id: Optional[_UUID] = None
                   ):
     """ 1. Взятие / назаначение задачи
         Копирайтер взял задачу в работу с форума
@@ -223,6 +210,8 @@ async def to_edited(
         card = await Card.get_by_key('card_id', str(card_id))
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
+
+    previous_status = card.status
 
     # DOWNGRADE: если статус меняется с ready, удаляем запланированные задачи и превью
     if previous_status == CardStatus.ready:
@@ -284,8 +273,7 @@ async def to_edited(
 
 async def to_review(
           card: Optional[Card] = None,
-          card_id: Optional[_UUID] = None,
-          previous_status: Optional[CardStatus] = None
+          card_id: Optional[_UUID] = None
                   ):
     """ Отправка задания на редактирование 
 
@@ -322,6 +310,8 @@ async def to_review(
         card = await Card.get_by_key('card_id', str(card_id))
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
+    
+    previous_status = card.status
 
     # DOWNGRADE: если статус меняется с ready, удаляем запланированные задачи и превью
     if previous_status == CardStatus.ready:
@@ -374,18 +364,26 @@ async def to_review(
 
     # Уведомления редакторам и админам
     recipients = []
-    admins = await User.filter_by(role=UserRole.admin)
-    editors = await User.filter_by(role=UserRole.editor)
+    # admins = await User.filter_by(role=UserRole.admin)
+    # editors = await User.filter_by(role=UserRole.editor)
 
-    if admins:
-        recipients.extend(admins)
-    if editors:
-        recipients.extend(editors)
+    # if admins:
+    #     recipients.extend(admins)
+    # if editors:
+    #     recipients.extend(editors)
 
-    # Убираем дубликаты
-    recipients = list(
-        {u.user_id: u for u in recipients}.values()
-    )
+    # # Убираем дубликаты
+    # recipients = list(
+    #     {u.user_id: u for u in recipients}.values()
+    # )
+
+    if card.editor_id:
+        editor = await User.get_by_key('user_id', card.editor_id)
+        if editor and editor.telegram_id:
+            recipients.append(editor)
+    else:
+        if card.customer and card.customer.role == UserRole.admin:
+            recipients.append(card.customer)
 
     msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
     await notify_users(recipients, msg)
@@ -399,7 +397,6 @@ async def to_ready(
         Написать комментарий в кайтене +
         Обновить колонку в кайтене +
         Обновить сцены просмотра задачи tasks +
-        Обновить сцену редактирования задачи +
 
         Закрыть сцену редактирования задачи всем +
 
@@ -484,24 +481,37 @@ async def to_ready(
     # Отправка превью постов для каждого клиента
     await card.refresh()
     complete_message_ids = card.complete_message_id or {}
-    
+
     clients = card.clients or []
     for client_key in clients:
-        preview_res = await send_complete_preview(str(card.card_id), client_key)
-        if preview_res.get("success"):
-            complete_message_ids[client_key] = {
-                "post_id": preview_res.get("post_id"),
-                "post_ids": preview_res.get("post_ids", []),
-                "info_id": preview_res.get("info_id")
-            }
-    
+
+        if client_key in complete_message_ids:
+            # Обновление существующего превью
+            preview_res = await update_complete_preview(
+                str(card.card_id), 
+                client_key,
+                complete_message_ids[client_key].get("post_id", 0),
+                complete_message_ids[client_key].get("post_ids"),
+                complete_message_ids[client_key].get("info_id")
+            )
+
+        else:
+            preview_res = await send_complete_preview(str(card.card_id), client_key)
+            if preview_res.get("success"):
+                complete_message_ids[client_key] = {
+                    "post_id": preview_res.get("post_id"),
+                    "post_ids": preview_res.get("post_ids", []),
+                    "info_id": preview_res.get("info_id")
+                }
+
     if complete_message_ids:
         await card.update(complete_message_id=complete_message_ids)
         logger.info(f"Отправлены превью постов для карточки {card.card_id}")
 
     # Уведомление заказчику о готовности задачи
     if card.customer_id:
-        customer = await User.get_by_key('user_id', card.customer_id)
+        customer = await User.get_by_key(
+            'user_id', card.customer_id)
         if customer and customer.telegram_id:
             deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
             message_text = (
@@ -536,7 +546,7 @@ async def to_sent(
         Увеличить счетчик выполненных задач исполнителя +
         Увеличить счетчик проверенных задач редактора +
 
-        Добавить задачу на удаление карточки из базы +
+        Удалить задачу из базы
     """
 
     if not card_id and not card:
@@ -586,21 +596,4 @@ async def to_sent(
     # Закрытие всех сцен, связанных с этой задачей
     await close_card_related_scenes(str(card.card_id))
 
-    # Создание задачи на удаление карточки через 0.5 дня
-    from models.ScheduledTask import ScheduledTask
-    from uuid import UUID as PyUUID
-
-    delete_at = moscow_now() + timedelta(days=0.5)
-    card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
-
-    async with session_factory() as session:
-        task = ScheduledTask(
-            card_id=card_uuid,
-            function_path="modules.notifications.delete_sent_card",
-            execute_at=delete_at,
-            arguments={"card_id": str(card.card_id)}
-        )
-        session.add(task)
-        await session.commit()
-    
-    logger.info(f"Запланировано удаление карточки {card.card_id} на {delete_at}")
+    await card.delete()
