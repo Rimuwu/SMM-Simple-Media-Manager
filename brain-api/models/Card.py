@@ -9,6 +9,10 @@ from database.crud_mixins import AsyncCRUDMixin
 from database.annotated_types import uuidPK, createAT, updateAT
 from global_modules.classes.enums import CardStatus
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.User import User
 
 class Card(Base, AsyncCRUDMixin):
     __tablename__ = "cards"

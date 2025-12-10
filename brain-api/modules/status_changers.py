@@ -34,13 +34,20 @@ from modules.logs import brain_logger as logger
 
 settings = open_settings() or {}
 
+# Константы для Kaiten
 BOARD_QUEUE_ID = settings['space']['boards'][KaitenBoardNames.QUEUE]['id']
 COLUMN_QUEUE_FORUM_ID = settings['space']['boards'][KaitenBoardNames.QUEUE]['columns'][0]['id']
+
+BOARD_IN_PROGRESS_ID = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
+COLUMN_IN_PROGRESS_EDITED_ID = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][0]['id']
+COLUMN_IN_PROGRESS_REVIEW_ID = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][1]['id']
+COLUMN_IN_PROGRESS_READY_ID = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
 
 async def to_pass(
           card: Optional[Card] = None,
           card_id: Optional[_UUID] = None, 
-          who_changed: Literal['executor', 'admin'] = 'admin'
+          who_changed: Literal[
+              'executor', 'admin'] = 'admin'
                   ):
     """ Возвращение задачи в статус "Создано"
         Используется для возврата задачи 
@@ -57,7 +64,7 @@ async def to_pass(
         DOWNGRADE
         Если есть запланированные задачи:
           (статус: ready)
-          Снять все запланированные задачи
+          Снять все запланированные задачи +
 
         DOWNGRADE
         Если есть отправленные "готовые варианты":
@@ -67,14 +74,13 @@ async def to_pass(
         Написать комментарий в кайтене +
         Обновить колонку в кайтене +
         Обновить сцены просмотра задачи tasks +
-        Новые задачи напоминания
+        Новые задачи напоминания +
 
         Если тип public:
-         Переотправить сообщение на форуме
+         Переотправить сообщение на форуме +
 
         Если тип private:
-         Отправить уведомление заказчику
-         Отправить уведомление админу
+         Отправить уведомление заказчику +
     """
 
     if not card_id and not card:
@@ -85,14 +91,11 @@ async def to_pass(
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
 
-    data_update: dict = {
-        'status': CardStatus.pass_,
-    }
-
     if card.executor_id:
         executor = await User.get_by_key('user_id', card.executor_id)
         if executor:
 
+            # Удалить исполнителя из карточки
             if executor.tasker_id and card.task_id:
                 async with kaiten as kc:
                     await kc.remove_card_member(
@@ -100,6 +103,7 @@ async def to_pass(
                         user_id=executor.tasker_id
                     )
 
+            # Уведомление исполнителю и закрытие сцен
             if executor.telegram_id:
                 if who_changed == 'admin':
                     await asyncio.create_task(
@@ -111,49 +115,74 @@ async def to_pass(
 
                 await close_card_related_scenes(str(card.card_id))
 
-            async with session_factory() as session:
-                await cancel_card_tasks(
-                    session=session,
-                    card_id=str(card.card_id)
-                )
+    # Отмена всех тасков и установка напоминаний
+    # Обновление карточки в базе
+    async with session_factory() as session:
+        await cancel_card_tasks(
+            session=session,
+            card_id=str(card.card_id)
+        )
 
-                await schedule_card_notifications(
-                    session=session,
-                    card=card
-                )
+        await schedule_card_notifications(
+            session=session,
+            card=card
+        )
 
-            if card.complete_message_id:
-                await asyncio.create_task(
-                    delete_complete_preview(
-                        card.complete_message_id.get('post_id'),
-                        card.complete_message_id.get('posts_id'),
-                        card.complete_message_id.get('info_id')
-                        )
-                )
+        await card.update(
+            session,
+            status=CardStatus.pass_,
+            executor=None
+        )
 
-            async with kaiten as kc:
-                await kc.add_comment(
-                    card_id=card.task_id,
-                    text="📤 Задача возвращена на форум задач."
-                )
+        await session.commit()
 
-                await kc.update_card(
-                    card.task_id,
-                    executor_id=None,
-                    board_id=BOARD_QUEUE_ID,
-                    column_id=COLUMN_QUEUE_FORUM_ID
+    # Удаление всех превью сообщений
+    if card.complete_message_id:
+        await asyncio.create_task(
+            delete_complete_preview(
+                card.complete_message_id.get('post_id'),
+                card.complete_message_id.get('posts_id'),
+                card.complete_message_id.get('info_id')
                 )
+        )
 
-            await update_task_scenes(
-                card_id=str(card.card_id),
-                scene_name=SceneNames.VIEW_TASK
+    # Комментарий и обновление колонки 
+    async with kaiten as kc:
+        await kc.add_comment(
+            card_id=card.task_id,
+            text="📤 Задача возвращена на форум задач."
+        )
+
+        await kc.update_card(
+            card.task_id,
+            executor_id=None,
+            board_id=BOARD_QUEUE_ID,
+            column_id=COLUMN_QUEUE_FORUM_ID
+        )
+
+    # Обновление сцены просмотра задачи
+    await update_task_scenes(
+        card_id=str(card.card_id),
+        scene_name=SceneNames.VIEW_TASK
+    )
+
+    if card.type == 'public':
+        await send_forum_message(str(card.card_id))
+    else:
+        customer = card.customer
+        if customer and customer.role != UserRole.admin:
+            await notify_user(
+                telegram_id=customer.telegram_id,
+                message=f'⚡ Задача "{card.name}" потеряла исполнителя.'
             )
 
-        data_update['executor_id'] = None
 
 
-
-async def to_edited():
+async def to_edited(
+          card: Optional[Card] = None,
+          card_id: Optional[_UUID] = None,
+          previous_status: Optional[CardStatus] = None
+                  ):
     """ 1. Взятие / назаначение задачи
         Копирайтер взял задачу в работу с форума
         Или админ назначил задачу исполнителю (при создании приватный тип / назначен админом как исполнитель)
@@ -162,97 +191,416 @@ async def to_edited():
         2. Задачу вернули на доработку
         Исполнитель / редактор вернул задачу на доработку исполнителю
 
-        Написать комментарий в кайтене
-        Обновить колонку в кайтене
-        Обновить сцены просмотра задачи tasks
-        Таски напоминаний
+        Написать комментарий в кайтене +
+        Обновить колонку в кайтене +
+        Обновить сцены просмотра задачи tasks +
+        Таски напоминаний +
 
-        Обновить сцену редактирования задачи
-        Открыть сцену редактирования задачи исполнителю
+        Обновить сцену редактирования задачи +
+        Открыть сцену редактирования задачи исполнителю +
 
         Если тип public:
-         Обновить сообщение на форуме
+         Обновить сообщение на форуме +
 
         Если тип private и прошлый статус pass:
-         Отправить уведомление заказчику
+         Отправить уведомление заказчику +
 
         DOWNGRADE
         Если есть запланированные задачи:
           (статус: ready)
-          Снять все запланированные задачи
+          Снять все запланированные задачи +
 
         DOWNGRADE
         Если есть отправленные "готовые варианты":
           (статус: ready)
-          Удалить все complete_messages
+          Удалить все complete_messages +
     """
-    pass
 
-async def to_review():
+    if not card_id and not card:
+        raise ValueError("Необходимо указать card или card_id")
+
+    if not card:
+        card = await Card.get_by_key('card_id', str(card_id))
+        if not card:
+            raise ValueError(f"Карточка с card_id {card_id} не найдена")
+
+    # DOWNGRADE: если статус меняется с ready, удаляем запланированные задачи и превью
+    if previous_status == CardStatus.ready:
+        async with session_factory() as session:
+            await cancel_card_tasks(
+                session=session,
+                card_id=str(card.card_id)
+            )
+
+            await schedule_card_notifications(
+                session=session,
+                card=card
+            )
+
+        if card.complete_message_id:
+            await delete_all_complete_previews(card.complete_message_id)
+            await card.update(complete_message_id={})
+
+    # Обновление карточки в базе
+    await card.update(status=CardStatus.edited)
+
+    # Комментарий и обновление колонки в кайтене
+    if card.task_id and card.task_id != 0:
+        async with kaiten as kc:
+            await kc.add_comment(
+                card_id=card.task_id,
+                text=Messages.TASK_TAKEN
+            )
+
+            await kc.update_card(
+                card.task_id,
+                board_id=BOARD_IN_PROGRESS_ID,
+                column_id=COLUMN_IN_PROGRESS_EDITED_ID
+            )
+
+    # Обновление сцены просмотра задачи
+    await update_task_scenes(
+        card_id=str(card.card_id),
+        scene_name=SceneNames.VIEW_TASK
+    )
+
+    # Обновление сообщения на форуме для public задач
+    if card.type == 'public' and card.forum_message_id:
+        message_id, _ = await update_forum_message(
+            str(card.card_id), 
+            CardStatus.edited.value
+        )
+        if message_id:
+            await card.update(forum_message_id=message_id)
+
+    # Уведомление заказчику для private задач при взятии в работу
+    if card.type == 'private' and previous_status == CardStatus.pass_:
+        customer = card.customer
+        if customer and customer.role != UserRole.admin:
+            await notify_user(
+                telegram_id=customer.telegram_id,
+                message=f'🎯 Задача "{card.name}" взята в работу.'
+            )
+
+async def to_review(
+          card: Optional[Card] = None,
+          card_id: Optional[_UUID] = None,
+          previous_status: Optional[CardStatus] = None
+                  ):
     """ Отправка задания на редактирование 
 
-        Написать комментарий в кайтене
-        Обновить колонку в кайтене
-        Обновить сцены просмотра задачи tasks
-        Очистить таски отправки
+        Написать комментарий в кайтене +
+        Обновить колонку в кайтене +
+        Обновить сцены просмотра задачи tasks +
+        Очистить таски отправки +
 
-        Обновить сцену редактирования задачи
+        Обновить сцену редактирования задачи +
 
         Если выбран редактор:
-          Отправить уведомление редактору
+          Отправить уведомление редактору +
 
         Если не выбран редактор:
-          Переотправить сообщение на форум с кнопкой для редакторов "взять задание"
+          Переотправить сообщение на форум с кнопкой для редакторов "взять задание" +
 
-          Отправить уведомление редакторам
+          Отправить уведомление редакторам +
 
         DOWNGRADE
         Если есть запланированные задачи:
           (статус: ready)
-          Снять все запланированные задачи
+          Снять все запланированные задачи +
 
         DOWNGRADE
         Если есть отправленные "готовые варианты":
           (статус: ready)
-          Удалить все complete_messages
+          Удалить все complete_messages +
     """
-    pass
 
-async def to_ready():
+    if not card_id and not card:
+        raise ValueError("Необходимо указать card или card_id")
+
+    if not card:
+        card = await Card.get_by_key('card_id', str(card_id))
+        if not card:
+            raise ValueError(f"Карточка с card_id {card_id} не найдена")
+
+    # DOWNGRADE: если статус меняется с ready, удаляем запланированные задачи и превью
+    if previous_status == CardStatus.ready:
+        async with session_factory() as session:
+            await cancel_card_tasks(
+                session=session,
+                card_id=str(card.card_id)
+            )
+
+        if card.complete_message_id:
+            await delete_all_complete_previews(card.complete_message_id)
+            await card.update(complete_message_id={})
+
+    # Обновление карточки в базе
+    await card.update(status=CardStatus.review)
+
+    # Комментарий и обновление колонки в кайтене
+    if card.task_id and card.task_id != 0:
+        async with kaiten as kc:
+            await kc.add_comment(
+                card_id=card.task_id,
+                text="🔍 Задача отправлена на проверку"
+            )
+
+            await kc.update_card(
+                card.task_id,
+                board_id=BOARD_IN_PROGRESS_ID,
+                column_id=COLUMN_IN_PROGRESS_REVIEW_ID
+            )
+
+    # Обновление сцены просмотра задачи
+    await update_task_scenes(
+        card_id=str(card.card_id),
+        scene_name=SceneNames.VIEW_TASK
+    )
+
+    # Удаление старого сообщения с форума
+    if card.forum_message_id:
+        if await delete_forum_message(str(card.card_id)):
+            await card.update(forum_message_id=None)
+
+    # Создание нового сообщения на форуме со статусом review
+    await card.refresh()
+    message_id, _ = await update_forum_message(
+        str(card.card_id), 
+        CardStatus.review.value
+    )
+    if message_id:
+        await card.update(forum_message_id=message_id)
+
+    # Уведомления редакторам и админам
+    recipients = []
+    admins = await User.filter_by(role=UserRole.admin)
+    editors = await User.filter_by(role=UserRole.editor)
+
+    if admins:
+        recipients.extend(admins)
+    if editors:
+        recipients.extend(editors)
+
+    # Убираем дубликаты
+    recipients = list(
+        {u.user_id: u for u in recipients}.values()
+    )
+
+    msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
+    await notify_users(recipients, msg)
+
+async def to_ready(
+          card: Optional[Card] = None,
+          card_id: Optional[_UUID] = None
+                  ):
     """ Завершение работы над задачей
 
-        Написать комментарий в кайтене
-        Обновить колонку в кайтене
-        Обновить сцены просмотра задачи tasks
-        Обновить сцену редактирования задачи
+        Написать комментарий в кайтене +
+        Обновить колонку в кайтене +
+        Обновить сцены просмотра задачи tasks +
+        Обновить сцену редактирования задачи +
 
-        Закрыть сцену редактирования задачи всем
+        Закрыть сцену редактирования задачи всем +
 
-        Очищаем таски отправки и напоминаний
+        Очищаем таски отправки и напоминаний +
         Если need_send:
-         Планируем задачи отправки
+         Планируем задачи отправки +
 
-        Переотправка сообщения на форуме
-        Отправляем / редактируем превью постов
+        Переотправка сообщения на форуме +
+        Отправляем / редактируем превью постов +
 
-        Уведомляем заказчика о готовности задачи (если завершил не сам заказчик)
-        Удаляем сообщение дизайнерам
+        Уведомляем заказчика о готовности задачи (если завершил не сам заказчик) +
+        Удаляем сообщение дизайнерам +
 
     """
-    pass
 
-async def to_sent():
+    if not card_id and not card:
+        raise ValueError("Необходимо указать card или card_id")
+
+    if not card:
+        card = await Card.get_by_key('card_id', str(card_id))
+        if not card:
+            raise ValueError(f"Карточка с card_id {card_id} не найдена")
+
+    # Обновление карточки в базе
+    await card.update(status=CardStatus.ready)
+
+    # Комментарий и обновление колонки в кайтене
+    if card.task_id and card.task_id != 0:
+        async with kaiten as kc:
+            await kc.add_comment(
+                card_id=card.task_id,
+                text="✅ Задача готова к публикации"
+            )
+
+            await kc.update_card(
+                card.task_id,
+                board_id=BOARD_IN_PROGRESS_ID,
+                column_id=COLUMN_IN_PROGRESS_READY_ID
+            )
+
+    # Закрытие сцены редактирования у исполнителя
+    if card.executor_id:
+        executor = await User.get_by_key('user_id', card.executor_id)
+        if executor and executor.telegram_id:
+            await close_user_scene(executor.telegram_id)
+
+    # Очищаем все таски и планируем новые
+    async with session_factory() as session:
+        await cancel_card_tasks(
+            session=session,
+            card_id=str(card.card_id)
+        )
+
+        # Планируем задачи публикации только если need_send = True
+        await card.refresh()
+        if card.need_send:
+            await schedule_post_tasks(session, card)
+            logger.info(f"Запланированы задачи отправки для карточки {card.card_id}")
+        else:
+            # Если не нужно отправлять, сразу переводим в sent
+            await card.update(status=CardStatus.sent)
+            logger.info(f"Карточка {card.card_id} не требует отправки, статус изменен на sent")
+            return
+
+        await session.commit()
+
+    # Обновление сцены просмотра задачи
+    await update_task_scenes(
+        card_id=str(card.card_id),
+        scene_name=SceneNames.VIEW_TASK
+    )
+
+    # Обновление сообщения на форуме
+    await card.refresh()
+    message_id, _ = await update_forum_message(
+        str(card.card_id), 
+        CardStatus.ready.value
+    )
+    if message_id:
+        await card.update(forum_message_id=message_id)
+
+    # Отправка превью постов для каждого клиента
+    await card.refresh()
+    complete_message_ids = card.complete_message_id or {}
+    
+    clients = card.clients or []
+    for client_key in clients:
+        preview_res = await send_complete_preview(str(card.card_id), client_key)
+        if preview_res.get("success"):
+            complete_message_ids[client_key] = {
+                "post_id": preview_res.get("post_id"),
+                "post_ids": preview_res.get("post_ids", []),
+                "info_id": preview_res.get("info_id")
+            }
+    
+    if complete_message_ids:
+        await card.update(complete_message_id=complete_message_ids)
+        logger.info(f"Отправлены превью постов для карточки {card.card_id}")
+
+    # Уведомление заказчику о готовности задачи
+    if card.customer_id:
+        customer = await User.get_by_key('user_id', card.customer_id)
+        if customer and customer.telegram_id:
+            deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
+            message_text = (
+                f"✅ Задача готова!\n\n"
+                f"📝 Название: {card.name}\n"
+                f"⏰ Дедлайн: {deadline_str}\n\n"
+                f"Задача готова к публикации."
+            )
+            await notify_user(customer.telegram_id, message_text)
+
+    # Удаление сообщения дизайнерам (prompt_message)
+    if card.prompt_message:
+        try:
+            await delete_forum_message_by_id(card.prompt_message)
+            await card.update(prompt_message=None)
+            logger.info(f"Удалено сообщение дизайнерам для карточки {card.card_id}")
+        except Exception as e:
+            logger.error(f"Ошибка удаления сообщения дизайнерам: {e}")
+
+async def to_sent(
+          card: Optional[Card] = None,
+          card_id: Optional[_UUID] = None
+                  ):
     """ Задача отправлена в каналы
 
-        Написать комментарий в кайтене
-        Обновить сцены просмотра задачи tasks
-        Обновить сцену редактирования задачи
+        Написать комментарий в кайтене +
+        Обновить сцены просмотра задачи tasks +
+        Обновить сцену редактирования задачи +
 
-        Удалить сообщение с форума
+        Удалить сообщение с форума +
 
-        Увеличить счетчик выполненных задач исполнителя
-        Увеличить счетчик проверенных задач редактора
+        Увеличить счетчик выполненных задач исполнителя +
+        Увеличить счетчик проверенных задач редактора +
 
-        Добавить задачу на удаление карточки из базы
+        Добавить задачу на удаление карточки из базы +
     """
-    pass
+
+    if not card_id and not card:
+        raise ValueError("Необходимо указать card или card_id")
+
+    if not card:
+        card = await Card.get_by_key('card_id', str(card_id))
+        if not card:
+            raise ValueError(f"Карточка с card_id {card_id} не найдена")
+
+    # Обновление карточки в базе
+    await card.update(status=CardStatus.sent)
+
+    # Комментарий в кайтене
+    if card.task_id and card.task_id != 0:
+        async with kaiten as kc:
+            await kc.add_comment(
+                card_id=card.task_id,
+                text="🚀 Задача выполнена и отправлена!"
+            )
+
+    # Удаление сообщения с форума
+    if card.forum_message_id:
+        if await delete_forum_message(str(card.card_id)):
+            await card.update(forum_message_id=None)
+
+    # Обновление сцены просмотра задачи
+    await update_task_scenes(
+        card_id=str(card.card_id),
+        scene_name=SceneNames.VIEW_TASK
+    )
+
+    # Увеличение счетчика выполненных задач у исполнителя
+    if card.executor_id:
+        executor = await User.get_by_key('user_id', card.executor_id)
+        if executor:
+            await executor.update(
+                tasks=executor.tasks + 1,
+                task_per_month=executor.task_per_month + 1,
+                task_per_year=executor.task_per_year + 1
+            )
+            logger.info(f"Увеличен счетчик задач для исполнителя {executor.user_id}")
+
+    # Увеличение счетчика проверенных задач у редактора
+    await increment_reviewers_tasks(card)
+
+    # Закрытие всех сцен, связанных с этой задачей
+    await close_card_related_scenes(str(card.card_id))
+
+    # Создание задачи на удаление карточки через 0.5 дня
+    from models.ScheduledTask import ScheduledTask
+    from uuid import UUID as PyUUID
+
+    delete_at = moscow_now() + timedelta(days=0.5)
+    card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
+
+    async with session_factory() as session:
+        task = ScheduledTask(
+            card_id=card_uuid,
+            function_path="modules.notifications.delete_sent_card",
+            execute_at=delete_at,
+            arguments={"card_id": str(card.card_id)}
+        )
+        session.add(task)
+        await session.commit()
+    
+    logger.info(f"Запланировано удаление карточки {card.card_id} на {delete_at}")
