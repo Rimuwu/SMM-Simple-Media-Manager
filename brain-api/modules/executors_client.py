@@ -1,14 +1,17 @@
 from modules.api_client import executors_api
 from modules.constants import ApiEndpoints, SceneNames
 from modules.logs import brain_logger as logger
-
+from models.Card import Card
+from models.User import User
+from typing import Optional
 
 # ==================== Форум ====================
 
-async def send_forum_message(card_id: str) -> tuple[int | None, str | None]:
+async def send_forum_message(
+    card_id: str) -> tuple[int | None, str | None]:
     """
     Отправить сообщение о карточке в форум.
-    
+
     Returns:
         tuple: (message_id или None, error или None)
     """
@@ -17,26 +20,29 @@ async def send_forum_message(card_id: str) -> tuple[int | None, str | None]:
             ApiEndpoints.FORUM_SEND_MESSAGE,
             data={"card_id": card_id}
         )
-        
+
         error = forum_res.get('error')
         if error:
             logger.error(f"Ошибка отправки в форум: {error}")
             return None, error
-        
+
         return forum_res.get("message_id"), None
     except Exception as e:
         logger.error(f"Ошибка отправки сообщения в форум: {e}")
         return None, str(e)
 
 
-async def update_forum_message(card_id: str, status: str) -> tuple[int | None, str | None]:
+async def update_forum_message(
+    card_id: str, 
+    status: str
+    ) -> tuple[int | None, str | None]:
     """
     Обновить сообщение на форуме.
-    
+
     Args:
         card_id: ID карточки
         status: Новый статус (значение CardStatus)
-        
+
     Returns:
         tuple: (message_id или None, error или None)
     """
@@ -71,7 +77,7 @@ async def delete_forum_message(card_id: str) -> bool:
 async def delete_forum_message_by_id(message_id: int) -> bool:
     """
     Удалить сообщение с форума по message_id.
-    
+
     Returns:
         True если успешно
     """
@@ -87,7 +93,10 @@ async def delete_forum_message_by_id(message_id: int) -> bool:
 
 # ==================== Complete Preview (Превью готовых постов) ====================
 
-async def send_complete_preview(card_id: str, client_key: str) -> dict:
+async def send_complete_preview(
+    card_id: str, 
+    client_key: str
+    ) -> dict:
     """
     Отправить превью готового поста в complete_topic.
     
@@ -120,7 +129,7 @@ async def update_complete_preview(
     post_id: int,
     post_ids: list[int] | None = None,
     info_id: int | None = None
-) -> dict:
+    ) -> dict:
     """
     Обновить превью готового поста в complete_topic.
     
@@ -154,7 +163,7 @@ async def delete_complete_preview(
     post_id: int | None = None,
     post_ids: list[int] | None = None,
     info_id: int | None = None
-) -> bool:
+    ) -> bool:
     """
     Удалить превью готового поста из complete_topic.
     
@@ -176,7 +185,9 @@ async def delete_complete_preview(
         return False
 
 
-async def delete_all_complete_previews(complete_message_ids: dict) -> bool:
+async def delete_all_complete_previews(
+    complete_message_ids: dict
+    ) -> bool:
     """
     Удалить все превью для карточки.
     
@@ -211,7 +222,7 @@ async def update_scenes(
     page_name: str | None = None,
     data_key: str | None = None,
     data_value: str | None = None
-) -> bool:
+    ) -> bool:
     """
     Обновить (перезагрузить) активные сцены по критериям.
     
@@ -228,37 +239,23 @@ async def update_scenes(
             data["data_key"] = data_key
         if data_value:
             data["data_value"] = data_value
-            
-        await executors_api.post(ApiEndpoints.UPDATE_SCENES, data=data)
+
+        await executors_api.post(
+            ApiEndpoints.UPDATE_SCENES, data=data)
         return True
     except Exception as e:
         logger.error(f"Ошибка обновления сцен: {e}")
         return False
 
-
-async def close_user_scene(telegram_id: int) -> bool:
-    """
-    Закрыть все сцены пользователя.
-    
-    Returns:
-        True если успешно
-    """
-    try:
-        await executors_api.post(f'/events/close_scene/{telegram_id}')
-        return True
-    except Exception as e:
-        logger.error(f"Ошибка закрытия сцены пользователя {telegram_id}: {e}")
-        return False
-
-
-async def update_task_scenes(card_id: str, scene_name: str = SceneNames.USER_TASK) -> bool:
+async def update_task_scenes(
+    card_id: str, scene_name: str = SceneNames.USER_TASK) -> bool:
     """
     Обновить все сцены, связанные с задачей.
-    
+
     Args:
         card_id: ID карточки
         scene_name: Имя сцены (по умолчанию user-task)
-        
+
     Returns:
         True если успешно
     """
@@ -272,30 +269,64 @@ async def update_task_scenes(card_id: str, scene_name: str = SceneNames.USER_TAS
 async def close_card_related_scenes(card_id: str) -> bool:
     """
     Закрыть все сцены, связанные с карточкой (user-task и task-detail).
-    
+
     Returns:
         True если все закрыты успешно
     """
-    success = True
-    
-    # Закрываем сцены редактирования (user-task)
-    if not await update_scenes(
-        scene_name="user-task",
-        data_key="task_id",
-        data_value=card_id
-    ):
-        success = False
-    
-    # Обновляем сцены просмотра (task-detail)
-    if not await update_scenes(
-        scene_name="task-detail",
-        data_key="selected_task",
-        data_value=card_id
-    ):
-        success = False
-    
-    return success
 
+    try:
+        await executors_api.post(
+            ApiEndpoints.UPDATE_SCENES,
+                {
+                    "scene_name": SceneNames.USER_TASK,
+                    "data_key": "task_id",
+                    "data_value": card_id,
+                    "action": "close"
+                }
+            )
+        await executors_api.post(
+            ApiEndpoints.UPDATE_SCENES,
+                {
+                    "scene_name": SceneNames.VIEW_TASK,
+                    "page_name": "task-detail",
+                    "data_key": "selected_task",
+                    "data_value": card_id,
+                    "action": "update"
+                }
+            )
+        return True
+    except Exception as e:
+        logger.error(
+            f"Ошибка закрытия связанных сцен: {e}"
+            )
+        return False
+
+
+async def close_user_scene(telegram_id: int, 
+                           scene_name: str | None = None
+                           ) -> bool:
+    """
+    Закрыть все сцены пользователя.
+
+    Returns:
+        True если успешно
+    """
+
+    try:
+        await executors_api.post(
+            ApiEndpoints.UPDATE_SCENES,
+                {
+                    "users_id": [telegram_id],
+                    "scene_name": scene_name,
+                    "action": "close"
+                }
+            )
+        return True
+    except Exception as e:
+        logger.error(
+            f"Ошибка закрытия сцены пользователя {telegram_id}: {e}"
+            )
+        return False
 
 # ==================== Уведомления ====================
 
@@ -320,11 +351,11 @@ async def notify_user(telegram_id: int, message: str) -> bool:
 async def notify_users(users: list, message: str) -> int:
     """
     Отправить уведомление списку пользователей.
-    
+
     Args:
         users: Список объектов User с атрибутом telegram_id
         message: Текст сообщения
-        
+
     Returns:
         Количество успешно отправленных уведомлений
     """
@@ -333,3 +364,4 @@ async def notify_users(users: list, message: str) -> int:
         if await notify_user(user.telegram_id, message):
             success_count += 1
     return success_count
+

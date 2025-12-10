@@ -21,10 +21,15 @@ class ApiEndpoints(str, Enum):
 
 class SceneNames(str, Enum):
     USER_TASK = "user-task"
+    CREATE_TASK = "create-task"
+    VIEW_TASK = "view-task"
+    USERS = "users"
 
 class Messages(str, Enum):
-    TASK_TAKEN = "Задание взято в работу"
-    DEADLINE_CHANGED = "Дедлайн изменен"
+    TASK_TAKEN = "🎇 Задание взято в работу"
+    DEADLINE_CHANGED = "⏰ Дедлайн изменен"
     NEW_TASK = "🆕 Новая задача"
     NEW_COMMENT = "💬 Новый комментарий к задаче"
     CHANGE_NOTIFICATION = "🔔 Изменение в задаче"
+
+

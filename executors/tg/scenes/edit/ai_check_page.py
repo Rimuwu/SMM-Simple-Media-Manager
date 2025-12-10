@@ -1,20 +1,54 @@
+import asyncio
 from tg.oms import Page
 from modules.api_client import brain_api
+from modules.logs import executors_logger as logger
+from tg.oms.utils import callback_generator
 
 class AICheckPage(Page):
-    
+
     __page_name__ = 'ai-check'
-    
+
+    # Храним активные таски для каждого пользователя
+    _pending_tasks: dict[int, asyncio.Task] = {}
+
     async def data_preparate(self):
-        """Автоматически проверяем контент при входе на страницу"""
+        """Подготовка данных страницы"""
         content = self.scene.data['scene'].get('content', '')
-        
+
         if not content or content == 'Не указан':
-            self.clear_content()
-            self.content += '\n\n❌ **Контент не указан**\n\nСначала добавьте контент поста, чтобы проверить его.'
+            await self.scene.update_key(self.__page_name__, 'ai_response', None)
+            await self.scene.update_key(self.__page_name__, 'is_loading', False)
             return
 
-        # Отправляем запрос к AI
+        # Проверяем, есть ли уже ответ
+        page_data = self.scene.data.get(self.__page_name__, {})
+        ai_response = page_data.get('ai_response')
+        is_loading = page_data.get('is_loading', False)
+        checked_content = page_data.get('checked_content')
+
+        # Если контент изменился - сбрасываем кэш
+        if checked_content != content:
+            ai_response = None
+            is_loading = False
+            await self.scene.update_key(
+                self.__page_name__, 'ai_response', None)
+            await self.scene.update_key(
+                self.__page_name__, 'is_loading', False)
+
+        # Если нет ответа и не загружается - запускаем генерацию
+        if ai_response is None and not is_loading:
+            await self.scene.update_key(
+                self.__page_name__, 'is_loading', True)
+            await self.scene.update_key(
+                self.__page_name__, 'checked_content', content)
+
+            # Запускаем фоновый таск
+            task = asyncio.create_task(
+                self._generate_ai_response(content))
+            AICheckPage._pending_tasks[self.scene.user_id] = task
+
+    async def _generate_ai_response(self, content: str):
+        """Фоновая генерация ответа AI"""
         try:
             prompt = (
                 "Проверь следующий текст на ошибки (орфографические, пунктуационные, стилистические).\n"
@@ -26,27 +60,97 @@ class AICheckPage(Page):
                 "Избегай длинных сложных предложений.\n"
                 "Текст предназанчен для публикации в каналах и пабликах вузовской организации.\n"
                 "Запрещено использовать всё что связано с хеллоуином, лгбт, политикой, всем запрещённым в РФ.\n\n"
-                "ЭТО КРИТИЧНО И ВСЕ ОШИБКИ ДОЛЖНЫ БЫТЬ ОТМЕЧЕНЫ, ОСОБЕННО - орфографические, пунктуационные, стилистические\n\n"
+                "ЭТО КРИТИЧНО И ВСЕ ОШИБКИ ДОЛЖНЫ БЫТЬ ОТМЕЧЕНЫ, ОСОБЕННО - орфографические, пунктуационные, стилистические\n"
+                "Не обращай внимание на html теги и спецсимволы, они там для форматирования.\n"
                 f"Текст:\n{content}\n\n"
                 "Ответь в формате:\n"
-                "- Если ошибок нет: «✅ Ошибок не обнаружено»\n"
-                "- Если есть ошибки: перечисли их с рекомендациями по исправлению"
+                "- Если есть ошибки или рекомендации: перечисли их с рекомендациями по исправлению\n"
             )
 
             response, status = await brain_api.post(
                 '/ai/send',
                 data={'prompt': prompt}
             )
-            
+
             if status == 200:
                 ai_response = response
-
-                self.clear_content()
-                self.content += f'\n\n🤖 **Результат проверки:**\n\n{ai_response}'
             else:
-                self.clear_content()
-                self.content += '\n\n❌ **Ошибка при обращении к AI**\n\nПопробуйте позже.'
+                ai_response = '❌ **Ошибка при обращении к AI**\n\nПопробуйте позже.'
 
         except Exception as e:
-            self.clear_content()
-            self.content += f'\n\n❌ **Ошибка:**\n\n{str(e)}'
+            logger.error(f"AI check error: {e}")
+            ai_response = f'❌ **Ошибка:**\n\n{str(e)}'
+        
+        # Сохраняем результат и обновляем страницу
+        await self.scene.update_key(
+            self.__page_name__, 'ai_response', ai_response)
+        await self.scene.update_key(
+            self.__page_name__, 'is_loading', False)
+
+        # Удаляем таск из списка
+        AICheckPage._pending_tasks.pop(self.scene.user_id, None)
+
+        # Обновляем страницу
+        try:
+            await self.scene.update_page(self.__page_name__)
+        except Exception as e:
+            logger.error(f"Error updating page after AI response: {e}")
+
+    async def content_worker(self) -> str:
+        self.clear_content()
+        self.content = await super().content_worker()
+
+        content = self.scene.data['scene'].get('content', '')
+
+        if not content or content == 'Не указан':
+            self.content += '\n\n❌ **Контент не указан**\n\nСначала добавьте контент поста, чтобы проверить его.'
+            return self.content
+
+        page_data = self.scene.data.get(self.__page_name__, {})
+        ai_response = page_data.get('ai_response')
+        is_loading = page_data.get('is_loading', False)
+
+        if is_loading:
+            self.content += '\n\n⏳ *Генерируется ответ...*\n\nПодождите, AI анализирует текст.'
+        elif ai_response:
+            self.content += f'\n\n🤖 *Результат проверки:*\n\n{ai_response}'
+        else:
+            self.content += '\n\n🔄 *Запуск проверки...*'
+
+        return self.content
+
+    async def buttons_worker(self):
+        buttons = await super().buttons_worker()
+
+        content = self.scene.data['scene'].get('content', '')
+        page_data = self.scene.data.get(self.__page_name__, {})
+        is_loading = page_data.get('is_loading', False)
+        ai_response = page_data.get('ai_response')
+
+        # Кнопка "Перепроверить" - только если есть контент и не загружается
+        if content and content != 'Не указан' and not is_loading and ai_response:
+            buttons.append({
+                'text': '🔄 Перепроверить',
+                'callback_data': 
+                    callback_generator(
+                        self.scene.__scene_name__,
+                        'recheck'
+                    )
+            })
+
+        return buttons
+
+    @Page.on_callback('recheck')
+    async def recheck_content(self, callback, args):
+        """Перезапустить проверку"""
+        # Сбрасываем кэш
+        await self.scene.update_key(
+            self.__page_name__, 'ai_response', None)
+        await self.scene.update_key(
+            self.__page_name__, 'is_loading', False)
+        await self.scene.update_key(
+            self.__page_name__, 'checked_content', None)
+
+        # Обновляем страницу (это запустит новую проверку)
+        await self.scene.update_page(self.__page_name__)
+        await callback.answer('🔄 Запущена повторная проверка')

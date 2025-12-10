@@ -51,13 +51,13 @@ def get_client_config(client_key: str) -> tuple:
     client_config = CLIENTS.get(client_key)
     if not client_config:
         raise HTTPException(status_code=404, detail=f"Client {client_key} not found")
-    
+
     executor_name = client_config.get('executor_name') or client_config.get('executor')
     client_id = client_config.get('client_id')
-    
+
     if not executor_name or not client_id:
         raise HTTPException(status_code=400, detail=f"Incomplete client configuration for {client_key}")
-    
+
     return client_config, executor_name, client_id
 
 
@@ -84,13 +84,13 @@ async def schedule_post(request: PostScheduleRequest):
     if not hasattr(executor, 'schedule_message'):
         logger.error(f"Executor {executor_name} does not support schedule_message")
         return {"success": False, "error": "Executor does not support scheduled messages"}
-    
+
     try:
         # Преобразуем время отправки
         send_time = None
         if request.send_time:
             send_time = datetime.fromisoformat(request.send_time)
-        
+
         if not send_time:
             logger.error("send_time is required for scheduling")
             return {"success": False, "error": "send_time is required"}

@@ -170,7 +170,8 @@ async def create_scheduled_task(
     return task
 
 
-async def schedule_card_notifications(session: AsyncSession, card: Card) -> None:
+async def schedule_card_notifications(
+    session: AsyncSession, card: Card) -> None:
     """
     Запланировать уведомления для карточки.
     Создает задачи:
@@ -234,7 +235,8 @@ async def schedule_card_notifications(session: AsyncSession, card: Card) -> None
     await session.commit()
 
 
-async def cancel_card_tasks(session: AsyncSession, card_id: str) -> int:
+async def cancel_card_tasks(
+    session: AsyncSession, card_id: str) -> int:
     """
     Отменить все запланированные задачи для карточки.
     
