@@ -31,7 +31,7 @@ class AssignExecutorPage(UserSelectorPage):
     async def update_to_database(self, user_id) -> bool:
         """Обновляем исполнителя в карточке"""
         print("Updating executor to database:", user_id)
-        
+
         task = self.scene.data['scene'].get('current_task_data')
         if not task:
             return False
@@ -40,8 +40,11 @@ class AssignExecutorPage(UserSelectorPage):
         current_status = task.get('status')
 
         if user_id == None:
-            response, status = await brain_api.get(f"/card/delete-executor/{card_id}")
-            success = (status == 200)
+            card_or_none = await brain_client.update_card(
+                card_id=card_id,
+                executor_id=None
+            )
+            success = (card_or_none is not None)
 
         else:
             # Если статус pass_ и назначаем исполнителя - меняем статус на edited
@@ -49,9 +52,6 @@ class AssignExecutorPage(UserSelectorPage):
                 'card_id': card_id,
                 'executor_id': user_id
             }
-
-            if current_status == CardStatus.pass_.value or current_status == CardStatus.pass_:
-                update_params['status'] = CardStatus.edited
 
             # Обновляем карточку
             result = await brain_client.update_card(**update_params)

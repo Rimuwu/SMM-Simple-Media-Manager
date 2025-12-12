@@ -1,6 +1,8 @@
 from modules.api_client import executors_api
 from modules.constants import ApiEndpoints, SceneNames
 from modules.logs import brain_logger as logger
+from uuid import UUID as _UUID
+from models.User import User
 
 # ==================== Форум ====================
 
@@ -48,6 +50,11 @@ async def update_forum_message(
             ApiEndpoints.FORUM_UPDATE_MESSAGE,
             data={"card_id": card_id, "status": status}
         )
+        if forum_res.get('error'):
+            logger.error(
+                f"Ошибка обновления сообщения форума: {forum_res.get('error')}")
+            return None, forum_res.get('error')
+
         return forum_res.get("message_id"), forum_res.get("error")
     except Exception as e:
         logger.error(f"Ошибка обновления сообщения форума: {e}")
@@ -329,7 +336,7 @@ async def close_user_scene(telegram_id: int,
 
 async def notify_user(telegram_id: int, 
                       message: str,
-                      skip_if_page: str | None = None
+                      skip_if_page: str | None | list[str] = None
                       ) -> bool:
     """
     Отправить уведомление пользователю.
@@ -355,9 +362,9 @@ async def notify_user(telegram_id: int,
         return False
 
 
-async def notify_users(users: list, 
+async def notify_users(users: list[_UUID | None], 
                        message: str,
-                       skip_if_page: str | None = None
+                       skip_if_page: str | None | list[str] = None
                        ) -> int:
     """
     Отправить уведомление списку пользователей.
@@ -370,8 +377,17 @@ async def notify_users(users: list,
         Количество успешно отправленных уведомлений
     """
     success_count = 0
-    for user in users:
+    users = list(set(users))  # Убираем дубликаты
+
+    for user_id in users:
+        if user_id is None: continue
+
+        user = await User.get_by_key('user_id', user_id)
+        if not user or not user.telegram_id:
+            continue
+
         if await notify_user(user.telegram_id, message, skip_if_page):
             success_count += 1
+
     return success_count
 

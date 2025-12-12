@@ -1,3 +1,4 @@
+from global_modules import brain_client
 from tg.oms.common_pages.update_text_page import UpdateTextPage
 from modules.api_client import brain_api
 from global_modules.classes.enums import ChangeType
@@ -35,19 +36,12 @@ class ChangeNamePage(UpdateTextPage):
         old_name = task.get('name')
         
         # Обновляем название в карточке
-        result, status = await brain_api.post(
-            "/card/update",
-            data={
-                "card_id": str(card_id),
-                "name": value,
-                "notify_executor": True,
-                "change_type": ChangeType.NAME.value,
-                "old_value": old_name,
-                "new_value": value
-            }
+        res = await brain_client.update_card(
+            card_id=card_id,
+            name=value
         )
 
-        if status == 200:
+        if res is not None:
             # Обновляем данные задачи
             task['name'] = value
             await self.scene.update_key('scene', 'current_task_data', task)

@@ -349,32 +349,15 @@ class TaskDetailPage(Page):
             if not task: return
 
             card_id = task.get('card_id')
-            
+
             # Возвращаем в статус edited (В работе)
-            res, status = await brain_api.post(
-                '/card/update',
-                data={
-                    'card_id': card_id,
-                    'status': CardStatus.edited
-                }
+            res = await brain_client.change_card_status(
+                card_id=card_id,
+                status=CardStatus.edited
             )
-            
-            if status == 200:
-                # Отменяем все запланированные задачи (уведомления и т.д.)
-                # Это делается автоматически в brain-api при смене статуса или удалении, 
-                # но если нужно явно "убрать все таски", то это может означать удаление напоминаний.
-                # В brain-api/routers/card.py нет явного удаления тасков при смене статуса на edited,
-                # кроме перепланирования при смене дедлайна.
-                # Но пользователь просил "убрать все таски".
-                # Добавим вызов cancel_card_tasks через API, если такой эндпоинт есть, или добавим его.
-                # В brain-api есть cancel_card_tasks, но он не экспортирован в API явно как отдельный метод,
-                # кроме как при удалении карты.
-                # Однако, при смене статуса на edited, логично, что задачи публикации (если были) должны быть отменены?
-                # Или задачи напоминания?
-                # Предположим, что речь о задачах публикации, если задача была ready.
-                # В brain-api при смене статуса на ready создаются задачи. При возврате - надо удалять.
-                # Добавим логику в brain-api/routers/card.py для удаления задач при смене статуса с ready на другой.
-                
+
+            if res is not None:
+
                 await callback.answer("Задача возвращена в работу.", show_alert=True)
                 await self.load_task_details()
                 await self.scene.update_page('task-detail')

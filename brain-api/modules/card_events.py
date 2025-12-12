@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Literal, Optional
 from uuid import UUID as _UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from global_modules.classes.enums import CardStatus
 from models.Card import Card
 from models.User import User
 from database.connection import session_factory
@@ -17,6 +18,7 @@ from modules.constants import SceneNames, PropertyNames
 from modules.properties import multi_properties
 from modules.scheduler import reschedule_post_tasks, reschedule_card_notifications
 from modules.calendar import update_calendar_event
+from modules.status_changers import to_edited
 
 async def on_name(
                   new_name: str,
@@ -39,8 +41,7 @@ async def on_name(
         raise ValueError("Название карточки не может быть пустым")
 
     new_name = new_name.strip()
-    comment = f"✏️ Название изменено:\n{
-        card.name} → {new_name}"
+    comment = f"✏️ Название изменено:\n{card.name} → {new_name}"
 
     await update_kaiten_card_field(
         card.task_id, 'title', 
@@ -49,11 +50,16 @@ async def on_name(
     await card.update(name=new_name)
 
     listeners = [
-        card.executor.user_id if card.executor else None,
-        card.editor.user_id if card.editor else None
+        card.executor_id,
+        card.editor_id
     ]
 
     await notify_users(listeners, comment, 'change-name')
+
+    # Обновляем форум
+    if card.forum_message_id:
+        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
+        await update_forum_message(str(card.card_id), forum_status)
 
     # Обновляем, только если выбрано редактирование карточки и страница главная
     await asyncio.create_task(
@@ -102,12 +108,17 @@ async def on_description(
     await card.update(description=new_description)
 
     listeners = [
-        card.executor.user_id if card.executor else None,
-        card.editor.user_id if card.editor else None
+        card.executor_id,
+        card.editor_id
     ]
 
     await notify_users(listeners, comment, 'change-description')
-    
+
+    # Обновляем форум
+    if card.forum_message_id:
+        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
+        await update_forum_message(str(card.card_id), forum_status)
+
     # Обновляем сцены
     await asyncio.create_task(
         update_scenes(SceneNames.USER_TASK, 'main-page', 
@@ -172,12 +183,17 @@ async def on_deadline(
 
     # Уведомляем участников
     listeners = [
-        card.executor.user_id if card.executor else None,
-        card.editor.user_id if card.editor else None,
-        card.customer.user_id if card.customer else None
+        card.executor_id,
+        card.editor_id,
+        card.customer_id
     ]
 
     await notify_users(listeners, comment, 'change-deadline')
+
+    # Обновляем форум
+    if card.forum_message_id:
+        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
+        await update_forum_message(str(card.card_id), forum_status)
 
     # Обновляем сцены
     await asyncio.create_task(
@@ -207,7 +223,7 @@ async def on_send_time(
     
     # Обновляем карточку
     await card.update(send_time=new_send_time)
-    
+
     # Перепланируем задачи публикации
     try:
         async with session_factory() as session:
@@ -236,11 +252,6 @@ async def on_send_time(
                         )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
-    
-    # Обновляем форум
-    if card.forum_message_id:
-        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
-        await update_forum_message(str(card.card_id), forum_status)
 
     # Обновляем сцены
     await asyncio.create_task(
@@ -254,7 +265,7 @@ async def on_send_time(
     )
 
 async def on_executor(
-    new_executor_id: _UUID,
+    new_executor_id: Optional[_UUID],
     card: Optional[Card] = None, 
     card_id: Optional[_UUID] = None
 ):
@@ -267,46 +278,64 @@ async def on_executor(
         card = await Card.get_by_key('card_id', str(card_id))
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
+
+    old_executor_id = card.executor_id
+    forum_upd = False
     
-    # Обновляем исполнителя
+    # Обрабатываем старого исполнителя (если есть)
+    if old_executor_id and old_executor_id != new_executor_id:
+        old_user = await User.get_by_key('user_id', old_executor_id)
+        if old_user:
+            # Закрываем сцену если это не заказчик
+            if old_executor_id != card.customer_id:
+                from modules.executors_client import close_user_scene
+                await close_user_scene(old_user.telegram_id)
+            
+            # Удаляем из Kaiten
+            if card.task_id and card.task_id != 0 and old_user.tasker_id:
+                async with kaiten as client:
+                    await client.remove_card_member(card.task_id, old_user.tasker_id)
+    
+    # Обновляем исполнителя в БД
     await card.update(executor_id=new_executor_id)
     
-    # Обновляем участников в Kaiten
-    user = await User.get_by_key('user_id', new_executor_id)
-    if user and card.task_id != 0:
-        tasker_id = user.tasker_id
-        if tasker_id:
-            async with kaiten as client:
-                card_k = await client.get_card(card.task_id)
-                if card_k:
-                    members = await card_k.get_members()
-                    member_ids = [m['id'] for m in members]
-                    
-                    # Удаляем старых участников (кроме заказчика и нового исполнителя)
-                    for member in member_ids:
-                        if member not in [card.customer_id, new_executor_id]:
-                            await client.remove_card_member(card.task_id, member)
-                    
-                    # Добавляем нового исполнителя
-                    if tasker_id not in member_ids:
-                        await client.add_card_member(card.task_id, tasker_id)
+    # Обрабатываем нового исполнителя
+    kaiten_comment = None
+    if new_executor_id is None:
+        kaiten_comment = "❌ Исполнитель удален"
+    else:
+        new_user = await User.get_by_key('user_id', new_executor_id)
+        if new_user:
+            # Добавляем в Kaiten
+            if card.task_id and card.task_id != 0 and new_user.tasker_id:
+                async with kaiten as client:
+                    card_k = await client.get_card(card.task_id)
+                    if card_k:
+                        members = await card_k.get_members()
+                        member_ids = [m['id'] for m in members]
+                        
+                        if new_user.tasker_id not in member_ids:
+                            await client.add_card_member(card.task_id, new_user.tasker_id)
 
-    # Комментарий в Kaiten
-    if card.task_id and card.task_id != 0:
-        executor_name = user.name if user else "Неизвестный"
-        comment = f"👤 Исполнитель назначен: {executor_name}"
-        await add_kaiten_comment(card.task_id, comment)
+            # Уведомляем нового исполнителя
+            await notify_users([new_executor_id], 
+                f"📝 Вы назначены исполнителем задачи: {card.name}",
+                'assign-executor')
+
+            kaiten_comment = f"👤 Исполнитель назначен: {await new_user.name() if await new_user.name() else 'Неизвестный'}"
+
+            if card.status == CardStatus.pass_:
+                forum_upd = True
+                await to_edited(card)
+
+    # Добавляем комментарий в Kaiten
+    if kaiten_comment and card.task_id and card.task_id != 0:
+        await add_kaiten_comment(card.task_id, kaiten_comment)
 
     # Обновляем форум
-    if card.forum_message_id:
+    if card.forum_message_id and not forum_upd:
         forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
         await update_forum_message(str(card.card_id), forum_status)
-
-    # Уведомляем нового исполнителя
-    if user:
-        await notify_users([new_executor_id], 
-            f"📝 Вы назначены исполнителем задачи: {card.name}",
-                          'assign-executor')
 
     # Обновляем сцены
     await asyncio.create_task(
@@ -340,7 +369,7 @@ async def on_editor(
     # Комментарий в Kaiten
     if card.task_id and card.task_id != 0 and new_editor_id:
         editor = await User.get_by_key('user_id', new_editor_id)
-        editor_name = editor.name if editor else "Неизвестный"
+        editor_name = await editor.name() if editor else "Неизвестный"
         comment = f"✏️ Редактор назначен: {editor_name}"
         await add_kaiten_comment(card.task_id, comment)
     
@@ -349,13 +378,13 @@ async def on_editor(
         await notify_users([new_editor_id],
                           f"📝 Вы назначены редактором задачи: {card.name}",
                           'editor-assigned')
-    
+
     # Обновляем сцены
     await asyncio.create_task(
         update_scenes(SceneNames.USER_TASK, 'main-page',
                      "task_id", str(card.card_id))
     )
-    
+
     await asyncio.create_task(
         update_scenes(SceneNames.VIEW_TASK, 'task-detail',
                      "selected_task", str(card.card_id))
@@ -526,6 +555,11 @@ async def on_need_check(
     # Обновляем карточку
     await card.update(need_check=need_check)
     
+    # Обновляем форум
+    if card.forum_message_id:
+        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
+        await update_forum_message(str(card.card_id), forum_status)
+    
     # Обновляем сцены
     await asyncio.create_task(
         update_scenes(SceneNames.USER_TASK, 'main-page',
@@ -601,7 +635,12 @@ async def on_tags(
         update_scenes(SceneNames.USER_TASK, 'main-page',
                      "task_id", str(card.card_id))
     )
-    
+
+    # Обновляем форум
+    if card.forum_message_id:
+        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
+        await update_forum_message(str(card.card_id), forum_status)
+
     await asyncio.create_task(
         update_scenes(SceneNames.VIEW_TASK, 'task-detail',
                      "selected_task", str(card.card_id))
@@ -701,9 +740,9 @@ async def on_editor_notes(
     if card.executor_id and editor_notes:
         last_note = editor_notes[-1] if editor_notes else None
         if last_note:
-            note_text = last_note.get('text', '')
+            note_text = last_note.get('content', '')
             await notify_users([card.executor_id],
-                             f"📋 Новая заметка редактора:\n{note_text[:200]}",
+                             f"📋 Новая заметка редактора:\n{note_text[:256]}",
                              'editor-notes')
 
     # Обновляем сцены

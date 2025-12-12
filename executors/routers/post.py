@@ -2,7 +2,6 @@
 Роутер для управления публикацией постов через различных исполнителей.
 Вся логика работы с исполнителями и генерацией контента находится здесь.
 """
-from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -10,15 +9,9 @@ from modules.executors_manager import manager
 from modules.constants import CLIENTS
 from modules.logs import executors_logger as logger
 from modules.post_generator import generate_post
-from modules.post_sender import download_kaiten_files, detect_media_type
-from global_modules.timezone import now_naive as moscow_now
+from modules.post_sender import download_kaiten_files
 
 router = APIRouter(prefix="/post", tags=["Post"])
-
-# Хранилище для отслеживания запланированных постов
-# Формат: {card_id: {client_key: {"scheduled": bool, "sent": bool, "message_id": int}}}
-scheduled_posts: dict = {}
-
 
 class PostScheduleRequest(BaseModel):
     """Запрос на планирование поста"""
@@ -59,114 +52,6 @@ def get_client_config(client_key: str) -> tuple:
         raise HTTPException(status_code=400, detail=f"Incomplete client configuration for {client_key}")
 
     return client_config, executor_name, client_id
-
-
-@router.post("/schedule")
-async def schedule_post(request: PostScheduleRequest):
-    """
-    Запланировать пост для исполнителя с поддержкой отложенной отправки.
-    Используется для tp_executor (Pyrogram) который поддерживает schedule_message.
-    
-    Генерация контента происходит здесь, на стороне executors.
-    """
-    logger.info(f"Scheduling post for card {request.card_id}, client {request.client_key}")
-    
-    # Получаем конфигурацию клиента
-    client_config, executor_name, client_id = get_client_config(request.client_key)
-    
-    # Получаем исполнителя
-    executor = manager.get(executor_name)
-    if not executor:
-        logger.error(f"Executor {executor_name} not found or not available")
-        return {"success": False, "error": f"Executor {executor_name} not found"}
-    
-    # Проверяем поддержку schedule_message
-    if not hasattr(executor, 'schedule_message'):
-        logger.error(f"Executor {executor_name} does not support schedule_message")
-        return {"success": False, "error": "Executor does not support scheduled messages"}
-
-    try:
-        # Преобразуем время отправки
-        send_time = None
-        if request.send_time:
-            send_time = datetime.fromisoformat(request.send_time)
-
-        if not send_time:
-            logger.error("send_time is required for scheduling")
-            return {"success": False, "error": "send_time is required"}
-        
-        # Генерируем текст поста
-        post_text = generate_post(
-            content=request.content,
-            tags=request.tags,
-            client_key=request.client_key
-        )
-        
-        # Преобразуем client_id
-        try:
-            chat_id = int(client_id)
-        except ValueError:
-            chat_id = client_id
-        
-        # Загружаем фото с Kaiten, если есть
-        photos = []
-        if request.task_id and request.post_images:
-            photos = await download_kaiten_files(request.task_id, request.post_images)
-        
-        # Отправляем запланированное сообщение
-        if photos:
-            # Планируем фото
-            if hasattr(executor, 'schedule_media_group') and len(photos) > 1:
-                result = await executor.schedule_media_group(
-                    chat_id=chat_id,
-                    media=photos,
-                    schedule_date=send_time,
-                    caption=post_text
-                )
-            elif hasattr(executor, 'schedule_photo'):
-                result = await executor.schedule_photo(
-                    chat_id=chat_id,
-                    photo=photos[0],
-                    schedule_date=send_time,
-                    caption=post_text
-                )
-            else:
-                logger.warning(f"Executor {executor_name} does not support scheduled photos, sending text only")
-                result = await executor.schedule_message(
-                    chat_id=chat_id,
-                    text=post_text,
-                    schedule_date=send_time
-                )
-        else:
-            result = await executor.schedule_message(
-                chat_id=chat_id,
-                text=post_text,
-                schedule_date=send_time
-            )
-        
-        if result.get('success'):
-            # Сохраняем информацию о запланированном посте
-            if request.card_id not in scheduled_posts:
-                scheduled_posts[request.card_id] = {}
-            
-            scheduled_posts[request.card_id][request.client_key] = {
-                "scheduled": True,
-                "sent": False,
-                "schedule_time": send_time.isoformat(),
-                "executor_name": executor_name,
-                "client_id": chat_id
-            }
-            
-            logger.info(f"Post scheduled successfully for card {request.card_id}, client {request.client_key}")
-            return {"success": True, "scheduled_time": send_time.isoformat()}
-        else:
-            logger.error(f"Failed to schedule post: {result.get('error')}")
-            return {"success": False, "error": result.get('error')}
-            
-    except Exception as e:
-        logger.error(f"Error scheduling post: {e}", exc_info=True)
-        return {"success": False, "error": str(e)}
-
 
 @router.post("/send")
 async def send_post(request: PostSendRequest):
@@ -276,8 +161,8 @@ async def send_post(request: PostSendRequest):
             # Для Telegram - проверяем наличие медиа файлов
             if downloaded_files:
                 # Разделяем на фото и видео
-                photos = [f for f in downloaded_files if f['type'] == 'photo']
-                videos = [f for f in downloaded_files if f['type'] == 'video']
+                # photos = [f for f in downloaded_files if f['type'] == 'photo']
+                # videos = [f for f in downloaded_files if f['type'] == 'video']
                 
                 if len(downloaded_files) == 1:
                     # Одиночный файл
@@ -322,20 +207,8 @@ async def send_post(request: PostSendRequest):
             )
 
         if result and result.get('success'):
-            # Сохраняем информацию об отправленном посте
-            if request.card_id not in scheduled_posts:
-                scheduled_posts[request.card_id] = {}
-
-            scheduled_posts[request.card_id][request.client_key] = {
-                "scheduled": False,
-                "sent": True,
-                "sent_at": moscow_now().isoformat(),
-                "message_id": result.get('message_id') or result.get('post_id'),
-                "executor_name": executor_name,
-                "files_count": len(downloaded_files)
-            }
-
-            logger.info(f"Post sent successfully for card {request.card_id}, client {request.client_key}, files: {len(downloaded_files)}")
+            logger.info(
+                f"Post sent successfully for card {request.card_id}, client {request.client_key}, files: {len(downloaded_files)}")
             return {
                 "success": True, 
                 "message_id": result.get('message_id') or result.get('post_id')
@@ -348,82 +221,3 @@ async def send_post(request: PostSendRequest):
     except Exception as e:
         logger.error(f"Error sending post: {e}", exc_info=True)
         return {"success": False, "error": str(e)}
-
-
-@router.get("/verify/{card_id}/{client_key}")
-async def verify_post_sent(card_id: str, client_key: str):
-    """
-    Проверить, был ли отправлен пост.
-    Вызывается через минуту после запланированного времени отправки.
-    """
-    logger.info(f"Verifying post for card {card_id}, client {client_key}")
-    
-    # Проверяем локальное хранилище
-    card_posts = scheduled_posts.get(card_id, {})
-    client_post = card_posts.get(client_key, {})
-    
-    if client_post.get('sent'):
-        logger.info(f"Post for card {card_id}, client {client_key} was already sent")
-        return {"sent": True, "message_id": client_post.get('message_id')}
-    
-    if not client_post.get('scheduled'):
-        logger.warning(f"No scheduled post found for card {card_id}, client {client_key}")
-        return {"sent": False, "error": "No scheduled post found"}
-    
-    # Если пост был запланирован, но статус sent не установлен,
-    # считаем что пост отправлен (Telegram сам отправляет в нужное время)
-    # Но проверить это сложно без получения истории сообщений
-    
-    # Для tp_executor - пост должен быть уже отправлен автоматически
-    schedule_time_str = client_post.get('schedule_time')
-    if schedule_time_str:
-        schedule_time = datetime.fromisoformat(schedule_time_str)
-        now = moscow_now()
-        
-        if now > schedule_time:
-            # Время отправки прошло - считаем что пост отправлен
-            # (Telegram должен был отправить автоматически)
-            scheduled_posts[card_id][client_key]['sent'] = True
-            logger.info(f"Post for card {card_id}, client {client_key} should have been sent by Telegram")
-            return {"sent": True, "auto_sent": True}
-    
-    logger.warning(f"Post for card {card_id}, client {client_key} might not have been sent")
-    return {"sent": False, "error": "Post was scheduled but may not have been sent"}
-
-
-@router.get("/status/{card_id}")
-async def get_post_status(card_id: str):
-    """
-    Получить статус публикации для всех клиентов карточки.
-    """
-    card_posts = scheduled_posts.get(card_id, {})
-    
-    if not card_posts:
-        return {"card_id": card_id, "posts": {}, "message": "No posts found for this card"}
-    
-    return {"card_id": card_id, "posts": card_posts}
-
-
-@router.delete("/cancel/{card_id}")
-async def cancel_scheduled_posts(card_id: str, client_key: Optional[str] = None):
-    """
-    Отменить запланированные посты для карточки.
-    Если указан client_key - отменяет только для конкретного клиента.
-    
-    Примечание: Отмена запланированного сообщения в Telegram требует удаления сообщения,
-    что невозможно до его отправки. Эта функция просто удаляет запись из локального хранилища.
-    """
-    logger.info(f"Cancelling scheduled posts for card {card_id}, client {client_key}")
-    
-    if card_id not in scheduled_posts:
-        return {"success": True, "message": "No posts to cancel"}
-    
-    if client_key:
-        if client_key in scheduled_posts[card_id]:
-            del scheduled_posts[card_id][client_key]
-            logger.info(f"Cancelled post for client {client_key}")
-    else:
-        del scheduled_posts[card_id]
-        logger.info(f"Cancelled all posts for card {card_id}")
-    
-    return {"success": True}

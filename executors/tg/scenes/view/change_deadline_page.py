@@ -47,23 +47,18 @@ class ChangeDeadlinePage(DateInputPage):
                 author_id = user.get('user_id')
         
         # Обновляем дедлайн в карточке
-        result, status = await brain_api.post(
-            "/card/update",
-            data={
-                "card_id": str(card_id),
-                "deadline": value.isoformat(),
-                "notify_executor": True,
-                "change_type": "deadline",
-                "old_value": old_deadline,
-                "new_value": value.isoformat(),
-                "author_id": str(author_id) if author_id else None
-            }
+        card = await brain_client.update_card(
+            card_id=card_id,
+            deadline=value.isoformat(),
+            author_id=str(author_id) if author_id else None
         )
+        status = card is not None
 
-        if status == 200:
+        if status:
             # Обновляем данные задачи
             task['deadline'] = value.isoformat()
-            await self.scene.update_key('scene', 'current_task_data', task)
+            await self.scene.update_key(
+                'scene', 'current_task_data', task)
             return True
         
         return False

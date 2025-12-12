@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import select, update as sql_update, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional
@@ -91,6 +92,8 @@ class AsyncCRUDMixin:
                 value = getattr(self, column.name)
                 if hasattr(value, '__str__') and 'UUID' in str(type(value)):
                     result[column.name] = str(value)
+                if isinstance(value, datetime):
+                    result[column.name] = value.isoformat()
                 else:
                     result[column.name] = value
         return result

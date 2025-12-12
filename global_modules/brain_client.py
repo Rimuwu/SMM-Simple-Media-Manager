@@ -4,7 +4,8 @@
 
 Используется в executors и других сервисах для взаимодействия с brain-api.
 """
-from typing import Optional
+import enum
+from typing import Literal, Optional
 from global_modules.api_client import APIClient
 from global_modules.classes.enums import CardStatus, Department
 
@@ -47,30 +48,35 @@ class BrainAPIClient:
 
         return cards
 
+    Nothing = Literal['__nothing__']
+
     async def update_card(
         self,
         card_id: str,
-        status: Optional[CardStatus] = None,
-        executor_id: Optional[str] = None,
-        customer_id: Optional[str] = None,
-        need_check: Optional[bool] = None,
-        need_send: Optional[bool] = None,
-        forum_message_id: Optional[int] = None,
-        content: Optional[str] = None,
-        clients: Optional[list[str]] = None,
-        tags: Optional[list[str]] = None,
-        deadline: Optional[str] = None,
-        image_prompt: Optional[str] = None,
-        prompt_sended: Optional[bool] = None,
-        prompt_message: Optional[int] = None,
-        calendar_id: Optional[str] = None,
-        send_time: Optional[str] = None,
-        post_images: Optional[list[str]] = None
+        executor_id: Optional[str | Nothing] = '__nothing__',
+        customer_id: Optional[str | Nothing] = '__nothing__',
+        need_check: Optional[bool | Nothing] = '__nothing__',
+        need_send: Optional[bool | Nothing] = '__nothing__',
+        forum_message_id: Optional[int | Nothing] = '__nothing__',
+        content: Optional[str | Nothing] = '__nothing__',
+        clients: Optional[list[str] | Nothing] = '__nothing__',
+        tags: Optional[list[str] | Nothing] = '__nothing__',
+        deadline: Optional[str | Nothing] = '__nothing__',
+        image_prompt: Optional[str | Nothing] = '__nothing__',
+        prompt_sended: Optional[bool | Nothing] = '__nothing__',
+        prompt_message: Optional[int | Nothing] = '__nothing__',
+        calendar_id: Optional[str | Nothing] = '__nothing__',
+        send_time: Optional[str | Nothing] = '__nothing__',
+        post_images: Optional[list[str] | Nothing] = '__nothing__',
+        description: Optional[str | Nothing] = '__nothing__',
+        name: Optional[str | Nothing] = '__nothing__',
+        author_id: Optional[str | Nothing] = '__nothing__',
+        editor_id: Optional[str | Nothing] = '__nothing__'
     ) -> dict | None:
         """Обновить карточку"""
+
         data = {
             "card_id": card_id,
-            "status": status.value if status else None,
             "executor_id": executor_id,
             "customer_id": customer_id,
             "need_check": need_check,
@@ -85,10 +91,18 @@ class BrainAPIClient:
             "prompt_sended": prompt_sended,
             "prompt_message": prompt_message,
             "calendar_id": calendar_id,
-            "post_images": post_images
+            "post_images": post_images,
+            "author_id": author_id,
+            "description": description,
+            "name": name,
+            "editor_id": editor_id
         }
-        
-        card, res_status = await self.api.post("/card/update", data=data)
+
+        data = {k: v for k, v in data.items() if v != '__nothing__'}
+        print(f"Updating card {card_id} with data: {data}")
+        card, res_status = await self.api.post("/card/update", data=data,
+                                               no_filter_none=True
+                                               )
 
         if res_status != 200:
             return None
@@ -113,6 +127,39 @@ class BrainAPIClient:
         if status == 200:
             return result
         
+        return None
+
+    async def change_card_status(
+        self,
+        card_id: str,
+        status: CardStatus,
+        who_changed: str = 'admin',
+        comment: Optional[str] = None
+    ) -> dict | None:
+        """
+        Изменить статус карточки через эндпоинт /change-status
+        
+        Args:
+            card_id: UUID карточки
+            new_status: Новый статус (CardStatus enum)
+            who_changed: Кто изменил статус ('executor' или 'admin')
+            comment: Опциональный комментарий при смене статуса
+            
+        Returns:
+            Словарь с результатом или None при ошибке
+        """
+        data = {
+            "card_id": card_id,
+            "new_status": status.value,
+            "who_changed": who_changed,
+            "comment": comment
+        }
+        
+        result, r_status = await self.api.post("/card/change-status", data=data)
+        
+        if r_status == 200:
+            return result
+
         return None
 
     # ==================== Пользователи ====================
@@ -587,6 +634,7 @@ update_scene = brain_client.update_scene
 delete_scene = brain_client.delete_scene
 get_all_scenes = brain_client.get_all_scenes
 add_editor_note = brain_client.add_editor_note
+change_card_status = brain_client.change_card_status
 get_kaiten_users = brain_client.get_kaiten_users
 get_kaiten_users_dict = brain_client.get_kaiten_users_dict
 get_kaiten_files = brain_client.get_kaiten_files

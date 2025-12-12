@@ -63,14 +63,14 @@ class Card(Base, AsyncCRUDMixin):
     editor_notes: Mapped[Optional[list[dict]]] = mapped_column(JSON, nullable=True, default=[])
 
     # Настройки по клиентам. Например, шаблоны подписей или установка сетки для вк
-    clients_settings: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default={})
+    # clients_settings: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default={})
 
     # Ентити для по клиентам. Например опрос в телеграме или авто-репост
-    entities: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default={})
+    # entities: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default={})
 
     # Временные метки
     created_at: Mapped[createAT]
-    updated_at: Mapped[updateAT] 
+    updated_at: Mapped[updateAT]
 
 
     def __repr__(self) -> str:

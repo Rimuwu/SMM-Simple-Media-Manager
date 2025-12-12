@@ -98,7 +98,7 @@ async def to_pass(
                     await asyncio.create_task(
                         notify_user(
                             executor.telegram_id,
-                            "🎇 Задание возвращено на форум задач администратором."
+                            "🎇 Задание возвращено на форум задач."
                         )
                     )
 
@@ -120,7 +120,7 @@ async def to_pass(
         await card.update(
             session,
             status=CardStatus.pass_,
-            executor=None
+            executor_id=None
         )
 
         await session.commit()
@@ -154,10 +154,14 @@ async def to_pass(
         scene_name=SceneNames.VIEW_TASK
     )
 
-    if card.type == 'public':
-        await send_forum_message(str(card.card_id))
+    if card.forum_message_id:
+        await delete_forum_message(str(card.card_id))
+        message_id, _ = await send_forum_message(str(card.card_id))
+        
+        if message_id:
+            await card.update(forum_message_id=message_id)
     else:
-        customer = card.customer
+        customer = await User.get_by_key('user_id', card.customer_id)
         if customer and customer.role != UserRole.admin:
             await notify_user(
                 telegram_id=customer.telegram_id,
@@ -252,19 +256,23 @@ async def to_edited(
         card_id=str(card.card_id),
         scene_name=SceneNames.VIEW_TASK
     )
+    
+    if card.forum_message_id:
+        card_type = 'public'
+    else:
+        card_type = 'private'
 
     # Обновление сообщения на форуме для public задач
-    if card.type == 'public' and card.forum_message_id:
-        message_id, _ = await update_forum_message(
-            str(card.card_id), 
-            CardStatus.edited.value
-        )
+    if card_type == 'public' and card.forum_message_id:
+        await delete_forum_message(str(card.card_id))
+        message_id, _ = await send_forum_message(str(card.card_id))
+
         if message_id:
             await card.update(forum_message_id=message_id)
 
     # Уведомление заказчику для private задач при взятии в работу
-    if card.type == 'private' and previous_status == CardStatus.pass_:
-        customer = card.customer
+    if card_type == 'private' and previous_status == CardStatus.pass_:
+        customer = await User.get_by_key('user_id', card.customer_id)
         if customer and customer.role != UserRole.admin:
             await notify_user(
                 telegram_id=customer.telegram_id,
@@ -380,10 +388,11 @@ async def to_review(
     if card.editor_id:
         editor = await User.get_by_key('user_id', card.editor_id)
         if editor and editor.telegram_id:
-            recipients.append(editor)
+            recipients.append(editor.user_id)
     else:
-        if card.customer and card.customer.role == UserRole.admin:
-            recipients.append(card.customer)
+        customer = await User.get_by_key('user_id', card.customer_id)
+        if customer and customer.role == UserRole.admin:
+            recipients.append(card.customer_id)
 
     msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
     await notify_users(recipients, msg)

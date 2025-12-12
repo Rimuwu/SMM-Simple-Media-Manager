@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
-from typing import Optional
+import enum
+from typing import Literal, Optional
 from uuid import UUID as _UUID
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -8,7 +9,7 @@ from sqlalchemy import select
 from database.connection import session_factory
 from global_modules.classes.enums import CardType, ChangeType, UserRole
 from global_modules.timezone import now_naive as moscow_now
-from modules.kaiten import kaiten
+from modules.kaiten import add_kaiten_comment, get_kaiten_user_name, kaiten
 from modules.properties import multi_properties
 from global_modules.json_get import open_settings, open_properties
 from models.Card import Card, CardStatus
@@ -20,8 +21,7 @@ from modules.constants import (
     SceneNames, Messages
 )
 from modules.card_service import (
-    notify_executor, get_kaiten_user_name, add_kaiten_comment, 
-    update_kaiten_card_field, increment_reviewers_tasks, increment_customer_tasks
+    notify_executor, increment_reviewers_tasks, increment_customer_tasks
 )
 from modules.executors_client import (
     send_forum_message, update_forum_message, delete_forum_message, delete_forum_message_by_id,
@@ -30,7 +30,8 @@ from modules.executors_client import (
     notify_user, notify_users
 )
 from modules.logs import brain_logger as logger
-
+from modules import status_changers
+from modules import card_events
 
 # Создаём роутер
 router = APIRouter(prefix='/card')
@@ -64,7 +65,7 @@ async def create_card(card_data: CardCreate):
 
     # Преобразовываем текстомвые ключи в id свойств
     channels = []
-    properties_data = open_properties()
+    properties_data = open_properties() or {}
     if card_data.channels:
         for channel in card_data.channels:
             if channel.isdigit():
@@ -110,8 +111,12 @@ async def create_card(card_data: CardCreate):
 
             card_id = res.id
 
-            executor_ = await User.get_by_key('user_id', card_data.executor_id)
-            customer_ = await User.get_by_key('user_id', card_data.customer_id)
+            executor_ = await User.get_by_key(
+                            'user_id', 
+                            card_data.executor_id)
+            customer_ = await User.get_by_key(
+                            'user_id', 
+                            card_data.customer_id)
 
             if card_id:
                 try:
@@ -168,7 +173,8 @@ async def create_card(card_data: CardCreate):
     logger.info(f"Карточка создана в БД: {card.card_id} (Kaiten ID: {card_id})")
 
     # Увеличиваем счётчик созданных задач у заказчика
-    await increment_customer_tasks(card_data.customer_id)
+    if card_data.customer_id:
+        await increment_customer_tasks(card_data.customer_id)
 
     if card_data.type_id == CardType.public:
         message_id, error = await send_forum_message(str(card.card_id))
@@ -276,14 +282,15 @@ async def get(task_id: Optional[str] = None,
             card_dict = card.to_dict()
             
             # Добавляем информацию об исполнителе
-            if card.executor:
-                kaiten_name = kaiten_users.get(card.executor.tasker_id) if card.executor.tasker_id else None
-                
+            executor = await User.get_by_key('user_id', card.executor_id)
+            if executor:
+                kaiten_name = kaiten_users.get(executor.tasker_id) if executor.tasker_id else None
+
                 card_dict['executor'] = {
-                    'user_id': str(card.executor.user_id),
-                    'telegram_id': card.executor.telegram_id,
-                    'tasker_id': card.executor.tasker_id,
-                    'full_name': kaiten_name or f"@{card.executor.telegram_id}"
+                    'user_id': str(executor.user_id),
+                    'telegram_id': executor.telegram_id,
+                    'tasker_id': executor.tasker_id,
+                    'full_name': kaiten_name or f"@{executor.telegram_id}"
                 }
             else:
                 card_dict['executor'] = None
@@ -292,47 +299,61 @@ async def get(task_id: Optional[str] = None,
         
         return result
 
+class S(enum.Enum):
+    Nothing = '__nothing__'
+
 class CardUpdate(BaseModel):
     card_id: str
-    name: Optional[str] = None  # Название карточки
-    description: Optional[str] = None  # Описание карточки
-    status: Optional[CardStatus] = None
-    executor_id: Optional[str] = None
-    customer_id: Optional[str] = None
-    editor_id: Optional[str] = None
-    need_check: Optional[bool] = None
-    need_send: Optional[bool] = None  # Нужно ли отправлять в каналы
-    forum_message_id: Optional[int] = None
-    content: Optional[str] = None
-    clients: Optional[list[str]] = None
-    tags: Optional[list[str]] = None
-    deadline: Optional[str] = None  # ISO 8601 format
-    send_time: Optional[str] = None  # ISO 8601 format
-    image_prompt: Optional[str] = None
-    prompt_sended: Optional[bool] = None
-    prompt_message: Optional[int] = None  # ID сообщения дизайнерам
-    calendar_id: Optional[str] = None
-    post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten для публикации
-    notify_executor: Optional[bool] = False  # Отправить уведомление исполнителю
-    change_type: Optional[str] = None  # Тип изменения
-    old_value: Optional[str] = None  # Старое значение
-    new_value: Optional[str] = None  # Новое значение
-    author_id: Optional[str] = None  # ID пользователя, который вносит изменения
+
+    name: Optional[str] | S = S.Nothing  # Название карточки
+    description: Optional[str] | S = S.Nothing  # Описание карточки
+
+    executor_id: Optional[str] | S = S.Nothing
+    customer_id: Optional[str] | S = S.Nothing
+    editor_id: Optional[str] | S = S.Nothing
+
+    need_check: Optional[bool] | S = S.Nothing
+    need_send: Optional[bool] | S = S.Nothing  # Нужно ли отправлять в каналы
+
+    forum_message_id: Optional[int] | S = S.Nothing
+    content: Optional[str] | S = S.Nothing
+
+    clients: Optional[list[str]] | S = S.Nothing
+    tags: Optional[list[str]] | S = S.Nothing
+
+    deadline: Optional[str] | S = S.Nothing  # ISO 8601 format
+    send_time: Optional[str] | S = S.Nothing  # ISO 8601 format
+
+    image_prompt: Optional[str] | S = S.Nothing
+    prompt_message: Optional[int] | S = S.Nothing  # ID сообщения дизайнерам
+
+    calendar_id: Optional[str] | S = S.Nothing
+    post_images: Optional[list[str]] | S = S.Nothing  # Список имён файлов из Kaiten для публикации
+
+    author_id: Optional[str] | S = S.Nothing  # ID пользователя, вносящего изменения
+
+    # notify_executor: Optional[bool] = False  # Отправить уведомление исполнителю
+    # change_type: Optional[str] = None  # Тип изменения
+    # old_value: Optional[str] = None  # Старое значение
+    # new_value: Optional[str] = None  # Новое значение
 
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
+    """
+    Обновляет карточку через функции из card_events.
+    НЕ меняет статус - для этого используйте /change-status
+    """
 
     card = await Card.get_by_key('card_id', card_data.card_id)
     if not card:
         logger.warning(f"Попытка обновления несуществующей карточки: {card_data.card_id}")
-        raise HTTPException(
-            status_code=404, detail="Card not found")
+        raise HTTPException(status_code=404, detail="Card not found")
 
-    data = card_data.model_dump(exclude={'card_id'})
-    data = {k: v for k, v in data.items() if v is not None}
+    data = card_data.model_dump()
+    data = {k: v for k, v in data.items() if v != S.Nothing}
 
     # Логируем ключи, которые меняются
-    logger.info(f"Обновление карточки {card.card_id}: {data}")
+    logger.info(f"Обновление карточки {card.card_id}: {list(data.keys())}")
 
     # Преобразуем deadline в datetime
     if 'deadline' in data and isinstance(data['deadline'], str):
@@ -359,657 +380,159 @@ async def update_card(card_data: CardUpdate):
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"Invalid UUID format for {key}")
 
-    # Флаг для отслеживания, было ли сообщение форума уже обновлено при смене статуса
-    forum_already_updated = False
+    # Изменение названия через card_events.on_name
+    if 'name' in data:
+        await card_events.on_name(data['name'], card=card)
+        del data['name']
 
-    # if 'status' in data and data['status'] != card.status:
-    #     logger.info(f"Изменение статуса карточки {card.card_id}: {card.status} -> {data['status']}")
+    # Изменение описания через card_events.on_description
+    if 'description' in data:
+        await card_events.on_description(data['description'], card=card)
+        del data['description']
 
-    #     # Если статус изменился на review (ждет проверки)
-    #     if data['status'] == CardStatus.review:
-    #         forum_already_updated = True  # Помечаем что форум обновим здесь
-            
-    #         # Перемещаем карточку в Kaiten в колонку "На проверке"
-    #         if card.task_id and card.task_id != 0:
-    #             try:
-    #                 board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
-    #                 column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][1]['id']
-    #                 async with kaiten as client:
-    #                     await client.update_card(
-    #                         card.task_id, board_id=board_id, column_id=column_id)
-    #                     await client.add_comment(card.task_id, "🔍 Задача отправлена на проверку")
-    #             except Exception as e:
-    #                 print(f"Error moving card to review in Kaiten: {e}")
+    # Изменение дедлайна через card_events.on_deadline
+    if 'deadline' in data:
+        old_deadline = card.deadline
+        await card_events.on_deadline(data['deadline'], old_deadline, card=card)
+        del data['deadline']
 
-    #         # Удаляем старое сообщение с форума
-    #         if card.forum_message_id:
-    #             if await delete_forum_message(str(card.card_id)):
-    #                 await card.update(forum_message_id=None)
-            
-    #         # Создаём новое сообщение на форуме со статусом review
-    #         await card.refresh()
-    #         message_id, _ = await update_forum_message(str(card.card_id), CardStatus.review.value)
-    #         if message_id:
-    #             await card.update(forum_message_id=message_id)
-            
-    #         # Уведомляем админов и редакторов
-    #         recipients = []
-    #         admins = await User.filter_by(role=UserRole.admin)
-    #         editors = await User.filter_by(role=UserRole.editor)
-    #         if admins: recipients.extend(admins)
-    #         if editors: recipients.extend(editors)
-    #         recipients = list({u.user_id: u for u in recipients}.values())
-            
-    #         msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
-    #         await notify_users(recipients, msg)
-
-    #     elif data['status'] == CardStatus.edited:
-    #         forum_already_updated = True  # Помечаем что форум обновим здесь
-            
-    #         # Если статус меняется на edited (в работе), удаляем запланированные задачи публикации и превью
-    #         if card.status == CardStatus.ready:
-    #             try:
-    #                 async with session_factory() as session:
-    #                     await cancel_card_tasks(session, str(card.card_id))
-    #                     print(f"Cancelled tasks for card {card.card_id} due to status change to edited")
-
-    #                     # Восстанавливаем напоминания (дедлайны и т.д.), так как cancel_card_tasks удаляет всё
-    #                     await card.refresh()
-    #                     await schedule_card_notifications(session, card)
-    #                     print(f"Restored notifications for card {card.card_id}")
-    #             except Exception as e:
-    #                 print(f"Error canceling tasks: {e}")
-                
-    #             # Удаляем превью из complete_topic
-    #             try:
-    #                 complete_message_ids = card.complete_message_id or {}
-    #                 await delete_all_complete_previews(complete_message_ids)
-    #                 await card.update(complete_message_id={})
-    #                 print(f"Deleted complete previews for card {card.card_id}")
-    #             except Exception as e:
-    #                 print(f"Error deleting complete previews: {e}")
-
-    #         board_id = settings['space'][
-    #             'boards'][KaitenBoardNames.IN_PROGRESS]['id']
-    #         column_id = settings['space'][
-    #             'boards'][KaitenBoardNames.IN_PROGRESS]['columns'][0]['id']
-
-    #         if card.task_id != 0:
-    #             async with kaiten as client:
-    #                 await client.update_card(
-    #                     card.task_id,
-    #                     board_id=board_id,
-    #                     column_id=column_id
-    #                 )
-
-    #                 await client.add_comment(
-    #                     card.task_id,
-    #                     Messages.TASK_TAKEN
-    #                 )
-            
-    #         # Обновляем сцену исполнителя
-    #         await update_task_scenes(str(card.card_id))
-            
-    #         # Сначала сохраняем executor_id в базу, чтобы форум показал исполнителя
-    #         if 'executor_id' in data:
-    #             await card.update(executor_id=data['executor_id'])
-    #             await card.refresh()
-
-    #         # Обновляем сообщение на форуме
-    #         if card.forum_message_id:
-    #             message_id, _ = await update_forum_message(str(card.card_id), CardStatus.edited.value)
-    #             if message_id:
-    #                 await card.update(forum_message_id=message_id)
-
-    #     need_send = data.get('need_send', card.need_send)
-
-    #     # Обработка изменения статуса на ready - создаем задачи публикации
-    #     if data['status'] == CardStatus.ready:
-    #         # Перемещаем карточку в Kaiten в колонку "Готово"
-    #         if card.task_id and card.task_id != 0:
-    #             try:
-    #                 board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
-    #                 column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
-    #                 async with kaiten as client:
-    #                     await client.update_card(card.task_id, board_id=board_id, column_id=column_id)
-    #                     await client.add_comment(card.task_id, "✅ Задача готова к публикации")
-    #             except Exception as e:
-    #                 print(f"Error moving card to ready in Kaiten: {e}")
-
-    #         # Закрываем сцену исполнителя
-    #         if card.executor_id:
-    #             executor = await User.get_by_key('user_id', card.executor_id)
-    #             if executor:
-    #                 await close_user_scene(executor.telegram_id)
-
-    #         # Планируем задачи публикации только если need_send = True
-    #         await card.refresh()
-    #         if need_send:
-    #             try:
-    #                 async with session_factory() as session:
-    #                     await schedule_post_tasks(session, card)
-    #                     print(f"Scheduled post tasks for card {card.card_id}")
-    #             except Exception as e:
-    #                 print(f"Error scheduling post tasks: {e}")
-    #         else:
-    #             # Если need_send=False, сразу меняем статус на sent и финализируем
-    #             logger.info(
-    #                 f"Карточка {card.card_id} не требует отправки (need_send=False), меняем статус на sent"
-    #                 )
-    #             await card.update(status=CardStatus.sent)
-    #             data['status'] = CardStatus.sent  # Меняем статус на sent, если не нужно отправлять
-
-    #         # Обновляем сообщение на форуме со статусом ready
-    #         if need_send:
-    #             await card.refresh()
-    #             message_id, _ = await update_forum_message(str(card.card_id), CardStatus.ready.value)
-    #             if message_id:
-    #                 await card.update(forum_message_id=message_id)
-    #             forum_already_updated = True
-
-    #         # Отправляем превью постов в complete_topic для каждого клиента
-    #         try:
-    #             await card.refresh()
-    #             complete_message_ids = card.complete_message_id or {}
-                
-    #             clients = card.clients or []
-    #             for client_key in clients:
-    #                 preview_res = await send_complete_preview(str(card.card_id), client_key)
-    #                 if preview_res.get("success"):
-    #                     complete_message_ids[client_key] = {
-    #                         "post_id": preview_res.get("post_id"),
-    #                         "post_ids": preview_res.get("post_ids", []),
-    #                         "info_id": preview_res.get("info_id")
-    #                     }
-                
-    #             if complete_message_ids:
-    #                 await card.update(complete_message_id=complete_message_ids)
-    #                 print(f"Sent complete previews for card {card.card_id}: {complete_message_ids}")
-    #         except Exception as e:
-    #             print(f"Error sending complete previews: {e}")
-
-    #         # Уведомляем заказчика о готовности задачи
-    #         if card.customer_id:
-    #             customer = await User.get_by_key('user_id', card.customer_id)
-    #             if customer:
-    #                 deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
-    #                 message_text = (
-    #                     f"✅ Задача готова!\n\n"
-    #                     f"📝 Название: {card.name}\n"
-    #                     f"⏰ Дедлайн: {deadline_str}\n\n"
-    #                     f"Задача готова к публикации."
-    #                 )
-    #                 await notify_user(customer.telegram_id, message_text)
-    #                 print(f"Notified customer {customer.telegram_id} about ready card {card.card_id}")
-
-    #     # Обработка изменения статуса на sent (отправлено)
-    #     if data['status'] == CardStatus.sent:
-    #         # Перемещаем карточку в Kaiten в колонку "Готово"
-    #         try:
-    #             board_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
-    #             # ID колонки "Готово" - 3-я колонка (индекс 2)
-    #             column_id = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
-                
-    #             if card.task_id != 0:
-    #                 async with kaiten as client:
-    #                     await client.update_card(
-    #                         card.task_id,
-    #                         board_id=board_id,
-    #                         column_id=column_id
-    #                     )
-    #                     await client.add_comment(
-    #                         card.task_id,
-    #                         "🚀 Задача выполнена и отправлена!"
-    #                     )
-    #         except Exception as e:
-    #             print(f"Error moving card in Kaiten: {e}")
-
-    #         # Удаляем сообщение с форума
-    #         if card.forum_message_id:
-    #             if await delete_forum_message(str(card.card_id)):
-    #                 await card.update(forum_message_id=None)
-
-    #         # Увеличиваем счетчик выполненных задач у исполнителя
-    #         if card.executor_id:
-    #             try:
-    #                 executor = await User.get_by_key('user_id', card.executor_id)
-    #                 if executor:
-    #                     await executor.update(
-    #                         tasks=executor.tasks + 1,
-    #                         task_per_month=executor.task_per_month + 1,
-    #                         task_per_year=executor.task_per_year + 1
-    #                     )
-    #                     print(f"Incremented task count for user {executor.user_id}")
-    #             except Exception as e:
-    #                 print(f"Error incrementing task count: {e}")
-
-    #         await increment_reviewers_tasks(card)
-
-    #         # Закрываем все сцены, связанные с этой задачей
-    #         await close_card_related_scenes(str(card.card_id))
-            
-    #         # Создаём задачу на удаление карточки через 2 дня
-    #         try:
-    #             from models.ScheduledTask import ScheduledTask
-    #             from uuid import UUID as PyUUID
-
-    #             delete_at = moscow_now() + timedelta(days=0.5)
-    #             card_uuid = card.card_id if isinstance(card.card_id, PyUUID) else PyUUID(str(card.card_id))
-
-    #             async with session_factory() as session:
-    #                 task = ScheduledTask(
-    #                     card_id=card_uuid,
-    #                     function_path="modules.notifications.delete_sent_card",
-    #                     execute_at=delete_at,
-    #                     arguments={"card_id": str(card.card_id)}
-    #                 )
-    #                 session.add(task)
-    #                 await session.commit()
-    #                 logger.info(f"Создана задача удаления карточки {card.card_id} на {delete_at}")
-    #         except Exception as e:
-    #             logger.error(f"Ошибка создания задачи удаления: {e}")
-
-    if 'executor_id' in data:
-        logger.info(f"Изменение исполнителя карточки {card.card_id}: {card.executor_id} -> {data['executor_id']}")
-        
-        await card.update(executor_id=data['executor_id'])
-
-        user = await User.get_by_key(
-            'user_id', data['executor_id']
-        )
-        if user and card.task_id != 0:
-            tasker_id = user.tasker_id
-            if tasker_id:
-
-                async with kaiten as client:
-                    
-                    card_k = await client.get_card(card.task_id)
-                    if card_k:
-                        members = await card_k.get_members()
-                        member_ids = [m['id'] for m in members]
-                        
-                        for member in member_ids:
-                            if member not in [
-                                card.customer_id, card.executor_id
-                            ]:
-                                await client.remove_card_member(
-                                    card.task_id,
-                                    member
-                                ) 
-                        if tasker_id not in member_ids:
-                            await client.add_card_member(
-                                card.task_id,
-                                tasker_id
-                            )
-
-    # Обработка изменения каналов (clients)
-    if 'clients' in data and card.task_id and card.task_id != 0:
-        props = open_properties()
-        new_channels = []
-        if data['clients']:
-            for channel in data['clients']:
-                if str(channel).isdigit():
-                    new_channels.append(int(channel))
-                else:
-                    new_channels.append(
-                        props[PropertyNames.CHANNELS]['values'][channel]['id']
-                    )
-
-        try:
-            async with kaiten as client:
-                await client.update_card(
-                    card.task_id,
-                    properties=multi_properties(
-                        channels=new_channels
-                    )
-                )
-        except Exception as e:
-            print(f"Error updating channels in Kaiten: {e}")
-
-    # Обработка изменения тегов (tags)
-    if 'tags' in data and card.task_id and card.task_id != 0:
-        props = open_properties()
-        new_tags = []
-        if data['tags']:
-            for tag in data['tags']:
-                if str(tag).isdigit():
-                    new_tags.append(int(tag))
-                else:
-                    new_tags.append(
-                        props[PropertyNames.TAGS]['values'][tag]['id']
-                    )
-
-        try:
-            async with kaiten as client:
-                await client.update_card(
-                    card.task_id,
-                    properties=multi_properties(
-                        tags=new_tags
-                    )
-                )
-        except Exception as e:
-            print(f"Error updating tags in Kaiten: {e}")
-
-    # Обработка изменения name (названия)
-    if 'name' in data and card.task_id and card.task_id != 0:
-        comment = f"✏️ Название изменено на: {data['name']}"
-        if card_data.old_value and card_data.new_value:
-            comment = f"✏️ Название изменено:\n{card_data.old_value} → {card_data.new_value}"
-        
-        await update_kaiten_card_field(card.task_id, 'title', data['name'], comment)
-    
-    # Обработка изменения description (описания)
-    if 'description' in data and card.task_id and card.task_id != 0:
-        comment = f"📝 Описание обновлено:\n{data['description'][:200]}"
-        if len(data['description']) > 200:
-            comment += "..."
-        
-        await update_kaiten_card_field(card.task_id, 'description', data['description'], comment)
-    
-    # Обработка изменения deadline
-    deadline_changed = False
-    if 'deadline' in data and card.task_id and card.task_id != 0:
-        logger.info(f"Изменение дедлайна карточки {card.card_id}: {data['deadline']}")
-        deadline_changed = True
-        comment = Messages.DEADLINE_CHANGED
-        if card_data.old_value and card_data.new_value:
-            try:
-                old_dt = datetime.fromisoformat(card_data.old_value)
-                new_dt = datetime.fromisoformat(card_data.new_value)
-                comment = f"⏰ Дедлайн изменен: {old_dt.strftime('%d.%m.%Y %H:%M')} → {new_dt.strftime('%d.%m.%Y %H:%M')}"
-            except:
-                pass
-        
-        # Добавляем информацию об авторе изменения в комментарий Kaiten
-        if card_data.author_id:
-            try:
-                author = await User.get_by_key('user_id', card_data.author_id)
-                if author:
-                    author_name = await get_kaiten_user_name(author)
-                    comment += f"\n👤 Изменил: {author_name}"
-            except Exception as e:
-                logger.error(f"Ошибка получения имени автора для комментария: {e}")
-        
-        await update_kaiten_card_field(
-            card.task_id, 
-            'due_date', 
-            data['deadline'].strftime('%Y-%m-%d'), 
-            comment
-        )
-        
-        # Обновляем событие в календаре если есть calendar_id
-        if card.calendar_id:
-            try:
-                await update_calendar_event(
-                    event_id=card.calendar_id,
-                    start_time=data['deadline']
-                )
-                print(f"Calendar event {card.calendar_id} updated with new deadline")
-            except Exception as e:
-                print(f"Error updating calendar event: {e}")
-
-    # Обработка изменения send_time - перепланируем задачи публикации
-    send_time_changed = False
+    # Изменение времени отправки через card_events.on_send_time
     if 'send_time' in data:
-        # Преобразуем send_time в datetime если это строка
-        if isinstance(data['send_time'], str):
-            try:
-                data['send_time'] = datetime.fromisoformat(data['send_time'])
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid date format for send_time")
-        
-        # Проверяем, действительно ли изменилось время
-        if data['send_time'] != card.send_time:
-            send_time_changed = True
+        await card_events.on_send_time(data['send_time'], card=card)
+        del data['send_time']
 
-    await card.update(**data)
-    
-    # Перепланируем задачи при изменении дедлайна
-    if deadline_changed:
-        try:
-            async with session_factory() as session:
-                await card.refresh()
-                await reschedule_card_notifications(session, card)
-        except Exception as e:
-            print(f"Error rescheduling card notifications: {e}")
-    
-    # Перепланируем задачи публикации при изменении send_time или clients
-    clients_changed = 'clients' in data
-    if send_time_changed or clients_changed:
-        try:
-            async with session_factory() as session:
-                await card.refresh()
-                await reschedule_post_tasks(session, card)
-                print(f"Rescheduled post tasks for card {card.card_id} (send_time={send_time_changed}, clients={clients_changed})")
-        except Exception as e:
-            print(f"Error rescheduling post tasks: {e}")
-    
-    # Обновляем сообщение на форуме если есть forum_message_id и изменились важные данные
-    # Но только если форум не был уже обновлён при смене статуса
-    if card.forum_message_id and not forum_already_updated:
-        # Список полей, при изменении которых нужно обновить сообщение на форуме
-        # Не включаем content - он не отображается на форуме
-        # Не включаем status - он обрабатывается отдельно выше
-        forum_update_fields = ['executor_id', 'deadline', 'name', 'description']
-        should_update_forum = any(field in data for field in forum_update_fields)
-        
-        if should_update_forum:
-            # Определяем статус для отправки
-            forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
-            message_id, error = await update_forum_message(str(card.card_id), forum_status)
-            if error:
-                print(f"Failed to update forum message: {error}")
-    
-    # Обновляем превью в complete_topic если изменились поля, влияющие на пост
-    # и статус карточки - ready (пост ожидает публикации)
+    # Изменение исполнителя через card_events.on_executor
+    if 'executor_id' in data:
+        await card_events.on_executor(data['executor_id'], card=card)
+        del data['executor_id']
+
+    # Изменение редактора через card_events.on_editor
+    if 'editor_id' in data:
+        await card_events.on_editor(data['editor_id'], card=card)
+        del data['editor_id']
+
+    # Изменение контента через card_events.on_content
+    if 'content' in data:
+        await card_events.on_content(data['content'], card=card)
+        del data['content']
+
+    # Изменение каналов через card_events.on_clients
+    if 'clients' in data:
+        await card_events.on_clients(data['clients'], card=card)
+        del data['clients']
+
+    # Изменение need_check через card_events.on_need_check
+    if 'need_check' in data:
+        await card_events.on_need_check(data['need_check'], card=card)
+        del data['need_check']
+
+    # Изменение тегов через card_events.on_tags
+    if 'tags' in data:
+        await card_events.on_tags(data['tags'], card=card)
+        del data['tags']
+
+    # Изменение image_prompt через card_events.on_image_prompt
+    if 'image_prompt' in data:
+        await card_events.on_image_prompt(data['image_prompt'], card=card)
+        del data['image_prompt']
+
+    # Изменение prompt_message через card_events.on_prompt_message
+    if 'prompt_message' in data:
+        await card_events.on_prompt_message(data['prompt_message'], card=card)
+        del data['prompt_message']
+
+    # Изменение forum_message_id через card_events.on_forum_message_id
+    if 'forum_message_id' in data:
+        await card_events.on_forum_message_id(data['forum_message_id'], card=card)
+        del data['forum_message_id']
+
+    # Изменение complete_message_id через card_events.on_complete_message_id
+    if 'complete_message_id' in data:
+        await card_events.on_complete_message_id(data['complete_message_id'], card=card)
+        del data['complete_message_id']
+
+    # Изменение editor_notes через card_events.on_editor_notes
+    if 'editor_notes' in data:
+        await card_events.on_editor_notes(data['editor_notes'], card=card)
+        del data['editor_notes']
+
+    # Изменение clients_settings через card_events.on_clients_settings
+    if 'clients_settings' in data:
+        await card_events.on_clients_settings(data['clients_settings'], card=card)
+        del data['clients_settings']
+
+    # Изменение entities через card_events.on_entities
+    if 'entities' in data:
+        await card_events.on_entities(data['entities'], card=card)
+        del data['entities']
+
+    # Остальные поля обновляем напрямую (те что не требуют сложной логики)
+    if data:
+        await card.update(**data)
+
     await card.refresh()
-    complete_update_fields = ['content', 'tags', 'post_images', 'clients', 'send_time']
-    should_update_complete = any(field in data for field in complete_update_fields)
-    
-    if should_update_complete and card.status == CardStatus.ready and card.complete_message_id:
-        try:
-            complete_message_ids = card.complete_message_id or {}
-            clients = card.clients or []
-            
-            # Удаляем превью для клиентов, которых больше нет
-            for client_key in list(complete_message_ids.keys()):
-                if client_key not in clients:
-                    msg_data = complete_message_ids.pop(client_key)
-                    # Поддерживаем как новый формат (dict), так и старый (int)
-                    if isinstance(msg_data, dict):
-                        await delete_complete_preview(
-                            post_id=msg_data.get("post_id"),
-                            post_ids=msg_data.get("post_ids"),
-                            info_id=msg_data.get("info_id")
-                        )
-                    else:
-                        await delete_complete_preview(post_id=msg_data)
-            
-            # Обновляем или добавляем превью для текущих клиентов
-            for client_key in clients:
-                if client_key in complete_message_ids:
-                    msg_data = complete_message_ids[client_key]
-                    # Поддерживаем как новый формат (dict), так и старый (int)
-                    if isinstance(msg_data, dict):
-                        post_id = msg_data.get("post_id")
-                        post_ids = msg_data.get("post_ids", [])
-                        info_id = msg_data.get("info_id")
-                    else:
-                        post_id = msg_data
-                        post_ids = [msg_data] if msg_data else []
-                        info_id = None
-                    
-                    # Обновляем существующее превью
-                    update_res = await update_complete_preview(
-                        str(card.card_id),
-                        client_key,
-                        post_id,
-                        post_ids,
-                        info_id
-                    )
-                    # Если вернулись новые ID (было пересоздано), обновляем
-                    if update_res.get("post_id"):
-                        complete_message_ids[client_key] = {
-                            "post_id": update_res.get("post_id"),
-                            "post_ids": update_res.get("post_ids", []),
-                            "info_id": update_res.get("info_id")
-                        }
-                else:
-                    # Создаём новое превью для нового клиента
-                    preview_res = await send_complete_preview(str(card.card_id), client_key)
-                    if preview_res.get("success"):
-                        complete_message_ids[client_key] = {
-                            "post_id": preview_res.get("post_id"),
-                            "post_ids": preview_res.get("post_ids", []),
-                            "info_id": preview_res.get("info_id")
-                        }
-            
-            await card.update(complete_message_id=complete_message_ids)
-            print(f"Updated complete previews for card {card.card_id}: {complete_message_ids}")
-        except Exception as e:
-            print(f"Error updating complete previews: {e}")
-    
-    # Отправляем уведомление исполнителю
-    if card_data.notify_executor and card.executor_id:
-        change_messages = {
-            ChangeType.DEADLINE.value: '⏰ Изменен дедлайн',
-            ChangeType.COMMENT.value: '💬 Добавлен комментарий',
-            ChangeType.NAME.value: '✏️ Изменено название',
-            ChangeType.DESCRIPTION.value: '📝 Изменено описание'
-        }
-        message_text = change_messages.get(card_data.change_type or '', Messages.CHANGE_NOTIFICATION.value)
-        
-        # Добавляем информацию об авторе изменений
-        if card_data.author_id:
-            try:
-                author = await User.get_by_key('user_id', card_data.author_id)
-                if author:
-                    author_name = await get_kaiten_user_name(author)
-                    message_text += f"\n👤 Изменил: {author_name}"
-            except Exception as e:
-                logger.error(f"Ошибка получения имени автора: {e}")
-        
-        message_text += f"\n\n📝 Задача: {card.name}"
-        
-        if card_data.change_type == ChangeType.DEADLINE.value and card_data.new_value:
-            try:
-                new_dt = datetime.fromisoformat(card_data.new_value)
-                message_text += f"\n⏰ Новый дедлайн: {new_dt.strftime('%d.%m.%Y %H:%M')}"
-            except:
-                pass
-        elif card_data.change_type == ChangeType.NAME.value and card_data.new_value:
-            message_text += f"\n\nНовое название: {card_data.new_value}"
-        elif card_data.change_type == ChangeType.DESCRIPTION.value and card_data.new_value:
-            # Обрезаем длинное описание
-            description_preview = card_data.new_value[:200] + "..." if len(card_data.new_value) > 200 else card_data.new_value
-            message_text += f"\n\nНовое описание:\n{description_preview}"
-        
-        await notify_executor(str(card.executor_id), message_text)
-    
     return card.to_dict()
 
-@router.get('/delete-executor/{card_id}')
-async def delete_executor(card_id: str):
-    card = await Card.get_by_key('card_id', card_id)
-    if not card:
-        raise HTTPException(
-            status_code=404, detail="Card not found")
-
-    executor_uuid = card.executor_id
-    await card.update(executor_id=None)
-
-    user = await User.get_by_id(executor_uuid)
-    if user:
-
-        if card.executor_id != card.customer_id:
-            await close_user_scene(user.telegram_id)
-
-            if card.task_id and user.tasker_id:
-                async with kaiten as client:
-                    await client.remove_card_member(card.task_id, 
-                                                    user.tasker_id)
-
-    return {"detail": "Executor removed successfully"}
-
-
-class ReturnToForumRequest(BaseModel):
+class ChangeStatusRequest(BaseModel):
     card_id: str
+    new_status: CardStatus
+    who_changed: Optional[Literal['executor', 'admin']] = 'admin'  # 'executor' или 'admin'
+    comment: Optional[str] = None  # Опциональный комментарий при смене статуса
 
-
-@router.post("/return-to-forum")
-async def return_to_forum(request: ReturnToForumRequest):
-    """
-    Возвращает задачу на форум:
-    - Убирает исполнителя
-    - Меняет статус на pass_
-    - Удаляет старое сообщение форума и создаёт новое
-    - Удаляет complete_message_id
-    - Отменяет все запланированные задачи
-    """
-    logger.info(f"Запрос на возврат карточки {request.card_id} на форум")
+@router.post("/change-status")
+async def change_status(request: ChangeStatusRequest):
+    """Изменить статус карточки через функции status_changers"""
+    logger.info(f"Запрос на изменение статуса карточки {request.card_id} на {request.new_status}")
+    
     card = await Card.get_by_key('card_id', request.card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
     
-    # 1. Отменяем все запланированные задачи
-    try:
-        async with session_factory() as session:
-            await cancel_card_tasks(session, str(card.card_id))
-            logger.info(f"Отменены запланированные задачи для карточки {card.card_id}")
-    except Exception as e:
-        logger.error(f"Ошибка отмены задач для карточки {card.card_id}: {e}")
-    
-    # 2. Удаляем complete_message (превью готовых постов)
-    if card.complete_message_id:
-        await delete_all_complete_previews(card.complete_message_id)
-        logger.info(f"Удалены превью готовых постов для карточки {card.card_id}")
-    
-    # 3. Удаляем старое сообщение форума
-    if card.forum_message_id:
-        if await delete_forum_message(str(card.card_id)):
-            logger.info(f"Удалено старое сообщение форума для карточки {card.card_id}")
-        else:
-            logger.error(f"Ошибка удаления старого сообщения форума для карточки {card.card_id}")
-    
-    # 4. Обновляем карточку: сбрасываем исполнителя, статус, complete_message_id, forum_message_id
-    await card.update(
-        executor_id=None,
-        status=CardStatus.pass_,
-        complete_message_id={},
-        forum_message_id=None
-    )
-    
-    # 5. Обновляем карточку в Kaiten (убираем исполнителя, перемещаем в очередь)
-    if card.task_id and card.task_id != 0:
+    # Добавляем комментарий если он указан
+    if request.comment:
         try:
-            board_id = settings['space']['boards'][KaitenBoardNames.QUEUE]['id']
-            column_id = settings['space']['boards'][KaitenBoardNames.QUEUE]['columns'][0]['id']
+            editor_notes = card.editor_notes or []
+            new_note = {
+                "content": request.comment,
+                "author": "system",
+                "created_at": datetime.now().isoformat(),
+                "is_status_change": True
+            }
+            editor_notes.append(new_note)
+            await card.update(editor_notes=editor_notes)
             
-            async with kaiten as client:
-                await client.update_card(
-                    card.task_id,
-                    executor_id=None,
-                    board_id=board_id,
-                    column_id=column_id
-                )
-                await client.add_comment(card.task_id, "📤 Задача возвращена на форум")
-            logger.info(f"Карточка {card.card_id} перемещена в очередь в Kaiten")
+            # Добавляем в Kaiten
+            if card.task_id and card.task_id != 0:
+                await add_kaiten_comment(card.task_id, f"💬 Комментарий: {request.comment}")
         except Exception as e:
-            logger.error(f"Ошибка обновления карточки в Kaiten: {e}")
+            logger.error(f"Ошибка добавления комментария при смене статуса: {e}")
     
-    # 6. Создаём новое сообщение на форуме
-    message_id, error = await send_forum_message(str(card.card_id))
-    if message_id:
-        await card.update(forum_message_id=message_id)
-        logger.info(f"Создано новое сообщение форума для карточки {card.card_id}: {message_id}")
-    else:
-        logger.error(f"Ошибка создания сообщения форума: {error}")
+    # Маппинг статусов на функции
+    status_handlers = {
+        CardStatus.pass_: status_changers.to_pass,
+        CardStatus.edited: status_changers.to_edited,
+        CardStatus.review: status_changers.to_review,
+        CardStatus.ready: status_changers.to_ready,
+        CardStatus.sent: status_changers.to_sent,
+    }
     
-    # 7. Закрываем сцены редактирования для этой задачи
-    await update_task_scenes(str(card.card_id))
+    handler = status_handlers.get(request.new_status)
+    if not handler:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {request.new_status}")
     
-    logger.info(f"Карточка {card.card_id} успешно возвращена на форум")
-    return {"detail": "Card returned to forum successfully"}
+    try:
+        # Для to_pass передаём who_changed
+        if request.new_status == CardStatus.pass_:
+            await handler(card=card, who_changed=request.who_changed)
+        else:
+            await handler(card=card)
+
+        logger.info(f"Статус карточки {request.card_id} успешно изменен на {request.new_status}")
+        return {"detail": "Status changed successfully", "new_status": request.new_status.value}
+    except Exception as e:
+        logger.error(f"Ошибка изменения статуса карточки {request.card_id}: {e}")
+        raise HTTPException(status_code=500, 
+                            detail=f"Error changing status: {e}")
 
 
 @router.delete("/delete/{card_id}")
@@ -1020,6 +543,14 @@ async def delete_card(card_id: str):
         logger.warning(f"Попытка удаления несуществующей карточки: {card_id}")
         raise HTTPException(
             status_code=404, detail="Card not found")
+
+    if card.complete_message_id:
+        await delete_all_complete_previews(
+            card.complete_message_id
+            )
+    
+    await close_card_related_scenes(
+        str(card.card_id))
 
     # Удаляем все запланированные задачи для карточки
     try:
@@ -1058,64 +589,12 @@ class CommentAdd(BaseModel):
     card_id: str
     content: str
     author: str  # user_id автора комментария
+    is_editor_note: bool = False  # True для комментария редактора, False для обычного комментария
 
 @router.post("/add-comment")
 async def add_comment(note_data: CommentAdd):
-    """Добавить комментарий к карточке (обычный комментарий от заказчика)"""
-    logger.info(f"Добавление комментария к карточке {note_data.card_id} от {note_data.author}")
-    card = await Card.get_by_key('card_id', note_data.card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-    
-    # Сохраняем комментарий в editor_notes с пометкой is_customer
-    editor_notes = card.editor_notes or []
-    new_note = {
-        "content": note_data.content,
-        "author": note_data.author,
-        "is_customer": True,
-        "created_at": datetime.now().isoformat()
-    }
-    editor_notes.append(new_note)
-    await card.update(editor_notes=editor_notes)
-    
-    # Добавляем комментарий в Kaiten
-    if card.task_id and card.task_id != 0:
-        try:
-            # Получаем имя автора
-            author = await User.get_by_key('user_id', note_data.author)
-            author_name = "Unknown"
-            if author:
-                author_name = await get_kaiten_user_name(author)
-            
-            comment_text = f"💬 Заказчик ({author_name}): {note_data.content}"
-            
-            await add_kaiten_comment(card.task_id, comment_text)
-        except Exception as e:
-            logger.error(f"Ошибка добавления комментария в Kaiten: {e}")
-    
-    # Отправляем уведомление исполнителю
-    if card.executor_id:
-        message_text = f"{Messages.NEW_COMMENT}\n\n📝 {card.name}\n\n{note_data.content}"
-        await notify_executor(
-            str(card.executor_id), 
-            message_text, 
-            task_id=str(card.card_id), 
-            skip_if_page="editor-notes"
-        )
-    
-    return {
-        "detail": "Comment added successfully"
-    }
-
-class EditorNoteAdd(BaseModel):
-    card_id: str
-    content: str
-    author: str  # user_id автора комментария
-
-@router.post("/add-editor-note")
-async def add_editor_note(note_data: EditorNoteAdd):
-    """Добавить комментарий редактора к карточке"""
-    logger.info(f"Добавление комментария редактора к карточке {note_data.card_id} от {note_data.author}")
+    """Добавить комментарий к карточке (обычный или от редактора)"""
+    logger.info(f"Добавление комментария к карточке {note_data.card_id} от {note_data.author} (редактор: {note_data.is_editor_note})")
     card = await Card.get_by_key('card_id', note_data.card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -1123,46 +602,61 @@ async def add_editor_note(note_data: EditorNoteAdd):
     # Получаем текущий список комментариев
     editor_notes = card.editor_notes or []
     
-    # Добавляем новый комментарий
+    # Создаём новый комментарий
     new_note = {
         "content": note_data.content,
         "author": note_data.author,
         "created_at": datetime.now().isoformat()
     }
+    
+    # Для обычных комментариев добавляем флаг is_customer
+    if not note_data.is_editor_note:
+        new_note["is_customer"] = True
+
     editor_notes.append(new_note)
+    await card_events.on_editor_notes(editor_notes, card=card)
+
+    # await card.update(editor_notes=editor_notes)
     
-    # Обновляем карточку
-    await card.update(editor_notes=editor_notes)
-    
-    # Добавляем комментарий в Kaiten если есть task_id
-    if card.task_id and card.task_id != 0:
-        try:
-            # Получаем информацию о пользователе
-            user = await User.get_by_key('user_id', note_data.author)
-            author_name = f"User {note_data.author}"
-            if user:
-                author_name = await get_kaiten_user_name(user)
+    # # Добавляем комментарий в Kaiten
+    # if card.task_id and card.task_id != 0:
+    #     try:
+    #         # Получаем имя автора
+    #         author = await User.get_by_key('user_id', note_data.author)
+    #         author_name = "Unknown"
+    #         if author:
+    #             author_name = await get_kaiten_user_name(author)
             
-            comment_text = f"💬 Комментарий от {author_name}:\n{note_data.content}"
-            await add_kaiten_comment(card.task_id, comment_text)
-        except Exception as e:
-            logger.error(f"Ошибка добавления комментария в Kaiten: {e}")
+    #         # Формируем текст комментария в зависимости от типа
+    #         if note_data.is_editor_note:
+    #             comment_text = f"💬 Комментарий от {author_name}:\n{note_data.content}"
+    #         else:
+    #             comment_text = f"💬 Заказчик ({author_name}): {note_data.content}"
+            
+    #         await add_kaiten_comment(card.task_id, comment_text)
+    #     except Exception as e:
+    #         logger.error(f"Ошибка добавления комментария в Kaiten: {e}")
     
-    # Обновляем все открытые сцены с этой карточкой
-    await update_task_scenes(str(note_data.card_id), SceneNames.USER_TASK)
+    # # Обновляем сцены для комментариев редактора
+    # if note_data.is_editor_note:
+    #     await update_task_scenes(str(note_data.card_id), SceneNames.USER_TASK)
     
-    # Отправляем уведомление исполнителю, если он не автор
-    if card.executor_id and str(card.executor_id) != str(note_data.author):
-        message_text = f"💬 Новый комментарий редактора\n\n📝 {card.name}\n\n{note_data.content}"
-        await notify_executor(
-            str(card.executor_id), 
-            message_text, 
-            task_id=str(card.card_id), 
-            skip_if_page="editor-notes"
-        )
+    # # Отправляем уведомление исполнителю
+    # if card.executor_id and str(card.executor_id) != str(note_data.author):
+    #     if note_data.is_editor_note:
+    #         message_text = f"💬 Новый комментарий редактора\n\n📝 {card.name}\n\n{note_data.content}"
+    #     else:
+    #         message_text = f"{Messages.NEW_COMMENT}\n\n📝 {card.name}\n\n{note_data.content}"
+
+    #     await notify_executor(
+    #         str(card.executor_id), 
+    #         message_text, 
+    #         task_id=str(card.card_id), 
+    #         skip_if_page="editor-notes"
+    #     )
 
     return {
-        "detail": "Note added successfully",
+        "detail": "Comment added successfully",
         "note": new_note,
         "total_notes": len(editor_notes)
     }

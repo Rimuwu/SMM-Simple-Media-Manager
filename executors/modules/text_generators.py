@@ -1,7 +1,5 @@
 
 from datetime import datetime
-from pprint import pprint
-from aiogram import Bot, Dispatcher
 from tg.main import TelegramExecutor
 from modules.executors_manager import manager
 from modules.constants import SETTINGS, CLIENTS
@@ -17,6 +15,7 @@ complete_topic = SETTINGS.get('complete_topic', 0)
 
 pass_tag = '#НовоеЗадание'
 edited_tag = '#ЗаданиеВыполняется'
+needcheck_tag = '#ЗаданиеНаПроверку'
 checked_tag = '#ЗаданиеНаПроверке'
 done_tag = '#ЗаданиеВыполнено'
 
@@ -57,10 +56,11 @@ async def card_deleted(card_id: str):
 async def text_getter(card: dict, tag: str, 
                       client_executor: TelegramExecutor) -> str:
 
-    name = card.get("name", "No Title")
-    description = card.get("description") or "No Description"
+    name = card.get("name", "Без названия")
+    description = card.get("description") or "Без описания"
     deadline = card.get("deadline", "Без дедлайна")
-    tags = card.get("tags", []) if card.get("tags", []) else ["Без тегов"]
+    tags = card.get("tags", []) if card.get("tags", []
+                                            ) else ["Без тегов"]
     need_check = "✅" if card.get("need_check", False) else "❌"
     
     if deadline != "Без дедлайна":
@@ -68,7 +68,6 @@ async def text_getter(card: dict, tag: str,
             dt = datetime.fromisoformat(deadline)
             deadline = dt.strftime('%d.%m.%Y %H:%M')
         except: pass
-
 
     data_list = []
     for i in ['executor_id', 'customer_id']:
@@ -107,7 +106,7 @@ async def text_getter(card: dict, tag: str,
         f'\nТеги: {", ".join(tags)}'
         f'\nПроверяемый: {need_check}'
         f'\n\n```Описание'
-        f'\n{description}'
+        f'\n{description[:750]}'
         f'```'
     )
 
@@ -148,6 +147,16 @@ async def forum_message(card_id: str, status: str):
             }
         ]
     
+    elif status == CardStatus.review.value and card['editor_id'] is None:
+        tag = needcheck_tag
+
+        markup = [
+            {
+                "text": "Взять на проверку",
+                "callback_data": "edit_task"
+            }
+        ]
+
     elif status == CardStatus.review.value:
         tag = checked_tag
 
@@ -189,16 +198,12 @@ async def forum_message(card_id: str, status: str):
             list_markup=markup
         )
 
-        if not data.get("success", False):
-            print(data)
-
-            data = await client_executor.send_message(
-                reply_to_message_id=forum_topic,
-                chat_id=group_forum,
-                text=text,
-                list_markup=markup,
-                parse_mode="Markdown"
-            )
+        error = data.get("error", "")
+        if 'not found' in error.lower():
+            return {
+                "error": f"Не удалость найти сообщение в форуме. Error: {error}", 
+                "success": False
+            }
 
     status = data.get("success", False)
     if not status:
@@ -232,8 +237,7 @@ async def card_executed(card_id: str, telegram_id: int):
 
         await update_card(
             card_id=card_id,
-            executor_id=executor_id,
-            status=CardStatus.edited
+            executor_id=executor_id
         )
 
         await client_executor.send_message(

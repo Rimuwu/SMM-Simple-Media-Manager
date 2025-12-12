@@ -1,4 +1,6 @@
+import pprint
 from aiogram import Bot
+from tg.oms.models.scene import Scene
 from tg.main import TelegramExecutor
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -38,6 +40,8 @@ async def update_scenes(event: ScenesEvent):
     active_scenes = list(scene_manager._instances.values())
     updated_count = 0
 
+    users = list(set(event.users_id)) if event.users_id else None
+
     for scene in active_scenes:
         # Проверяем соответствие критериям
         match = True
@@ -47,7 +51,7 @@ async def update_scenes(event: ScenesEvent):
             match = False
 
         # Проверка текущей страницы
-        if event.page_name and scene.current_page != event.page_name:
+        if event.page_name and scene.current_page.__page_name__ != event.page_name:
             match = False
 
         # Проверка данных
@@ -58,7 +62,7 @@ async def update_scenes(event: ScenesEvent):
                 match = False
 
         # Проверка user_id
-        if event.users_id and scene.user_id not in event.users_id:
+        if users and scene.user_id not in users:
             match = False
 
         # Если все критерии совпадают - обновляем сцену
@@ -81,10 +85,8 @@ async def update_scenes(event: ScenesEvent):
 class NotifyUserEvent(BaseModel):
     user_id: int
     message: str
-    task_id: Optional[str] = None
-    skip_if_page: Optional[str] = None
+    skip_if_page: Optional[str | list[str]] = None
     reply_to: Optional[int] = None
-
 
 @router.post("/notify_user")
 async def notify_user(event: NotifyUserEvent):
@@ -96,20 +98,24 @@ async def notify_user(event: NotifyUserEvent):
 
     try:
         # Проверяем, нужно ли пропускать уведомление
-        if event.task_id and event.skip_if_page:
-            active_scenes = list(scene_manager._instances.values())
+        if event.skip_if_page:
+            active_scenes: list[Scene] = list(
+                scene_manager._instances.values())
+            pages_to_skip = event.skip_if_page if isinstance(event.skip_if_page, list) else [event.skip_if_page]
+
             for scene in active_scenes:
                 if scene.user_id == event.user_id:
-                    # Проверяем текущую страницу
-                    if scene.current_page == event.skip_if_page:
-                        # Проверяем task_id в данных сцены
-                        scene_task_id = scene.data.get('scene', {}).get('task_id')
-                        if str(scene_task_id) == str(event.task_id):
-                            return {"status": "skipped", "reason": "User is on the page"}
+                    if scene.current_page.__page_name__ in pages_to_skip:
+
+                        return {
+                            "status": "skipped", 
+                            "reason": "User is on the page"
+                        }
 
         client_executor: TelegramExecutor = manager.get(
             "telegram_executor") # type: ignore
         bot: Bot = client_executor.bot
+        
 
         # Создаем клавиатуру с кнопкой удаления
         keyboard = InlineKeyboardMarkup(inline_keyboard=[

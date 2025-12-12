@@ -86,12 +86,12 @@ class APIClient:
                 
                 return response_data, status_code
 
-    async def post(self, endpoint: str, data: dict = None):
+    async def post(self, endpoint: str, data: dict = None, no_filter_none: bool = False):
         # if getenv("DEBUG", False) == 'true': 
         #     print(data)
 
         # Фильтруем None значения из data
-        if data:
+        if data and not no_filter_none:
             data = {k: v for k, v in data.items() if v is not None}
 
         if data:
