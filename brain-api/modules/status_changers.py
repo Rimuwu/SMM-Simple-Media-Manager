@@ -264,11 +264,14 @@ async def to_edited(
 
     # Обновление сообщения на форуме для public задач
     if card_type == 'public' and card.forum_message_id:
-        await delete_forum_message(str(card.card_id))
-        message_id, _ = await send_forum_message(str(card.card_id))
+        await update_forum_message(
+            str(card.card_id)
+        )
+        # await delete_forum_message(str(card.card_id))
+        # message_id, _ = await send_forum_message(str(card.card_id))
 
-        if message_id:
-            await card.update(forum_message_id=message_id)
+        # if message_id:
+        #     await card.update(forum_message_id=message_id)
 
     # Уведомление заказчику для private задач при взятии в работу
     if card_type == 'private' and previous_status == CardStatus.pass_:
@@ -392,6 +395,10 @@ async def to_review(
         customer = await User.get_by_key('user_id', card.customer_id)
         if customer and customer.role == UserRole.admin:
             recipients.append(card.customer_id)
+        else:
+            admins = await User.filter_by(role=UserRole.admin)
+            for admin in admins:
+                recipients.append(admin.user_id)
 
     msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
     await notify_users(recipients, msg)

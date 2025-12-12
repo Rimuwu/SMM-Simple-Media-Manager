@@ -192,7 +192,6 @@ async def on_deadline(
 
     # Обновляем форум
     if card.forum_message_id:
-        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
         await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
@@ -334,7 +333,6 @@ async def on_executor(
 
     # Обновляем форум
     if card.forum_message_id and not forum_upd:
-        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
         await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
@@ -372,12 +370,15 @@ async def on_editor(
         editor_name = await editor.name() if editor else "Неизвестный"
         comment = f"✏️ Редактор назначен: {editor_name}"
         await add_kaiten_comment(card.task_id, comment)
-    
+
     # Уведомляем нового редактора
     if new_editor_id:
         await notify_users([new_editor_id],
                           f"📝 Вы назначены редактором задачи: {card.name}",
                           'editor-assigned')
+
+    if card.forum_message_id:
+        await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
     await asyncio.create_task(
@@ -557,7 +558,6 @@ async def on_need_check(
     
     # Обновляем форум
     if card.forum_message_id:
-        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
         await update_forum_message(str(card.card_id))
     
     # Обновляем сцены
@@ -638,7 +638,6 @@ async def on_tags(
 
     # Обновляем форум
     if card.forum_message_id:
-        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
         await update_forum_message(str(card.card_id))
 
     await asyncio.create_task(
