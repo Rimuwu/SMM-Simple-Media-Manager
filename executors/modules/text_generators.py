@@ -112,7 +112,7 @@ async def text_getter(card: dict, tag: str,
 
     return text
 
-async def forum_message(card_id: str, status: str):
+async def forum_message(card_id: str):
     """Отправить сообщение в форум о новой карточке и обновить карточку с ID сообщения"""
 
     client_executor: TelegramExecutor = manager.get(
@@ -130,6 +130,8 @@ async def forum_message(card_id: str, status: str):
 
     tag = pass_tag
     markup = []
+    
+    status = card['status']
 
     if status == CardStatus.pass_.value:
         markup = [
@@ -180,10 +182,8 @@ async def forum_message(card_id: str, status: str):
         ]
 
     text = await text_getter(card, tag, client_executor)
-    
-    print(card.get("forum_message_id", None))
 
-    if card.get("forum_message_id", None):
+    if not card.get("forum_message_id", None):
 
         data = await client_executor.send_message(
             reply_to_message_id=forum_topic,
@@ -204,10 +204,14 @@ async def forum_message(card_id: str, status: str):
 
         error = data.get("error", "")
         if 'not found' in error.lower():
-            return {
-                "error": f"Не удалость найти сообщение в форуме. Error: {error}", 
-                "success": False
-            }
+            
+            data = await client_executor.send_message(
+                reply_to_message_id=forum_topic,
+                chat_id=group_forum,
+                text=text,
+                list_markup=markup,
+                parse_mode="Markdown"
+            )
 
     status = data.get("success", False)
     if not status:

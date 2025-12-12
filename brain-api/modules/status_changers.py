@@ -364,8 +364,7 @@ async def to_review(
     # Создание нового сообщения на форуме со статусом review
     await card.refresh()
     message_id, _ = await update_forum_message(
-        str(card.card_id), 
-        CardStatus.review.value
+        str(card.card_id)
     )
     if message_id:
         await card.update(forum_message_id=message_id)
@@ -481,8 +480,7 @@ async def to_ready(
     # Обновление сообщения на форуме
     await card.refresh()
     message_id, _ = await update_forum_message(
-        str(card.card_id), 
-        CardStatus.ready.value
+        str(card.card_id)
     )
     if message_id:
         await card.update(forum_message_id=message_id)

@@ -32,15 +32,13 @@ async def send_forum_message(
 
 
 async def update_forum_message(
-    card_id: str, 
-    status: str
+    card_id: str
     ) -> tuple[int | None, str | None]:
     """
     Обновить сообщение на форуме.
 
     Args:
         card_id: ID карточки
-        status: Новый статус (значение CardStatus)
 
     Returns:
         tuple: (message_id или None, error или None)
@@ -48,7 +46,7 @@ async def update_forum_message(
     try:
         forum_res, _ = await executors_api.post(
             ApiEndpoints.FORUM_UPDATE_MESSAGE,
-            data={"card_id": card_id, "status": status}
+            data={"card_id": card_id}
         )
         if forum_res.get('error'):
             logger.error(

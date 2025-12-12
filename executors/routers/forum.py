@@ -21,8 +21,7 @@ class ForumMessage(BaseModel):
 @router.post("/send-message-to-forum")
 async def send_message_to_forum(message: ForumMessage):
 
-    data = await forum_message(message.card_id, 
-                               CardStatus.pass_.value)
+    data = await forum_message(message.card_id)
 
     return {"success": data.get("success", False),
             "message_id": data.get("message_id", None),
@@ -54,15 +53,13 @@ async def delete_forum_message_for_id(message_id: str):
 
 class UpdateForumMessage(BaseModel):
     card_id: str
-    status: str
 
 @router.post("/update-forum-message")
 async def update_forum_message(message: UpdateForumMessage):
     """Обновить сообщение на форуме"""
     
     data = await forum_message(
-        message.card_id, 
-        message.status
+        message.card_id
     )
 
     return {

@@ -59,7 +59,7 @@ async def on_name(
     # Обновляем форум
     if card.forum_message_id:
         forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
-        await update_forum_message(str(card.card_id), forum_status)
+        await update_forum_message(str(card.card_id))
 
     # Обновляем, только если выбрано редактирование карточки и страница главная
     await asyncio.create_task(
@@ -117,7 +117,7 @@ async def on_description(
     # Обновляем форум
     if card.forum_message_id:
         forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
-        await update_forum_message(str(card.card_id), forum_status)
+        await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
     await asyncio.create_task(
@@ -193,7 +193,7 @@ async def on_deadline(
     # Обновляем форум
     if card.forum_message_id:
         forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
-        await update_forum_message(str(card.card_id), forum_status)
+        await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
     await asyncio.create_task(
@@ -335,7 +335,7 @@ async def on_executor(
     # Обновляем форум
     if card.forum_message_id and not forum_upd:
         forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
-        await update_forum_message(str(card.card_id), forum_status)
+        await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
     await asyncio.create_task(
@@ -558,7 +558,7 @@ async def on_need_check(
     # Обновляем форум
     if card.forum_message_id:
         forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
-        await update_forum_message(str(card.card_id), forum_status)
+        await update_forum_message(str(card.card_id))
     
     # Обновляем сцены
     await asyncio.create_task(
@@ -639,7 +639,7 @@ async def on_tags(
     # Обновляем форум
     if card.forum_message_id:
         forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
-        await update_forum_message(str(card.card_id), forum_status)
+        await update_forum_message(str(card.card_id))
 
     await asyncio.create_task(
         update_scenes(SceneNames.VIEW_TASK, 'task-detail',
