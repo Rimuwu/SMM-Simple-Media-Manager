@@ -129,6 +129,8 @@ async def forum_message(card_id: str, status: str):
         card = cards[0]
 
     tag = pass_tag
+    markup = []
+
     if status == CardStatus.pass_.value:
         markup = [
             {
@@ -178,8 +180,10 @@ async def forum_message(card_id: str, status: str):
         ]
 
     text = await text_getter(card, tag, client_executor)
+    
+    print(card.get("forum_message_id", None))
 
-    if card.get("forum_message_id", None) is None:
+    if card.get("forum_message_id", None):
 
         data = await client_executor.send_message(
             reply_to_message_id=forum_topic,
