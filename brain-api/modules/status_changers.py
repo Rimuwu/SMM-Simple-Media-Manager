@@ -400,6 +400,18 @@ async def to_review(
             for admin in admins:
                 recipients.append(admin.user_id)
 
+        comment = f'⚡ Появилась задача на проверку: {card.name}. Вы получили это уведомление, так как в задача ищет своего редактора.'
+        editors = await User.filter_by(role=UserRole.editor)
+        listeners = [
+            editor.user_id for editor in editors 
+            if editor.user_id != card.customer_id
+        ]
+
+        await notify_users(
+            listeners,
+            comment
+        )
+
     msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
     await notify_users(recipients, msg)
 

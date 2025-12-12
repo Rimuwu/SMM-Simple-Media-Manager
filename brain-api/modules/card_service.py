@@ -16,7 +16,19 @@ async def increment_reviewers_tasks(card: Card):
         return
 
     try:
-        editor = card.editor
+        if card.editor_id:
+            editor = await User.get_by_key(
+                'user_id', card.editor_id
+            )
+        elif card.customer_id:
+            editor = await User.get_by_key(
+                'user_id', card.customer_id
+            )
+            if editor and editor.role != 'admin':
+                editor = None
+        else:
+            editor = None
+
         if editor:
             await editor.update(
                 tasks_checked=editor.tasks_checked + 1)
