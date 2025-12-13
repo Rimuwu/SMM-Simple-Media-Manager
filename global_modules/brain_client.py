@@ -164,6 +164,20 @@ class BrainAPIClient:
 
     # ==================== Пользователи ====================
     
+    async def get_user(
+        self,
+        telegram_id: Optional[int] = None,
+        tasker_id: Optional[int] = None,
+        role: Optional[str] = None,
+        user_id: Optional[str] = None,
+        department: Optional[str] = None
+                       ):
+
+        users = await self.get_users(telegram_id, tasker_id, role, user_id, department)
+        if users:
+            return users[0]
+        return None
+
     async def get_users(
         self,
         telegram_id: Optional[int] = None,
@@ -624,6 +638,7 @@ brain_client = BrainAPIClient()
 get_cards = brain_client.get_cards
 update_card = brain_client.update_card
 get_users = brain_client.get_users
+get_user = brain_client.get_user
 get_user_role = brain_client.get_user_role
 create_user = brain_client.create_user
 update_user = brain_client.update_user

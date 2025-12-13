@@ -70,7 +70,7 @@ async def text_getter(card: dict, tag: str,
         except: pass
 
     data_list = []
-    for i in ['executor_id', 'customer_id']:
+    for i in ['executor_id', 'customer_id', 'editor_id']:
 
         _id = card.get(i)
 
@@ -94,15 +94,16 @@ async def text_getter(card: dict, tag: str,
 
         data_list.append(username)
 
-    executor_nick, customer_nick = data_list
+    executor_nick, customer_nick, editor_nick = data_list
 
     text = (f'Статус: {tag}\n'
         f'Появилось новое задание!'
         f'\n'
         f'\nНазвание: `{name}`'
         f'\nДедлайн: {deadline}'
-        f'\nИсполнитель: {executor_nick}'
-        f'\nЗаказчик: {customer_nick}'
+        f'\nИсполнитель: `{executor_nick}`'
+        f'\nЗаказчик: `{customer_nick}`'
+        f'\nРедактор: `{editor_nick}`'
         f'\nТеги: {", ".join(tags)}'
         f'\nПроверяемый: {need_check}'
         f'\n\n```Описание'

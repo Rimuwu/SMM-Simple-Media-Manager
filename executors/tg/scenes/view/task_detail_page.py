@@ -10,6 +10,7 @@ from tg.oms.manager import scene_manager
 from modules.constants import SETTINGS
 from tg.utils.viewers import viewers_manager
 from modules.logs import executors_logger as logger
+from datetime import datetime
 
 
 class TaskDetailPage(Page):
@@ -18,10 +19,15 @@ class TaskDetailPage(Page):
     async def data_preparate(self) -> None:
         # Загружаем детальную информацию о задаче
         role = self.scene.data['scene'].get('user_role')
+        self.user = {}
         
         if role is None:
             telegram_id = self.scene.user_id
-            user_role = await brain_client.get_user_role(telegram_id)
+            user = await brain_client.get_user(telegram_id=telegram_id)
+            if user:
+                user_role = user.get('role')
+                self.user = user
+
             await self.scene.update_key('scene', 'user_role', user_role or None)
 
         # Регистрируем просмотр
@@ -32,11 +38,7 @@ class TaskDetailPage(Page):
             if 'user_name' not in self.scene.data['scene']:
                  # Можно добавить логику получения имени, если критично
                  pass
-            
-            # Используем имя из Telegram события, если доступно (обычно доступно в хендлерах, но здесь Page)
-            # В данном контексте просто используем ID если нет имени, или можно передать имя при входе в сцену
-            # Для простоты пока оставим ID или заглушку, если имя не сохранено
-            
+
             user_name = self.scene.data['scene'].get('user_name', f"User {self.scene.user_id}")
             viewers_manager.update_viewer(str(task_id), self.scene.user_id, user_name)
 
@@ -69,15 +71,14 @@ class TaskDetailPage(Page):
             CardStatus.sent: "🚀 Отправлено"
         }
 
-        # Получаем пользователей для отображения имен
-        all_users = await brain_client.get_users()
+        # Получаем словарь пользователей Kaiten
         kaiten_users = await brain_client.get_kaiten_users_dict()
-        
+
         # Форматируем исполнителя
         executor_id = task.get('executor_id')
         executor_name = 'Не назначен'
         if executor_id:
-            user_data = next((u for u in all_users if str(u['user_id']) == str(executor_id)), None)
+            user_data = await brain_client.get_user(user_id=executor_id)
             if user_data:
                 executor_name = await get_display_name(
                     user_data['telegram_id'], 
@@ -89,18 +90,29 @@ class TaskDetailPage(Page):
         customer_id = task.get('customer_id')
         customer_name = 'Не указан'
         if customer_id:
-            user_data = next((u for u in all_users if str(u['user_id']) == str(customer_id)), None)
+            user_data = await brain_client.get_user(user_id=customer_id)
             if user_data:
                 customer_name = await get_display_name(
                     user_data['telegram_id'], 
                     kaiten_users, self.scene.__bot__,
                     user_data.get('tasker_id')
                 )
-        
+
+        # Форматируем редактора
+        editor_id = task.get('editor_id')
+        editor_name = 'Не указан'
+        if editor_id:
+            user_data = await brain_client.get_user(user_id=editor_id)
+            if user_data:
+                editor_name = await get_display_name(
+                    user_data['telegram_id'], 
+                    kaiten_users, self.scene.__bot__,
+                    user_data.get('tasker_id')
+                )
+
         # Форматируем дедлайн
         deadline = task.get('deadline')
         if deadline:
-            from datetime import datetime
             try:
                 deadline_dt = datetime.fromisoformat(deadline)
                 deadline_str = deadline_dt.strftime('%d.%m.%Y %H:%M')
@@ -112,7 +124,6 @@ class TaskDetailPage(Page):
         # Форматируем даты отправки
         send_time = task.get('send_time')
         if send_time:
-            from datetime import datetime
             try:
                 send_time_dt = datetime.fromisoformat(send_time)
                 send_time_str = send_time_dt.strftime('%d.%m.%Y %H:%M')
@@ -162,15 +173,20 @@ class TaskDetailPage(Page):
 
         # Подготавливаем переменные для шаблона
         add_vars = {
-            'task_name': task.get('name', 'Без названия'),
-            'task_description': task.get('description', 'Нет описания'),
-            'status': status_names.get(task.get('status'), task.get('status', 'Неизвестно')),
+            'task_name': task.get(
+                'name', 'Без названия'),
+            'task_description': task.get(
+                'description', 'Нет описания'),
+            'status': status_names.get(
+                task.get('status'), 
+                task.get('status', 'Неизвестно')
+                ),
             'executor': executor_name,
             'customer': customer_name,
+            'editor': editor_name,
             'deadline': deadline_str,
             'channels': channels_str,
             'tags': tags_str,
-            'image_prompt': task.get('image_prompt') or 'Не указано',
             'kaiten_link': kaiten_link,
             'send_time': send_time_str
         }
@@ -193,8 +209,27 @@ class TaskDetailPage(Page):
         # Простые кнопки-заглушки для взаимодействия с задачей
         action_buttons = []
 
+        # Кнопки для статуса Ready (Админы и Редакторы)
+        current_task = self.scene.data['scene'].get('current_task_data', {})
+        task_status = current_task.get('status')
+
         role = self.scene.data['scene'].get('user_role')
         is_admin = role == UserRole.admin
+        editor_id = current_task.get('editor_id')
+
+        is_editor = False
+        if role == UserRole.copywriter:
+             # Проверяем, является ли текущий пользователь исполнителем этой задачи
+             editor_data = current_task.get('editor_id')
+             if editor_data and self.user.get('user_id', 0) == editor_data:
+                 is_editor = True
+
+        is_executor = False
+        if role == UserRole.copywriter:
+             # Проверяем, является ли текущий пользователь исполнителем этой задачи
+             executor_data = current_task.get('executor_id')
+             if executor_data and self.user.get('user_id', 0) == executor_data:
+                 is_executor = True
 
         if role == UserRole.admin or is_admin:
             action_buttons.extend([
@@ -202,15 +237,17 @@ class TaskDetailPage(Page):
                 ('delete', '🗑️ Удалить задачу')
             ])
 
-        if role == UserRole.copywriter or is_admin or role == UserRole.editor:
+        if role == UserRole.copywriter or is_admin or is_editor:
             action_buttons.extend([
                 ('open_task', '📂 Открыть задачу')
             ])
-        
-        # Кнопки для статуса Ready (Админы и Редакторы)
-        current_task = self.scene.data['scene'].get('current_task_data', {})
-        task_status = current_task.get('status')
-        
+
+        if editor_id is None:
+            if role == UserRole.editor or is_admin:
+                action_buttons.extend([
+                ('set_editor', '💡 Стать редактором')
+            ])
+
         # Если задача отправлена (sent), то для всех кроме админа кнопок нет (или только выход)
         # Для админа - только удаление
         if task_status == CardStatus.sent:
@@ -225,14 +262,6 @@ class TaskDetailPage(Page):
                 }]
             else:
                 return [] # Пустой список кнопок (только "Назад" от сцены если есть)
-
-        # Кнопка "Вернуть в работу" для исполнителя, если задача завершена (ready)
-        is_executor = False
-        if role == UserRole.copywriter:
-             # Проверяем, является ли текущий пользователь исполнителем этой задачи
-             executor_data = current_task.get('executor')
-             if executor_data and str(executor_data.get('telegram_id')) == str(self.scene.user_id):
-                 is_executor = True
 
         if (is_admin or role == UserRole.editor or is_executor) and task_status == CardStatus.ready:
              # Проверяем, нет ли уже этой кнопки (чтобы не дублировать для админа/редактора, который может быть и исполнителем)
@@ -315,6 +344,36 @@ class TaskDetailPage(Page):
 
             await edit_scene.start()
             return 'exit'
+
+        elif action == 'set_editor':
+            # Назначаем себя редактором задачи
+            task = self.scene.data['scene'].get('current_task_data')
+            if not task: return
+
+            card_id = task.get('card_id')
+            if not card_id:
+                return
+
+            user_id = self.user.get('user_id', 0)
+            if not user_id:
+                user = await brain_client.get_user(telegram_id=self.scene.user_id)
+                if not user:
+                    await callback.answer("Ошибка при получении данных пользователя.", show_alert=True)
+                    return
+
+                user_id = user.get('user_id', 0)
+
+            res = await brain_client.update_card(
+                card_id=card_id,
+                editor_id=user_id
+            )
+
+            if res is not None:
+                await callback.answer("Вы назначены редактором задачи.", show_alert=True)
+                await self.load_task_details()
+                await self.scene.update_page('task-detail')
+            else:
+                await callback.answer("Ошибка при назначении редактора.", show_alert=True)
 
         elif action == 'delete':
             # Удаляем задачу

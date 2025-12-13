@@ -82,7 +82,7 @@ async def get_leaderboard_text(period: str = 'all') -> str:
                 position = f"{idx + 1}."
 
             text_lines.append(
-                f"• {position} {name} — *{tasks_count}* задач")
+                f"• {position} `{name}` — *{tasks_count}* задач")
 
         if len(text_lines) == 1:
             text_lines.append("\n_Пока нет данных для отображения._")
