@@ -215,7 +215,8 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
                 "content": card.content or card.description or "",
                 "tags": card.tags,
                 "task_id": card.task_id,  # ID карточки в Kaiten для скачивания файлов
-                "post_images": card.post_images or []  # Имена файлов из Kaiten
+                "post_images": card.post_images or [],  # Имена файлов из Kaiten
+                "settings": card.clients_settings.get(client_key, {}) if card.clients_settings else {}  # Дополнительные настройки для отправки
             }
         )
         

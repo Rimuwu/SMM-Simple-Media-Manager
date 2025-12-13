@@ -77,7 +77,7 @@ class VKExecutor(BaseExecutor):
     # Методы для работы с постами на стене
     async def create_wall_post(self, text: str, attachments: Optional[List[str]] = None, 
                               from_group: bool = True, signed: bool = False,
-                              primary_attachments_mode: Literal['grid', None] = 'grid'
+                              primary_attachments_mode: Literal['grid', 'carousel'] = 'grid'
                               ) -> dict:
         """Создать пост на стене сообщества"""
         try:

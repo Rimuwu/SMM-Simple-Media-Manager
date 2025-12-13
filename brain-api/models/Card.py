@@ -62,17 +62,21 @@ class Card(Base, AsyncCRUDMixin):
 
     forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     # Формат: {"client_key": {"post_id": int, "info_id": int}, ...}
-    complete_message_id: Mapped[Optional[dict[str, dict]]] = mapped_column(JSON, nullable=True, default={})
+    complete_message_id: Mapped[dict[str, dict]] = mapped_column(JSON, nullable=False, default={})
 
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    editor_notes: Mapped[Optional[list[dict]]] = mapped_column(JSON, nullable=True, default=[])
+    editor_notes: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=[])
 
     # Настройки по клиентам. Например, шаблоны подписей или установка сетки для вк
-    clients_settings: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default={})
+    clients_settings: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
 
     # Ентити для по клиентам. Например опрос в телеграме или авто-репост
-    entities: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default={})
+    entities: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
+
+    # ALTER TABLE cards
+    # ADD COLUMN clients_settings JSONB DEFAULT '{}'::jsonb,
+    # ADD COLUMN entities JSONB DEFAULT '{}'::jsonb;
 
     # Временные метки
     created_at: Mapped[createAT]

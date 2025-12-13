@@ -10,6 +10,8 @@ from modules.constants import CLIENTS
 from modules.logs import executors_logger as logger
 from modules.post_generator import generate_post
 from modules.post_sender import download_kaiten_files
+from tg.main import TelegramExecutor
+from vk.main import VKExecutor
 
 router = APIRouter(prefix="/post", tags=["Post"])
 
@@ -32,6 +34,7 @@ class PostSendRequest(BaseModel):
     tags: Optional[list[str]] = None
     task_id: Optional[int] = None  # ID карточки в Kaiten для скачивания файлов
     post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten
+    settings: dict = {}  # Дополнительные настройки для отправки
 
 
 def get_client_config(client_key: str) -> tuple:
@@ -87,8 +90,6 @@ async def send_post(request: PostSendRequest):
         except ValueError:
             chat_id = client_id
 
-        # Определяем тип исполнителя и вызываем соответствующий метод
-        executor_type = executor.get_type()
         result = None
 
         # Получаем имена файлов для отправки
@@ -100,8 +101,7 @@ async def send_post(request: PostSendRequest):
             downloaded_files = await download_kaiten_files(request.task_id, post_image_names)
             logger.info(f"Downloaded {len(downloaded_files)} files from Kaiten for card {request.card_id}")
 
-        if executor_type == "vk":
-            executor: "VkExecutor" = executor  # type: ignore
+        if isinstance(executor, VKExecutor):
 
             # Для VK - загружаем фото/видео и создаём пост
             attachments = []
@@ -150,13 +150,15 @@ async def send_post(request: PostSendRequest):
 
                 logger.info(f"VK: Всего attachments для поста: {attachments}")
 
+            image_view_setting = request.settings.get(
+                'image_view', 'grid')
             result = await executor.create_wall_post(
                 text=post_text,
-                attachments=attachments if attachments else None
+                attachments=attachments if attachments else None,
+                primary_attachments_mode=image_view_setting
             )
 
-        elif executor_type == "telegram":
-            executor: "TelegramExecutor" = executor  # type: ignore
+        elif isinstance(executor, TelegramExecutor):
 
             # Для Telegram - проверяем наличие медиа файлов
             if downloaded_files:
@@ -199,12 +201,6 @@ async def send_post(request: PostSendRequest):
                     chat_id=chat_id,
                     text=post_text
                 )
-        else:
-            # Для других исполнителей - просто текст
-            result = await executor.send_message(
-                chat_id=chat_id,
-                text=post_text
-            )
 
         if result and result.get('success'):
             logger.info(

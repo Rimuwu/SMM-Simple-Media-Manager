@@ -463,7 +463,7 @@ async def on_clients(
                 new_channels.append(
                     props[PropertyNames.CHANNELS]['values'][channel]['id']
                 )
-        
+
         try:
             async with kaiten as client:
                 await client.update_card(
@@ -472,10 +472,14 @@ async def on_clients(
                 )
         except Exception as e:
             print(f"Error updating channels in Kaiten: {e}")
-    
+
     # Обновляем карточку
-    await card.update(clients=new_clients)
-    
+    for client_key in new_clients:
+        if client_key not in card.clients_settings.keys():
+            card.clients_settings[client_key] = {}
+
+    await card.update(clients=new_clients, clients_settings=card.clients_settings)
+
     # Перепланируем задачи публикации
     try:
         async with session_factory() as session:

@@ -11,7 +11,7 @@ from global_modules.classes.enums import CardType, ChangeType, UserRole
 from global_modules.timezone import now_naive as moscow_now
 from modules.kaiten import add_kaiten_comment, get_kaiten_user_name, kaiten
 from modules.properties import multi_properties
-from global_modules.json_get import open_settings, open_properties
+from global_modules.json_get import open_settings, open_properties, open_clients
 from models.Card import Card, CardStatus
 from models.User import User
 from modules.calendar import create_calendar_event, delete_calendar_event, update_calendar_event
@@ -32,6 +32,8 @@ from modules.executors_client import (
 from modules.logs import brain_logger as logger
 from modules import status_changers
 from modules import card_events
+
+from modules.settings import vk_executor
 
 # Создаём роутер
 router = APIRouter(prefix='/card')
@@ -681,7 +683,41 @@ async def notify_executor_endpoint(data: NotifyExecutorRequest):
     
     if not card.executor_id:
         raise HTTPException(status_code=400, detail="Card has no executor")
-    
+
     await notify_executor(str(card.executor_id), data.message, task_id=data.card_id)
-    
+
     return {"detail": "Notification sent"}
+
+class CardSettings(BaseModel):
+    card_id: str
+    client_id: str
+    setting_type: str
+    data: dict
+
+@router.post("/set-client_settings")
+async def set_client_settings_endpoint(data: CardSettings):
+    """ Установка настроек клиентов для карточки  """
+
+    card = await Card.get_by_key('card_id', data.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    if data.client_id not in card.clients_settings:
+        raise HTTPException(status_code=400, detail="Client ID not found in card settings")
+
+    clients = open_clients() or {}
+    executor_type = clients.get(
+        data.client_id, {}).get('executor_name')
+
+    if executor_type == 'vk_executor':
+        types = vk_executor.avaibale_types
+    
+    if data.setting_type not in types:
+        raise HTTPException(status_code=400, detail="Invalid setting type for client")
+
+    res, error = await vk_executor.avaibale_types[
+        data.setting_type](
+        card, data.client_id, data.data
+    )
+
+    return res, error
