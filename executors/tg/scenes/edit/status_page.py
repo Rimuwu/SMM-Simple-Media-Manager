@@ -272,7 +272,7 @@ class StatusSetterPage(Page):
             
             await self.scene.update_key('scene', 'status', '✅ Готова')
             await callback.answer('✅ Задача завершена!', show_alert=True)
-            await self.scene.update_page('main-page')
+            # await self.scene.update_page('main-page')
         else:
             await callback.answer('❌ Ошибка: задача не найдена', show_alert=True)
     

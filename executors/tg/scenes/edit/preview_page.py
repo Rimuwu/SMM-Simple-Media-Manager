@@ -40,7 +40,7 @@ class PreviewPage(Page):
         """Возвращает текст сообщения"""
         card = await self.scene.get_card_data()
         clients = self.scene.get_key(self.__page_name__, 'clients') or []
-        content = card.get('content') if card else None
+        content_dict = card.get('content') if card else None
         
         if not clients:
             return (
@@ -50,7 +50,14 @@ class PreviewPage(Page):
                 "Вернитесь назад и настройте каналы публикации."
             )
         
-        if not content:
+        # Проверяем наличие контента (общего или специфичного)
+        has_content = False
+        if isinstance(content_dict, dict):
+            has_content = bool(content_dict.get('all') or any(content_dict.get(c) for c in clients))
+        elif isinstance(content_dict, str):
+            has_content = bool(content_dict)
+        
+        if not has_content:
             return (
                 "👁 Предпросмотр поста\n\n"
                 "❌ Контент не создан\n\n"
@@ -67,10 +74,17 @@ class PreviewPage(Page):
         buttons = []
         card = await self.scene.get_card_data()
         clients = self.scene.get_key(self.__page_name__, 'clients') or []
-        content = card.get('content') if card else None
+        content_dict = card.get('content') if card else None
+        
+        # Проверяем наличие контента
+        has_content = False
+        if isinstance(content_dict, dict):
+            has_content = bool(content_dict.get('all') or any(content_dict.get(c) for c in clients))
+        elif isinstance(content_dict, str):
+            has_content = bool(content_dict)
         
         # Если нет клиентов или контента, не создаем кнопки предпросмотра
-        if not clients or not content:
+        if not clients or not has_content:
             return buttons
         
         # Создаем кнопки для каждого клиента
@@ -123,7 +137,14 @@ class PreviewPage(Page):
             await callback.answer("❌ Карточка не найдена")
             return
         
-        content = card.get('content', '')
+        # Получаем контент для клиента (сначала специфичный, потом общий)
+        content_dict = card.get('content', {})
+        if isinstance(content_dict, dict):
+            content = content_dict.get(client) or content_dict.get('all', '')
+        else:
+            # Обратная совместимость со старым форматом
+            content = content_dict if isinstance(content_dict, str) else ''
+        
         tags = card.get('tags', [])
         post_images = card.get('post_images') or []
         task_id = card.get('task_id')

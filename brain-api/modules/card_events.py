@@ -20,6 +20,37 @@ from modules.scheduler import reschedule_post_tasks, reschedule_card_notificatio
 from modules.calendar import update_calendar_event
 from modules.status_changers import to_edited
 
+
+def get_content_for_client(card: Card, client_key: str) -> str:
+    """
+    Получить контент для конкретного клиента.
+    Сначала пытается получить специфичный контент для клиента,
+    если его нет - возвращает общий контент ('all'),
+    если и его нет - возвращает description.
+    
+    Args:
+        card: Карточка
+        client_key: Ключ клиента
+        
+    Returns:
+        str: Контент для клиента
+    """
+    content_dict = card.content if isinstance(card.content, dict) else {}
+    
+    # Сначала пытаемся получить специфичный контент
+    content = content_dict.get(client_key)
+    
+    # Если нет - берём общий
+    if not content:
+        content = content_dict.get('all')
+    
+    # Если и его нет - берём description
+    if not content:
+        content = card.description or ""
+    
+    return content
+
+
 async def on_name(
                   new_name: str,
                   card: Optional[Card] = None, 
@@ -58,7 +89,6 @@ async def on_name(
 
     # Обновляем форум
     if card.forum_message_id:
-        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
         await update_forum_message(str(card.card_id))
 
     # Обновляем, только если выбрано редактирование карточки и страница главная
@@ -116,7 +146,6 @@ async def on_description(
 
     # Обновляем форум
     if card.forum_message_id:
-        forum_status = card.status.value if hasattr(card.status, 'value') else str(card.status)
         await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
@@ -394,9 +423,19 @@ async def on_editor(
 async def on_content(
     new_content: str,
     card: Optional[Card] = None, 
-    card_id: Optional[_UUID] = None
+    card_id: Optional[_UUID] = None,
+    client_key: Optional[str] = None
 ):
-    """Обработчик изменения контента поста."""
+    """
+    Обработчик изменения контента поста.
+    
+    Args:
+        new_content: Новый контент
+        card: Объект карточки
+        card_id: ID карточки (если card не передан)
+        client_key: Ключ клиента. Если None - устанавливается общий контент (ключ 'all'), 
+                    если указан - контент для конкретного клиента
+    """
     
     if not card_id and not card:
         raise ValueError("Необходимо указать card или card_id")
@@ -406,8 +445,17 @@ async def on_content(
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
 
+    # Получаем текущий content dict (или создаем пустой)
+    content_dict = card.content if isinstance(card.content, dict) else {}
+    
+    # Если client_key не указан, используем ключ 'all' для общего контента
+    key = client_key if client_key else 'all'
+    
     # Обновляем контент
-    await card.update(content=new_content)
+    content_dict[key] = new_content
+    
+    # Сохраняем обновленный content dict
+    await card.update(content=content_dict)
 
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
@@ -474,11 +522,28 @@ async def on_clients(
             print(f"Error updating channels in Kaiten: {e}")
 
     # Обновляем карточку
+    old_clients = set(card.clients or [])
+    removed_clients = old_clients - set(new_clients)
+    
+    # Удаляем из clients_settings клиентов, которых больше нет
+    for client_key in removed_clients:
+        card.clients_settings.pop(client_key, None)
+    
+    # Добавляем новых клиентов в clients_settings
     for client_key in new_clients:
         if client_key not in card.clients_settings.keys():
             card.clients_settings[client_key] = {}
+    
+    # Обновляем content dict - удаляем ключи удаленных клиентов
+    content_dict = card.content if isinstance(card.content, dict) else {}
+    for client_key in removed_clients:
+        content_dict.pop(client_key, None)
 
-    await card.update(clients=new_clients, clients_settings=card.clients_settings)
+    await card.update(
+        clients=new_clients, 
+        clients_settings=card.clients_settings,
+        content=content_dict
+    )
 
     # Перепланируем задачи публикации
     try:

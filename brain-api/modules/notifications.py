@@ -206,13 +206,17 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
     logger.info(f"Немедленная отправка поста для карточки {card.card_id}, клиент: {client_key}")
     
     try:
+        # Получаем контент для клиента (сначала специфичный, потом общий)
+        content_dict = card.content if isinstance(card.content, dict) else {}
+        content = content_dict.get(client_key) or content_dict.get('all') or 'nothing'
+        
         # Отправляем запрос на немедленную публикацию - всю логику выполняет executors API
         response, status = await executors_api.post(
             "/post/send",
             data={
                 "card_id": str(card.card_id),
                 "client_key": client_key,
-                "content": card.content or card.description or "",
+                "content": content,
                 "tags": card.tags,
                 "task_id": card.task_id,  # ID карточки в Kaiten для скачивания файлов
                 "post_images": card.post_images or [],  # Имена файлов из Kaiten

@@ -333,8 +333,14 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     
     client_label = client_config.get('label', client_key)
     
-    # Генерируем текст поста
-    content = card.get("content") or card.get("description") or ""
+    # Получаем контент для клиента (сначала специфичный, потом общий)
+    content_dict = card.get("content", {})
+    if isinstance(content_dict, dict):
+        content = content_dict.get(client_key) or content_dict.get('all', '')
+    else:
+        # Обратная совместимость со старым форматом
+        content = content_dict if isinstance(content_dict, str) else ''
+
     tags = card.get("tags", [])
 
     post_text = generate_post(
@@ -456,8 +462,14 @@ async def update_complete_preview(card_id: str, client_key: str, post_id: int,
     
     client_label = client_config.get('label', client_key)
     
-    # Генерируем текст поста
-    content = card.get("content") or card.get("description") or ""
+    # Получаем контент для клиента (сначала специфичный, потом общий)
+    content_dict = card.get("content", {})
+    if isinstance(content_dict, dict):
+        content = content_dict.get(client_key) or content_dict.get('all', '')
+    else:
+        # Обратная совместимость со старым форматом
+        content = content_dict if isinstance(content_dict, str) else ''
+
     tags = card.get("tags", [])
 
     post_text = generate_post(

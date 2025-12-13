@@ -155,7 +155,7 @@ async def create_card(card_data: CardCreate):
         logger.error(f"Ошибка при создании карточки в Kaiten: {e}")
         card_id = 0
 
-    client_settings = {
+    clients_settings = {
         key: {} for key in card_data.channels or []
     }
 
@@ -174,7 +174,7 @@ async def create_card(card_data: CardCreate):
         executor_id=card_data.executor_id,
         need_check=card_data.need_check,
         editor_id=card_data.editor_id,
-        client_settings=client_settings
+        clients_settings=clients_settings
     )
 
     logger.info(f"Карточка создана в БД: {card.card_id} (Kaiten ID: {card_id})")
@@ -323,7 +323,6 @@ class CardUpdate(BaseModel):
     need_send: Optional[bool] | S = S.Nothing  # Нужно ли отправлять в каналы
 
     forum_message_id: Optional[int] | S = S.Nothing
-    content: Optional[str] | S = S.Nothing
 
     clients: Optional[list[str]] | S = S.Nothing
     tags: Optional[list[str]] | S = S.Nothing
@@ -412,11 +411,6 @@ async def update_card(card_data: CardUpdate):
     if 'editor_id' in data:
         await card_events.on_editor(data['editor_id'], card=card)
         del data['editor_id']
-
-    # Изменение контента через card_events.on_content
-    if 'content' in data:
-        await card_events.on_content(data['content'], card=card)
-        del data['content']
 
     # Изменение каналов через card_events.on_clients
     if 'clients' in data:
@@ -692,6 +686,72 @@ async def notify_executor_endpoint(data: NotifyExecutorRequest):
     await notify_executor(str(card.executor_id), data.message, task_id=data.card_id)
 
     return {"detail": "Notification sent"}
+
+class SetContentRequest(BaseModel):
+    card_id: str
+    content: str
+    client_key: Optional[str] = None  # None означает установку общего контента ('all')
+
+@router.post("/set-content")
+async def set_content(request: SetContentRequest):
+    """Установить контент для карточки.
+    
+    Если client_key не указан - устанавливает общий контент (ключ 'all').
+    Если client_key указан - устанавливает контент для конкретного клиента.
+    """
+    logger.info(f"Установка контента для карточки {request.card_id}, клиент: {request.client_key or 'all'}")
+    
+    card = await Card.get_by_key('card_id', request.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    
+    # Используем функцию on_content для установки контента
+    await card_events.on_content(
+        new_content=request.content,
+        card=card,
+        client_key=request.client_key
+    )
+    
+    await card.refresh()
+    return {"success": True, "card_id": str(card.card_id)}
+
+
+class ClearContentRequest(BaseModel):
+    card_id: str
+    client_key: Optional[str] = None  # None означает очистку общего контента ('all')
+
+@router.post("/clear-content")
+async def clear_content(request: ClearContentRequest):
+    """Очистить контент для карточки.
+    
+    Если client_key не указан - очищает общий контент (ключ 'all').
+    Если client_key указан - очищает контент для конкретного клиента.
+    """
+    logger.info(f"Очистка контента для карточки {request.card_id}, клиент: {request.client_key or 'all'}")
+    
+    card = await Card.get_by_key('card_id', request.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    
+    # Получаем текущий content dict
+    content_dict = card.content if isinstance(card.content, dict) else {}
+    
+    # Определяем ключ для очистки
+    key = request.client_key if request.client_key else 'all'
+    
+    # Удаляем ключ из словаря
+    if key in content_dict:
+        content_dict.pop(key)
+        await card.update(content=content_dict)
+        
+        # Добавляем комментарий в Kaiten
+        if card.task_id and card.task_id != 0:
+            comment = f"🗑 Контент очищен для {'клиента: ' + request.client_key if request.client_key else 'общего контента'}"
+            await add_kaiten_comment(card.task_id, comment)
+    
+    await card.refresh()
+    return {"success": True, "card_id": str(card.card_id), "cleared_key": key}
+
 
 class CardSettings(BaseModel):
     card_id: str

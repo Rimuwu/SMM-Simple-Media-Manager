@@ -3,6 +3,7 @@ from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
 from aiogram.types import Message, MessageEntity
 import re
+from modules.api_client import brain_api
 
 class ContentSetterPage(TextTypeScene):
     
@@ -10,6 +11,9 @@ class ContentSetterPage(TextTypeScene):
     __scene_key__ = 'content'
     __next_page__ = 'main-page'
     checklist = False
+    
+    # Режим установки контента: 'all' (общий) или ключ конкретного клиента
+    content_mode = 'all'
     
     def _convert_html_to_markdown(self, html_text: str) -> str:
         """Конвертирует HTML в Markdown формат согласно Telegram entities"""
@@ -81,26 +85,78 @@ class ContentSetterPage(TextTypeScene):
             
 
     async def content_worker(self) -> str:
-        post = self.scene.get_key('scene', 'content')
+        # Получаем карточку для доступа к content dict
+        card = await self.scene.get_card_data()
+        content_dict = card.get('content', {}) if card else {}
+        
+        # Если content_dict не dict (старый формат), инициализируем
+        if not isinstance(content_dict, dict):
+            content_dict = {'all': content_dict} if content_dict else {}
+        
+        # Получаем контент для текущего режима
+        post = content_dict.get(self.content_mode, '')
+        
+        # Формируем заголовок в зависимости от режима
+        if self.content_mode == 'all':
+            mode_label = "Общий контент"
+        else:
+            from modules.constants import CLIENTS
+            client_info = CLIENTS.get(self.content_mode, {})
+            client_name = client_info.get('label', self.content_mode)
+            mode_label = f"Контент для {client_name}"
 
         if not post:
-            post = '<i>Контент не задан.</i>'
+            post = f'<i>Контент не задан для режима: {mode_label}</i>'
         else:
             # Конвертируем HTML в Markdown для отображения
             markdown_post = self._convert_html_to_markdown(post)
-            post = f'<pre language="Контент">{markdown_post}</pre>'
+            post = f'<pre language="{mode_label}">{markdown_post}</pre>'
 
         return self.append_variables(content_block=post)
 
     async def buttons_worker(self) -> list[dict]:
         buttons_list = await super().buttons_worker()
-
+        
+        # Кнопка переключения режима контента
         if not self.checklist:
+            # Получаем список доступных клиентов
+            card = await self.scene.get_card_data()
+            clients = card.get('clients', []) if card else []
+            
             buttons_list.append({
                 'text': '📑 Памятка',
                 'callback_data': callback_generator(
-                    self.scene.__scene_name__, 'checklist')
+                    self.scene.__scene_name__, 'checklist'),
+                'ignore_row': True
             })
+            
+            if clients:
+                # Добавляем кнопку смены режима
+                if self.content_mode == 'all':
+                    buttons_list.append({
+                        'text': '🔄 Режим: Общий контент',
+                        'callback_data': callback_generator(
+                            self.scene.__scene_name__, 'switch_mode')
+                    })
+                else:
+                    from modules.constants import CLIENTS
+                    client_info = CLIENTS.get(self.content_mode, {})
+                    client_name = client_info.get('label', self.content_mode)
+                    buttons_list.append({
+                        'text': f'🔄 Режим: {client_name}',
+                        'callback_data': callback_generator(
+                            self.scene.__scene_name__, 'switch_mode'),
+                        "ignore_row": True
+                    })
+            
+            # Кнопка очистки контента
+            buttons_list.append({
+                'text': '🗑 Очистить контент',
+                'callback_data': callback_generator(
+                    self.scene.__scene_name__, 'clear_content'),
+                'ignore_row': True
+            })
+
         else:
             buttons_list.append({
                 'text': '📑 Контент',
@@ -109,6 +165,80 @@ class ContentSetterPage(TextTypeScene):
             })
 
         return buttons_list
+
+    @TextTypeScene.on_callback('switch_mode')
+    async def switch_mode(self, callback, args):
+        """Переключение между режимами установки контента"""
+        card = await self.scene.get_card_data()
+        clients = card.get('clients', []) if card else []
+        
+        if not clients:
+            await callback.answer("❌ Сначала выберите каналы для публикации")
+            return
+        
+        # Создаем список доступных режимов: 'all' + клиенты
+        available_modes = ['all'] + clients
+        
+        # Находим текущий индекс
+        try:
+            current_index = available_modes.index(self.content_mode)
+        except ValueError:
+            current_index = 0
+        
+        # Переключаемся на следующий режим (циклично)
+        next_index = (current_index + 1) % len(available_modes)
+        self.content_mode = available_modes[next_index]
+        
+        # Обновляем сообщение
+        self.clear_content()
+        await self.content_worker()
+        await self.scene.update_message()
+        
+        # Показываем уведомление
+        if self.content_mode == 'all':
+            await callback.answer("✅ Переключено на общий контент")
+        else:
+            from modules.constants import CLIENTS
+            client_info = CLIENTS.get(self.content_mode, {})
+            client_name = client_info.get('label', self.content_mode)
+            await callback.answer(f"✅ Переключено на {client_name}")
+
+    @TextTypeScene.on_callback('clear_content')
+    async def clear_content_handler(self, callback, args):
+        """Обработчик очистки контента"""
+        task_id = self.scene.data['scene'].get('task_id')
+        if not task_id:
+            await callback.answer("❌ Задача не найдена")
+            return
+        
+        # Определяем client_key в зависимости от режима
+        client_key = None if self.content_mode == 'all' else self.content_mode
+        
+        # Отправляем запрос на очистку контента
+        response, status = await brain_api.post(
+            '/card/clear-content',
+            data={
+                'card_id': task_id,
+                'client_key': client_key
+            }
+        )
+        
+        if status == 200 and response.get('success'):
+            # Обновляем отображение
+            self.clear_content()
+            await self.content_worker()
+            await self.scene.update_message()
+            
+            # Показываем уведомление
+            if self.content_mode == 'all':
+                await callback.answer("✅ Общий контент очищен")
+            else:
+                from modules.constants import CLIENTS
+                client_info = CLIENTS.get(self.content_mode, {})
+                client_name = client_info.get('label', self.content_mode)
+                await callback.answer(f"✅ Контент для {client_name} очищен")
+        else:
+            await callback.answer("❌ Ошибка очистки контента")
 
     @TextTypeScene.on_callback('to_content')
     async def to_content(self, callback, args):
@@ -156,16 +286,20 @@ class ContentSetterPage(TextTypeScene):
             self.content += f"\n\n❗️ Текст слишком длинный. Максимальная длина: {self.max_length} символов. Длинна сейчас: {len(text)}."
             await self.scene.update_message()
             return
-
-        # Сохраняем контент в HTML формате (для хранения)
-        await self.scene.update_key('scene', self.scene_key, html_text)
         
-        # Обновляем карточку (сохраняем в HTML)
+        # Обновляем карточку через новый API эндпоинт /card/set-content
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            await brain_client.update_card(
-                card_id=task_id,
-                content=html_text
+            # Определяем client_key в зависимости от режима
+            client_key = None if self.content_mode == 'all' else self.content_mode
+            
+            await brain_api.post(
+                '/card/set-content',
+                data={
+                    'card_id': task_id,
+                    'content': html_text,
+                    'client_key': client_key
+                }
             )
 
         # Переходим к следующей странице
