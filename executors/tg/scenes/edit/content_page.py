@@ -69,8 +69,16 @@ class ContentSetterPage(TextTypeScene):
         
         return text
     
-    async def data_preparate(self) -> None:
-        await super().data_preparate()
+    # def tags_len()
+    
+    # async def data_preparate(self) -> None:
+        
+    #     card = await brain_client.get_card(
+    #         task_id=self.scene.data['scene'].get('task_id')
+    #     )
+    #     if card:
+    #         tags = card['tags']
+            
 
     async def content_worker(self) -> str:
         post = self.scene.get_key('scene', 'content')

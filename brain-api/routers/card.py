@@ -155,6 +155,10 @@ async def create_card(card_data: CardCreate):
         logger.error(f"Ошибка при создании карточки в Kaiten: {e}")
         card_id = 0
 
+    client_settings = {
+        key: {} for key in card_data.channels or []
+    }
+
     card = await Card.create(
         name=card_data.title,
         description=card_data.description,
@@ -169,7 +173,8 @@ async def create_card(card_data: CardCreate):
         customer_id=card_data.customer_id,
         executor_id=card_data.executor_id,
         need_check=card_data.need_check,
-        editor_id=card_data.editor_id
+        editor_id=card_data.editor_id,
+        client_settings=client_settings
     )
 
     logger.info(f"Карточка создана в БД: {card.card_id} (Kaiten ID: {card_id})")
@@ -703,12 +708,17 @@ async def set_client_settings_endpoint(data: CardSettings):
         raise HTTPException(status_code=404, detail="Card not found")
 
     if data.client_id not in card.clients_settings:
-        raise HTTPException(status_code=400, detail="Client ID not found in card settings")
+        if data.client_id not in (card.clients or []):
+            raise HTTPException(status_code=400, detail="Client ID not found in card settings")
+        else:
+            card.clients_settings[data.client_id] = {}
+            await card.save()
 
     clients = open_clients() or {}
     executor_type = clients.get(
         data.client_id, {}).get('executor_name')
 
+    types = {}
     if executor_type == 'vk_executor':
         types = vk_executor.avaibale_types
     

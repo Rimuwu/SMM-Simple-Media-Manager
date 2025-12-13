@@ -60,7 +60,6 @@ class EditAboutPage(TextTypeScene):
 
         else:
             # Создаем пользователя со всеми данными
-            from global_modules.brain_client import brain_client
             telegram_id = self.scene.data['scene'].get('new_user_id')
             role = self.scene.data['scene'].get('new_user_role')
             tasker_id = self.scene.data['scene'].get('new_user_tasker_id')

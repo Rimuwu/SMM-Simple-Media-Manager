@@ -43,7 +43,7 @@ class Card(Base, AsyncCRUDMixin):
         "User", back_populates="edited_cards", foreign_keys=[editor_id])
 
     # Контент и метаданные
-    content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    content: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
     clients: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
     need_check: Mapped[bool] = mapped_column(Boolean, default=True)
     need_send: Mapped[bool] = mapped_column(Boolean, default=True)
