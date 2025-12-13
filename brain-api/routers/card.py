@@ -15,7 +15,7 @@ from global_modules.json_get import open_settings, open_properties
 from models.Card import Card, CardStatus
 from models.User import User
 from modules.calendar import create_calendar_event, delete_calendar_event, update_calendar_event
-from modules.scheduler import reschedule_post_tasks, schedule_card_notifications, cancel_card_tasks, reschedule_card_notifications, schedule_post_tasks
+from modules.scheduler import reschedule_post_tasks, schedule_card_notifications, cancel_card_tasks, reschedule_card_notifications, schedule_post_tasks, update_post_tasks_time
 from modules.constants import (
     KaitenBoardNames, PropertyNames, 
     SceneNames, Messages
@@ -332,11 +332,6 @@ class CardUpdate(BaseModel):
 
     author_id: Optional[str] | S = S.Nothing  # ID пользователя, вносящего изменения
 
-    # notify_executor: Optional[bool] = False  # Отправить уведомление исполнителю
-    # change_type: Optional[str] = None  # Тип изменения
-    # old_value: Optional[str] = None  # Старое значение
-    # new_value: Optional[str] = None  # Новое значение
-
 @router.post("/update")
 async def update_card(card_data: CardUpdate):
     """
@@ -616,45 +611,6 @@ async def add_comment(note_data: CommentAdd):
     editor_notes.append(new_note)
     await card_events.on_editor_notes(editor_notes, card=card)
 
-    # await card.update(editor_notes=editor_notes)
-    
-    # # Добавляем комментарий в Kaiten
-    # if card.task_id and card.task_id != 0:
-    #     try:
-    #         # Получаем имя автора
-    #         author = await User.get_by_key('user_id', note_data.author)
-    #         author_name = "Unknown"
-    #         if author:
-    #             author_name = await get_kaiten_user_name(author)
-            
-    #         # Формируем текст комментария в зависимости от типа
-    #         if note_data.is_editor_note:
-    #             comment_text = f"💬 Комментарий от {author_name}:\n{note_data.content}"
-    #         else:
-    #             comment_text = f"💬 Заказчик ({author_name}): {note_data.content}"
-            
-    #         await add_kaiten_comment(card.task_id, comment_text)
-    #     except Exception as e:
-    #         logger.error(f"Ошибка добавления комментария в Kaiten: {e}")
-    
-    # # Обновляем сцены для комментариев редактора
-    # if note_data.is_editor_note:
-    #     await update_task_scenes(str(note_data.card_id), SceneNames.USER_TASK)
-    
-    # # Отправляем уведомление исполнителю
-    # if card.executor_id and str(card.executor_id) != str(note_data.author):
-    #     if note_data.is_editor_note:
-    #         message_text = f"💬 Новый комментарий редактора\n\n📝 {card.name}\n\n{note_data.content}"
-    #     else:
-    #         message_text = f"{Messages.NEW_COMMENT}\n\n📝 {card.name}\n\n{note_data.content}"
-
-    #     await notify_executor(
-    #         str(card.executor_id), 
-    #         message_text, 
-    #         task_id=str(card.card_id), 
-    #         skip_if_page="editor-notes"
-    #     )
-
     return {
         "detail": "Comment added successfully",
         "note": new_note,
@@ -679,10 +635,6 @@ async def send_now(request: SendNowRequest):
     
     if card.status != CardStatus.ready:
         raise HTTPException(status_code=400, detail="Card must be in ready status to send")
-    
-    from datetime import timedelta
-    from global_modules.timezone import now_naive as moscow_now
-    from modules.scheduler import update_post_tasks_time, schedule_post_tasks
     
     # Устанавливаем время отправки на 5 секунд вперёд
     now = moscow_now()

@@ -1,6 +1,8 @@
 
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.inmemory import InMemoryBackend
 
 from database.core import create_superuser, create_tables
 from global_modules.middlewares.logs_mid import RequestLoggingMiddleware
@@ -48,6 +50,9 @@ async def lifespan(app: FastAPI):
     global scheduler
 
     # Startup
+    # Инициализация кеша
+    FastAPICache.init(InMemoryBackend())
+    
     brain_logger.info("Апи запускается...")
     await create_tables()
     brain_logger.info(

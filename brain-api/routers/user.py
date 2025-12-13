@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from fastapi_cache.decorator import cache
 from models.User import User
 from models.Card import Card
 from modules.api_client import executors_api
@@ -9,6 +10,7 @@ from modules.logs import brain_logger as logger
 router = APIRouter(prefix='/user')
 
 @router.get("/get")
+@cache(expire=5)
 async def get(
         telegram_id: Optional[int] = None,
         tasker_id: Optional[int] = None,

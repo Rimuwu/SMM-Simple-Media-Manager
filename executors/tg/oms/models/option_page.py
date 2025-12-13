@@ -1,4 +1,3 @@
-from pprint import pprint
 from typing import Optional
 from ..utils import callback_generator
 from .page import Page

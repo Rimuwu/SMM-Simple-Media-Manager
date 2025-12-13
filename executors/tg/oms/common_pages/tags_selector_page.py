@@ -57,21 +57,21 @@ class TagsSelectorPage(OptionTypeScene):
 
         # Синхронизируем данные страницы с данными сцены
         await self.scene.update_key('scene', self.scene_key, tags_list)
-
+        
+        await self.scene.update_message()
+    
+    async def page_leave(self) -> None:
+        """Обновляем данные в БД при выходе со страницы"""
+        # Получаем выбранные теги из данных сцены
+        tags_list = self.scene.data['scene'].get(self.scene_key, [])
+        
         # Если нужно обновить в БД
         if self.update_to_db:
             success = await self.update_to_database(tags_list)
             
-            if success:
-
+            if success and self.on_success_callback:
                 # Выполняем callback если есть
-                if self.on_success_callback:
-                    await self.on_success_callback(callback, tags_list)
-            else:
-                await callback.answer("❌ Ошибка при обновлении")
-                return
-        
-        await self.scene.update_message()
+                await self.on_success_callback(None, tags_list)
     
     async def update_to_database(self, tags_list: list) -> bool:
         """
