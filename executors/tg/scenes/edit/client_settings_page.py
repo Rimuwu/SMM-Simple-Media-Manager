@@ -60,16 +60,14 @@ class ClientSettingsPage(Page):
             return "ℹ️ Выберите конкретный канал для доступа к настройкам"
         
         # Определяем тип исполнителя
-        print(self.selected_client)
-        print(CLIENTS)
         client_info = CLIENTS.get(self.selected_client, {})
         executor_type = client_info.get('executor_name') or client_info.get('executor')
-        print(executor_type)
 
         settings = []
 
         if executor_type == 'vk_executor':
-            settings.append("🖼 Отображение изображений (сетка/карусель)")
+            settings.append(
+                "🖼 Отображение изображений (сетка/карусель)")
         elif executor_type == 'telegram_executor':
             pass  # Entities managed separately
         else:
@@ -95,7 +93,7 @@ class ClientSettingsPage(Page):
                 client_info = CLIENTS.get(self.selected_client, {})
                 client_name = client_info.get('label', self.selected_client)
                 button_text = f'🔄 Режим: {client_name}'
-            
+
             buttons.append({
                 'text': button_text,
                 'callback_data': callback_generator(
@@ -105,18 +103,19 @@ class ClientSettingsPage(Page):
             
             # Кнопки настроек для конкретного клиента
             if self.selected_client != 'all':
-                client_info = CLIENTS.get(self.selected_client, {})
-                executor_type = client_info.get('executor_name', '')
-                
+                client_info = CLIENTS.get(
+                    self.selected_client, {})
+                executor_type = client_info.get('executor_name', '') or client_info.get('executor', '')
+
                 if executor_type == 'vk_executor':
                     buttons.append({
                         'text': '🖼 Отображение изображений',
                         'callback_data': callback_generator(
                             self.scene.__scene_name__, 'to_image_view')
                     })
-        
+
         return buttons
-    
+
     @Page.on_callback('switch_client')
     async def switch_client(self, callback, args):
         """Переключение между клиентами"""
