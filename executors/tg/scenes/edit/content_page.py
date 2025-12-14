@@ -1,7 +1,6 @@
 from tg.oms.models.text_page import TextTypeScene
-from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
-from aiogram.types import Message, MessageEntity
+from aiogram.types import Message
 import re
 from modules.api_client import brain_api
 
@@ -9,9 +8,8 @@ class ContentSetterPage(TextTypeScene):
     
     __page_name__ = 'content-setter'
     __scene_key__ = 'content'
-    __next_page__ = 'main-page'
     checklist = False
-    
+
     # Режим установки контента: 'all' (общий) или ключ конкретного клиента
     content_mode = 'all'
     
@@ -188,20 +186,12 @@ class ContentSetterPage(TextTypeScene):
         # Переключаемся на следующий режим (циклично)
         next_index = (current_index + 1) % len(available_modes)
         self.content_mode = available_modes[next_index]
-        
+
         # Обновляем сообщение
         self.clear_content()
-        await self.content_worker()
+        # await self.content_worker()
         await self.scene.update_message()
-        
-        # Показываем уведомление
-        if self.content_mode == 'all':
-            await callback.answer("✅ Переключено на общий контент")
-        else:
-            from modules.constants import CLIENTS
-            client_info = CLIENTS.get(self.content_mode, {})
-            client_name = client_info.get('label', self.content_mode)
-            await callback.answer(f"✅ Переключено на {client_name}")
+
 
     @TextTypeScene.on_callback('clear_content')
     async def clear_content_handler(self, callback, args):
@@ -226,7 +216,7 @@ class ContentSetterPage(TextTypeScene):
         if status == 200 and response.get('success'):
             # Обновляем отображение
             self.clear_content()
-            await self.content_worker()
+            # await self.content_worker()
             await self.scene.update_message()
             
             # Показываем уведомление
@@ -243,7 +233,7 @@ class ContentSetterPage(TextTypeScene):
     @TextTypeScene.on_callback('to_content')
     async def to_content(self, callback, args):
         self.clear_content()
-        await self.content_worker()
+        # await self.content_worker()
 
         self.checklist = False
         await self.scene.update_message()
@@ -302,9 +292,6 @@ class ContentSetterPage(TextTypeScene):
                 }
             )
 
-        # Переходим к следующей странице
-        if self.next_page:
-            await self.scene.update_page(self.next_page)
-        else:
-            self.clear_content()
-            await self.scene.update_message()
+
+        self.clear_content()
+        await self.scene.update_message()
