@@ -91,6 +91,12 @@ async def on_name(
     if card.forum_message_id:
         await update_forum_message(str(card.card_id))
 
+    if card.calendar_id:
+        await update_calendar_event(
+            card.calendar_id,
+            title=new_name
+        )
+
     # Обновляем, только если выбрано редактирование карточки и страница главная
     await asyncio.create_task(
         update_scenes(SceneNames.USER_TASK,
@@ -136,6 +142,12 @@ async def on_description(
         )
 
     await card.update(description=new_description)
+
+    if card.calendar_id:
+        await update_calendar_event(
+            card.calendar_id,
+            description=new_description
+        )
 
     listeners = [
         card.executor_id,
@@ -190,11 +202,12 @@ async def on_deadline(
         )
 
     # Обновляем в календаре
-    if card.calendar_id:
+    if card.calendar_id and card.send_time is None:
         try:
             await update_calendar_event(
                 event_id=card.calendar_id,
-                start_time=new_deadline
+                start_time=new_deadline,
+                end_time=new_deadline
             )
         except Exception as e:
             print(f"Error updating calendar event: {e}")
@@ -280,6 +293,13 @@ async def on_send_time(
                         )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
+
+    if card.calendar_id and new_send_time:
+        await update_calendar_event(
+            card.calendar_id,
+            start_time=new_send_time,
+            end_time=new_send_time
+        )
 
     # Обновляем сцены
     await asyncio.create_task(

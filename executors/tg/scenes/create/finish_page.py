@@ -10,6 +10,8 @@ class FinishPage(Page):
 
     __page_name__ = 'finish'
 
+    # Флаг, указывающий что создание в процессе — используется для скрытия кнопки
+    creating: bool = False
 
     def min_values(self):
         data = self.scene.data['scene']
@@ -23,7 +25,8 @@ class FinishPage(Page):
     async def buttons_worker(self) -> list[dict]:
         buttons = []
 
-        if self.min_values():
+        # Скрываем кнопку во время создания
+        if self.min_values() and not getattr(self, 'creating', False):
             buttons.append({
                 'text': '❤ Создать',
                 'callback_data': callback_generator(
@@ -35,6 +38,10 @@ class FinishPage(Page):
         return buttons
     
     async def content_worker(self) -> str:
+        # Если сейчас идёт создание — показываем статус и скрываем обычный контент
+        if getattr(self, 'creating', False):
+            return '🧸 Создание задачи...'
+
         self.clear_content()
         add_vars = {}
         data = self.scene.data['scene']
@@ -142,7 +149,12 @@ class FinishPage(Page):
 
     @Page.on_callback('end')
     async def on_end(self, callback, args):
+        # Отправляем быстрый ответ и переводим страницу в режим создания
         await callback.answer('Создание карточки...')
+        self.creating = True
+        # Обновляем сообщение сцены сразу — уберём кнопку и поменяем текст
+        await self.scene.update_message()
+
         data = self.scene.data['scene']
 
         # Если указан исполнитель, меняем тип на приватный
@@ -183,25 +195,25 @@ class FinishPage(Page):
                 except Exception as e:
                     print(f"Ошибка получения исполнителя по tasker_id: {e}")
 
-        res, status = await brain_api.post(
-            '/card/create',
-            data={
-                'title': data['name'],
-                'description': data['description'],
-                'deadline': data['publish_date'],
-                'send_time': data['send_date'],
-                'channels': data['channels'],
-                'need_check': data.get('editor_check', True),
-                'image_prompt': data['image'],
-                'tags': data['tags'],
-                'type_id': data['type'],
-                'executor_id': executor_id,
-                'customer_id': customer_id
-            }
-        )
+        try:
+            res, status = await brain_api.post(
+                '/card/create',
+                data={
+                    'title': data['name'],
+                    'description': data['description'],
+                    'deadline': data['publish_date'],
+                    'send_time': data['send_date'],
+                    'channels': data['channels'],
+                    'need_check': data.get('editor_check', True),
+                    'image_prompt': data['image'],
+                    'tags': data['tags'],
+                    'type_id': data['type'],
+                    'executor_id': executor_id,
+                    'customer_id': customer_id
+                }
+            )
 
-        if status and status == 200:
-            if 'card_id' in res:
+            if status and status == 200 and 'card_id' in res:
                 card_id = res['card_id']
 
                 # Загружаем файлы если они есть
@@ -221,13 +233,28 @@ class FinishPage(Page):
                     f'Задача: "{data["name"]}" успешно создана c ID: {card_id}\n'
                     f'📎 Загружено файлов: {uploaded_count}'
                 )
-            else:
-                await self.scene.__bot__.send_message(
-                    self.scene.user_id,
-                    f'❌ Произошла ошибка при создании задачи: {res.get("error", "Неизвестная ошибка 1")}'
-                )
-        else:
+                return
+
+            # Если мы здесь — произошла ошибка
+            # Восстанавливаем страницу (убираем режим создания и очищаем временный контент)
+            self.creating = False
+            self.clear_content()
+            await self.scene.update_message()
+
+            # Сообщаем пользователю об ошибке
+            err_text = res.get('error') if isinstance(res, dict) else None
             await self.scene.__bot__.send_message(
                 self.scene.user_id,
-                f'❌ Произошла ошибка при создании задачи: {res.get("error", "Неизвестная ошибка 2") if res else "Ошибка сервера"}'
+                f'❌ Произошла ошибка при создании задачи: {err_text or "Неизвестная ошибка"}'
+            )
+
+        except Exception as e:
+            # В случае исключения откатываем интерфейс
+            print(f"Ошибка создания карточки: {e}")
+            self.creating = False
+            self.clear_content()
+            await self.scene.update_message()
+            await self.scene.__bot__.send_message(
+                self.scene.user_id,
+                f'❌ Произошла ошибка при создании задачи: {str(e)[:200]}'
             )

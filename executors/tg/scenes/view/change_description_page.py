@@ -22,11 +22,9 @@ class ChangeDescriptionPage(UpdateTextPage):
     async def content_worker(self) -> str:
         task = self.scene.data['scene'].get('current_task_data', {})
         current_description = task.get('description', 'Нет описания')
-        
+
         # Обрезаем длинное описание для предварительного просмотра
-        if len(current_description) > 200:
-            current_description = current_description[:200] + "..."
-            
+
         self.content = self.append_variables(task_description=current_description)
         return self.content
 
@@ -37,8 +35,7 @@ class ChangeDescriptionPage(UpdateTextPage):
             return False
 
         card_id = task.get('card_id')
-        old_description = task.get('description')
-        
+
         # Обновляем описание в карточке
         res = await brain_client.update_card(
             card_id=card_id,

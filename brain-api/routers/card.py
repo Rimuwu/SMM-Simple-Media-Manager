@@ -193,7 +193,10 @@ async def create_card(card_data: CardCreate):
             await card.update(forum_message_id=message_id)
 
     try:
-        deadline_datetime = datetime.fromisoformat(card_data.deadline) if card_data.deadline else None
+        if card_data.send_time is None:
+            cal_date = datetime.fromisoformat(card_data.deadline) if card_data.deadline else None
+        else:
+            cal_date = datetime.fromisoformat(card_data.send_time)
 
         # Добавляем ссылку в описание
         calendar_description = f"{card_data.description}"
@@ -201,8 +204,9 @@ async def create_card(card_data: CardCreate):
         data = await create_calendar_event(
             card_data.title,
             calendar_description,
-            deadline_datetime,
-            all_day=True,
+            cal_date,
+            cal_date,
+            all_day=False,
             color_id='7'
         )
 
