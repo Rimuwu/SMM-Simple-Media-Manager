@@ -138,6 +138,8 @@ class ClientSettingsPage(Page):
         # Переключаемся на следующий режим (циклично)
         next_index = (current_index + 1) % len(available_modes)
         self.selected_client = available_modes[next_index]
+        await self.scene.update_key('client-settings', 
+                                    'selected_client', self.selected_client)
         
         # Обновляем сообщение
         await self.scene.update_message()
