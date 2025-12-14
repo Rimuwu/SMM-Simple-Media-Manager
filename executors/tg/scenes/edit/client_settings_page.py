@@ -71,7 +71,7 @@ class ClientSettingsPage(Page):
         if executor_type == 'vk_executor':
             settings.append("🖼 Отображение изображений (сетка/карусель)")
         elif executor_type == 'telegram_executor':
-            settings.append("ℹ️ Настройки для Telegram пока недоступны")
+            pass  # Entities managed separately
         else:
             settings.append("ℹ️ Нет доступных настроек для этого канала")
         

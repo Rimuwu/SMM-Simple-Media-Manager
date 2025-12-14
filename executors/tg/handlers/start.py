@@ -66,7 +66,7 @@ async def test(message: Message):
         question="Test poll?",
         options=["Option 1", "Option 2", "Option 3"],
         is_anonymous=False,
-        type="quiz",
+        type="regular",
         correct_option_id=1,
         open_period=600
     )

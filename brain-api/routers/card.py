@@ -36,6 +36,8 @@ from modules import card_events
 from modules.settings import vk_executor
 from modules.settings import all_settings
 from modules.settings import tg_executor
+from modules.entities import avaibale_entities
+
 
 
 router = APIRouter(prefix='/card')
@@ -788,7 +790,7 @@ async def set_client_settings_endpoint(data: CardSettings):
     if executor_type == 'vk_executor':
         types.update(vk_executor.avaibale_types)
 
-    elif executor_type == 'tg_executor':
+    elif executor_type == 'telegram_executor':
         types.update(tg_executor.avaibale_types)
 
     if data.setting_type not in types:
@@ -800,3 +802,111 @@ async def set_client_settings_endpoint(data: CardSettings):
     )
 
     return res, error
+
+
+class AddEntityRequest(BaseModel):
+    card_id: str
+    client_id: str
+    entity_type: str
+    data: dict
+    name: Optional[str] = None
+
+
+@router.post("/add-entity")
+async def add_entity_endpoint(req: AddEntityRequest):
+    """Добавляет entity (например опрос) для конкретного клиента внутри карточки"""
+    card = await Card.get_by_key('card_id', req.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    if req.client_id not in (card.clients or []):
+        raise HTTPException(status_code=400, detail="Client ID not found in card clients")
+
+    # Validate entity type for client executor via entities handlers
+    clients = open_clients() or {}
+    executor_type = clients.get(req.client_id, {}).get('executor_name')
+
+    handlers = avaibale_entities.get(executor_type, {})
+    handler = handlers.get(req.entity_type)
+    if not handler:
+        raise HTTPException(status_code=400, detail="Invalid entity type for client")
+
+    # Validate / normalize via handler (may raise HTTPException)
+    normalized = handler(req.data)
+
+    import uuid
+
+    entity = {
+        'id': str(uuid.uuid4()),
+        'type': req.entity_type,
+        'name': req.name or '',
+        'data': normalized,
+        'created_at': datetime.now().isoformat()
+    }
+
+    ents = card.entities or {}
+    lst = ents.get(req.client_id, [])
+    lst.append(entity)
+    ents[req.client_id] = lst
+
+    await card.update(entities=ents)
+
+    # Add Kaiten comment
+    if card.task_id and card.task_id != 0:
+        comment = f"🧩 Добавлен entity: {req.entity_type} для клиента {req.client_id}"
+        await add_kaiten_comment(card.task_id, comment)
+
+    return {"entity": entity}
+
+
+@router.get('/entities')
+async def list_entities(card_id: str, client_id: str):
+    card = await Card.get_by_key('card_id', card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    ents = card.entities or {}
+    return {"entities": ents.get(client_id, [])}
+
+
+@router.get('/entity')
+async def get_entity(card_id: str, client_id: str, entity_id: str):
+    card = await Card.get_by_key('card_id', card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    ents = card.entities or {}
+    for e in ents.get(client_id, []):
+        if e.get('id') == entity_id:
+            return e
+
+    raise HTTPException(status_code=404, detail="Entity not found")
+
+
+class DeleteEntityRequest(BaseModel):
+    card_id: str
+    client_id: str
+    entity_id: str
+
+
+@router.post('/delete-entity')
+async def delete_entity(req: DeleteEntityRequest):
+    card = await Card.get_by_key('card_id', req.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    ents = card.entities or {}
+    lst = ents.get(req.client_id, [])
+    new_lst = [e for e in lst if e.get('id') != req.entity_id]
+    if len(new_lst) == len(lst):
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    ents[req.client_id] = new_lst
+    await card.update(entities=ents)
+
+    # Kaiten comment
+    if card.task_id and card.task_id != 0:
+        comment = f"🗑 Удалён entity {req.entity_id} ({req.client_id})"
+        await add_kaiten_comment(card.task_id, comment)
+
+    return {"detail": "Entity deleted"}

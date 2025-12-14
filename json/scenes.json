@@ -200,7 +200,8 @@
                     "image-prompt": "🖼 ТЗ для дизайнеров",
                     "post-preview": "👁 Превью поста",
                     "editor-notes": "💬 Комментарии",
-                    "client-settings-main": "⚙️ Настройки клиентов"
+                    "client-settings-main": "⚙️ Настройки клиентов",
+                    "entities-main": "🗳 Сущности"
                 },
                 "row_width": 2
             },
@@ -294,6 +295,29 @@
                     "client-settings-main": "⬅️ Назад"
                 },
                 "row_width": 1
+            },
+            "entities-main": {
+                "content": "🗳 **Сущности**\n📍 Канал: {client_name}\n\n**Существующие:**\n{entities_list}\n\nВыберите действие:",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
+                "row_width": 2
+            },
+            "entities-poll-create": {
+                "content": "🗳 **Создание опроса**\n\n{content}"
+            },
+            "entities-view": {
+                "content": "🔍 **Просмотр entity**\n\n{entity_text}",
+                "to_pages": {
+                    "entities-main": "⬅️ Назад"
+                }
+            },
+            "client-settings-entities": {
+                "content": "⚙️ **Сущности клиентов**\n\n📍 Канал: {client_name}\n\n**Существующие сущности:**\n{entities_list}\n\nВыберите действие:",
+                "to_pages": {
+                    "client-settings-main": "⬅️ Назад"
+                },
+                "row_width": 2
             }
         }
     },
