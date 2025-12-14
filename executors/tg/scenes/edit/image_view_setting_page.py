@@ -12,9 +12,13 @@ class ImageViewSettingPage(Page):
     async def data_preparate(self):
         """Подготовка данных страницы"""
         # Получаем выбранный клиент из данных сцены
-        selected_client = self.scene.data.get('client-settings', {}).get('selected_client')
+        selected_client = self.get_data('selected_client')
+        print(
+            f"ImageViewSettingPage: selected_client = {selected_client}"
+        )
         
         if not selected_client:
+            print("No selected client found, trying to set a default one.")
             # Если клиент не выбран, берем первого из списка
             card = await self.scene.get_card_data()
             if card:

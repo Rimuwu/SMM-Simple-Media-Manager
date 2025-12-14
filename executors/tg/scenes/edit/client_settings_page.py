@@ -153,4 +153,5 @@ class ClientSettingsPage(Page):
 
         # Сохраняем выбранный клиент в данные сцены
         await self.scene.update_key('client-settings', 'selected_client', self.selected_client)
-        await self.scene.update_page('client-settings-image-view')
+        await self.scene.update_page('client-settings-image-view',
+                                     selected_client=self.selected_client)
