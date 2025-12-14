@@ -34,6 +34,8 @@ from modules import status_changers
 from modules import card_events
 
 from modules.settings import vk_executor
+from modules.settings import all_settings
+from modules.settings import tg_executor
 
 # Создаём роутер
 router = APIRouter(prefix='/card')
@@ -778,10 +780,13 @@ async def set_client_settings_endpoint(data: CardSettings):
     executor_type = clients.get(
         data.client_id, {}).get('executor_name')
 
-    types = {}
+    types = all_settings.avaibale_types.copy()
     if executor_type == 'vk_executor':
-        types = vk_executor.avaibale_types
-    
+        types.update(vk_executor.avaibale_types)
+
+    elif executor_type == 'tg_executor':
+        types.update(tg_executor.avaibale_types)
+
     if data.setting_type not in types:
         raise HTTPException(status_code=400, detail="Invalid setting type for client")
 

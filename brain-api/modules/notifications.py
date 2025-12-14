@@ -209,7 +209,10 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
         # Получаем контент для клиента (сначала специфичный, потом общий)
         content_dict = card.content if isinstance(card.content, dict) else {}
         content = content_dict.get(client_key) or content_dict.get('all') or 'nothing'
-        
+
+        clients_settings: dict = card.clients_settings.get('all', {})
+        clients_settings.update(card.clients_settings.get(client_key, {}))
+
         # Отправляем запрос на немедленную публикацию - всю логику выполняет executors API
         response, status = await executors_api.post(
             "/post/send",
@@ -220,7 +223,7 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
                 "tags": card.tags,
                 "task_id": card.task_id,  # ID карточки в Kaiten для скачивания файлов
                 "post_images": card.post_images or [],  # Имена файлов из Kaiten
-                "settings": card.clients_settings.get(client_key, {}) if card.clients_settings else {}  # Дополнительные настройки для отправки
+                "settings": clients_settings  # Дополнительные настройки для отправки
             }
         )
         
