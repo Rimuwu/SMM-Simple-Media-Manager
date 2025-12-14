@@ -12,6 +12,8 @@ from .files_page import FilesPage
 from .preview_page import PreviewPage
 from .editor_notes_page import EditorNotesPage
 from .image_prompt_page import ImagePromptPage
+from .client_settings_page import ClientSettingsPage
+from .image_view_setting_page import ImageViewSettingPage
 
 class TaskScene(Scene):
 
@@ -27,7 +29,9 @@ class TaskScene(Scene):
         FilesPage,
         PreviewPage,
         EditorNotesPage,
-        ImagePromptPage
+        ImagePromptPage,
+        ClientSettingsPage,
+        ImageViewSettingPage
     ]
 
     # Привязываем функции для работы с БД

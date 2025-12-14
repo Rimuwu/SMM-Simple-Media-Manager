@@ -11,7 +11,6 @@ router = APIRouter(prefix='/kaiten')
 
 
 @router.get("/get-files/{task_id}")
-@cache(expire=10)
 async def get_card_files(task_id: int):
     """
     Получает список файлов карточки Kaiten.
@@ -46,7 +45,6 @@ async def get_card_files(task_id: int):
 
 
 @router.get("/files/{file_id}")
-@cache(expire=10)
 async def download_file(file_id: int, task_id: int):
     """
     Скачивает файл из Kaiten.
