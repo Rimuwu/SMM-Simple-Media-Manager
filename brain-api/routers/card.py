@@ -784,7 +784,10 @@ async def set_client_settings_endpoint(data: CardSettings):
 
     clients = open_clients() or {}
     executor_type = clients.get(
-        data.client_id, {}).get('executor_name')
+        data.client_id, {}).get('executor_name') or clients.get(
+        data.client_id, {}).get('executor')
+    
+    print(f"Executor type for client {data.client_id}: {executor_type}")
 
     types = all_settings.avaibale_types.copy()
     if executor_type == 'vk_executor':
@@ -792,6 +795,8 @@ async def set_client_settings_endpoint(data: CardSettings):
 
     elif executor_type == 'telegram_executor':
         types.update(tg_executor.avaibale_types)
+    
+    print(f"Available types for executor {executor_type}: {list(types.keys())}")
 
     if data.setting_type not in types:
         raise HTTPException(status_code=400, detail="Invalid setting type for client")
