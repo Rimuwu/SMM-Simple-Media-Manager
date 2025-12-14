@@ -1,4 +1,3 @@
-import traceback
 from typing import Callable, Optional, Type
 
 from aiogram import Bot
@@ -84,8 +83,8 @@ class Scene:
                 self.data[
                     page.__page_name__
                 ] = {
-                    'last_button': '',
-                    'last_message': ''
+                    # 'last_button': '',
+                    # 'last_message': ''
                 }
 
         for page in self.scene.pages.keys():
@@ -111,7 +110,7 @@ class Scene:
     def current_page(self) -> Page:
         return self.pages.get(self.page, self.standart_page(self.page))
 
-    async def update_page(self, page_name: str):
+    async def update_page(self, page_name: str, **kwargs):
 
         if page_name not in self.scene.pages:
             await self.__bot__.send_message(
@@ -135,6 +134,7 @@ class Scene:
 
             await self.update_key('scene', 'last_page', self.page)
             self.page = page_name
+            await self.current_page.page_enter(**kwargs)
 
             await self.save_to_db()
             await self.update_message()

@@ -10,6 +10,7 @@ from global_modules.brain_client import brain_client
 from .cancel import CancelPage
 from .image import Image
 from .send_page import SendDatePage
+from tg.oms.common_pages import DatePickerPage
 from .ai_parse_page import AIParserPage
 from .editor_check_page import EditorCheckPage
 
@@ -28,7 +29,9 @@ class CreateTaskScene(Scene):
         Image,
         SendDatePage,
         AIParserPage,
-        EditorCheckPage
+        EditorCheckPage,
+        # date picker
+        DatePickerPage,
     ]
 
     # Привязываем функции для работы с БД

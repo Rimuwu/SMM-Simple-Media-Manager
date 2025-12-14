@@ -37,7 +37,7 @@ from modules.settings import vk_executor
 from modules.settings import all_settings
 from modules.settings import tg_executor
 
-# Создаём роутер
+
 router = APIRouter(prefix='/card')
 settings = open_settings() or {}
 

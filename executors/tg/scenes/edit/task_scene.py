@@ -14,6 +14,7 @@ from .editor_notes_page import EditorNotesPage
 from .image_prompt_page import ImagePromptPage
 from .client_settings_page import ClientSettingsPage
 from .image_view_setting_page import ImageViewSettingPage
+from tg.oms.common_pages import DatePickerPage
 
 class TaskScene(Scene):
 
@@ -31,7 +32,8 @@ class TaskScene(Scene):
         EditorNotesPage,
         ImagePromptPage,
         ClientSettingsPage,
-        ImageViewSettingPage
+        ImageViewSettingPage,
+        DatePickerPage
     ]
 
     # Привязываем функции для работы с БД
