@@ -9,7 +9,7 @@ def validate_poll(data: dict) -> dict:
     {
         'question': str,
         'options': [str, ...],
-        optional fields: 'is_anonymous' (bool), 'type' ('regular'|'quiz')
+        optional fields: 'type' ('regular'|'quiz')
     }
     Returns normalized dict or raises HTTPException
     """
@@ -29,13 +29,12 @@ def validate_poll(data: dict) -> dict:
     if len(norm_opts) < 2:
         raise HTTPException(status_code=413, detail="Poll options must contain at least two non-empty strings")
 
-    is_anonymous = bool(data.get('is_anonymous', True))
     p_type = data.get('type', 'regular') if data.get('type') in ('regular', 'quiz') else 'regular'
 
     normalized = {
         'question': question.strip(),
         'options': norm_opts,
-        'is_anonymous': is_anonymous,
+        'is_anonymous': True,
         'type': p_type
     }
 

@@ -14,12 +14,14 @@ class PollCreatePage(TextTypeScene):
 
     async def data_preparate(self):
         """Initialize poll data if not exists"""
-        poll_data = self.scene.data.get(self.__page_name__, {})
+        page = self.scene.data.get(self.__page_name__, {})
+        poll_data = page.get('data') if isinstance(page, dict) else None
+
+        # Если данных нет, или они пусты — создаём дефолтную структуру
         if not poll_data:
             poll_data = {
                 'question': None,
                 'options': [],
-                'is_anonymous': True,
                 'type': 'regular',
                 'allows_multiple_answers': False,
                 'correct_option_id': None,
@@ -27,6 +29,17 @@ class PollCreatePage(TextTypeScene):
                 'edit_mode': None,
                 'edit_option_idx': None
             }
+            await self.scene.update_key(self.__page_name__, 'data', poll_data)
+        else:
+            # Обеспечиваем наличие ключей в случае редактирования существующей сущности
+            poll_data.setdefault('question', None)
+            poll_data.setdefault('options', [])
+            poll_data.setdefault('type', 'regular')
+            poll_data.setdefault('allows_multiple_answers', False)
+            poll_data.setdefault('correct_option_id', None)
+            poll_data.setdefault('explanation', None)
+            poll_data.setdefault('edit_mode', None)
+            poll_data.setdefault('edit_option_idx', None)
             await self.scene.update_key(self.__page_name__, 'data', poll_data)
         
         # Ensure selected client is set
@@ -65,7 +78,6 @@ class PollCreatePage(TextTypeScene):
             return f"💬 *Редактирование объяснения*\n\nТекущее объяснение: {explanation}\n\nВведите новое объяснение: {text_input}"
 
         question = poll_data.get('question') or 'Вопрос не установлен'
-        is_anonymous = poll_data.get('is_anonymous', True)
         poll_type = poll_data.get('type', 'regular')
         allows_multiple = poll_data.get('allows_multiple_answers', False)
         explanation = poll_data.get('explanation')
@@ -82,7 +94,6 @@ class PollCreatePage(TextTypeScene):
         content += "*Варианты ответов:*\n"
         content += options_text + "\n\n"
         content += "⚙️ *Настройки:*\n"
-        content += f"• Анонимно: {'✅' if is_anonymous else '❌'}\n"
         content += f"• Тип: {'Опрос' if poll_type == 'regular' else 'Викторина'}\n"
         content += f"• Несколько ответов: {'✅' if allows_multiple else '❌'}\n"
         
@@ -311,12 +322,10 @@ class PollCreatePage(TextTypeScene):
         """Show settings options"""
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
 
-        is_anon = poll_data.get('is_anonymous', True)
         poll_type = poll_data.get('type', 'regular')
         allows_multi = poll_data.get('allows_multiple_answers', False)
 
         settings_text = (f"⚙️ *Настройки опроса*\n"
-                         f"• *Анонимно:* {'✅ Да' if is_anon else '❌ Нет'}\n"
                          f"• *Тип:* {'Опрос' if poll_type == 'regular' else 'Викторина'}\n"
                          )
 
@@ -324,9 +333,6 @@ class PollCreatePage(TextTypeScene):
             [{'text': '📊 Тип опроса',
               'callback_data':
                   callback_generator(self.scene.__scene_name__, 'toggle_type')}],
-            [{'text': '🔄 Анонимно',
-              'callback_data':
-                  callback_generator(self.scene.__scene_name__, 'toggle_anonymous')}],
             [{'text': '⬅️ Назад',
               'callback_data':
                   callback_generator(self.scene.__scene_name__, 'back_to_main')}]
@@ -342,14 +348,6 @@ class PollCreatePage(TextTypeScene):
 
         await callback.message.edit_text(
             settings_text, reply_markup={'inline_keyboard': keyboard}, parse_mode='Markdown')
-
-    @Page.on_callback('toggle_anonymous')
-    async def toggle_anonymous(self, callback, args):
-        """Toggle anonymous mode"""
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        poll_data['is_anonymous'] = not poll_data.get('is_anonymous', True)
-        await self.scene.update_key(self.__page_name__, 'data', poll_data)
-        await self.settings(callback, args)
 
     @Page.on_callback('toggle_type')
     async def toggle_type(self, callback, args):
@@ -453,7 +451,6 @@ class PollCreatePage(TextTypeScene):
         if not selected_client:
             await callback.answer('❌ Клиент не выбран')
             return
-
         payload = {
             'card_id': task_id,
             'client_id': selected_client,
@@ -461,7 +458,6 @@ class PollCreatePage(TextTypeScene):
             'data': {
                 'question': poll_data['question'],
                 'options': poll_data['options'],
-                'is_anonymous': poll_data.get('is_anonymous', True),
                 'type': poll_data.get('type', 'regular'),
                 'allows_multiple_answers': poll_data.get('allows_multiple_answers', False),
             },
@@ -474,9 +470,31 @@ class PollCreatePage(TextTypeScene):
             if poll_data.get('explanation'):
                 payload['data']['explanation'] = poll_data['explanation']
 
+        # Если установлен entity_id - обновляем сущность вместо создания новой
+        entity_id = self.scene.data.get(self.__page_name__, {}).get('entity_id')
+        if entity_id:
+            up_payload = {
+                'card_id': task_id,
+                'client_id': selected_client,
+                'entity_id': entity_id,
+                'data': payload['data'],
+                'name': payload.get('name')
+            }
+
+            resp, status = await brain_api.post('/card/update-entity', data=up_payload)
+            if status == 200 and resp:
+                # Очистим режим редактирования
+                await self.scene.update_key(self.__page_name__, 'data', {})
+                await self.scene.update_key(self.__page_name__, 'entity_id', None)
+                await self.scene.update_page('entities-main')
+                await callback.answer('✅ Опрос обновлён')
+            else:
+                await callback.answer('❌ Ошибка обновления опроса')
+            return
+
+        # Создание новой сущности
         resp, status = await brain_api.post('/card/add-entity', data=payload)
         if status == 200 and resp:
-
             await self.scene.update_key(self.__page_name__, 'data', {})
             await self.scene.update_page('entities-main')
             await callback.answer('✅ Опрос создан')

@@ -11,6 +11,7 @@ async def send_poll_preview(
     chat_id: int,
     entity_data: dict,
     reply_markup=None,
+    reply_to_message_id: int | None = None
 ) -> dict:
     """
     Send poll preview to user
@@ -54,7 +55,8 @@ async def send_poll_preview(
             allows_multiple_answers=allows_multiple,
             correct_option_id=correct_option_id if poll_type == 'quiz' else None,
             explanation=explanation if poll_type == 'quiz' and explanation else None,
-            reply_markup=reply_markup
+            reply_markup=reply_markup,
+            reply_to_message_id=reply_to_message_id
         )
         
         return {

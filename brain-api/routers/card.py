@@ -910,3 +910,74 @@ async def delete_entity(req: DeleteEntityRequest):
         await add_kaiten_comment(card.task_id, comment)
 
     return {"detail": "Entity deleted"}
+
+
+class UpdateEntityRequest(BaseModel):
+    card_id: str
+    client_id: str
+    entity_id: str
+    data: dict
+    name: Optional[str] = None
+
+
+@router.post('/update-entity')
+async def update_entity(req: UpdateEntityRequest):
+    """Обновляет существующий entity для клиента внутри карточки"""
+    card = await Card.get_by_key('card_id', req.card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    if req.client_id not in (card.clients or []):
+        raise HTTPException(status_code=400, detail="Client ID not found in card clients")
+
+    ents = card.entities or {}
+    lst = ents.get(req.client_id, [])
+    found = False
+
+    # Найдём сущность и определим её тип
+    target_entity = None
+    for i, e in enumerate(lst):
+        if e.get('id') == req.entity_id:
+            target_entity = e
+            target_idx = i
+            break
+
+    if not target_entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    clients = open_clients() or {}
+    executor_type = clients.get(req.client_id, {}).get('executor_name')
+    handlers = avaibale_entities.get(executor_type, {})
+    handler = handlers.get(target_entity.get('type')) if handlers else None
+
+    # Try to normalize using handler if available
+    normalized = req.data
+    try:
+        if handler:
+            normalized = handler(req.data)
+    except HTTPException:
+        raise
+    except Exception:
+        # If normalization fails, keep provided data
+        pass
+
+    # Обновляем найденную сущность
+    target_entity['data'] = normalized
+    if req.name is not None:
+        target_entity['name'] = req.name
+    target_entity['updated_at'] = datetime.now().isoformat()
+    lst[target_idx] = target_entity
+    found = True
+
+    if not found:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    ents[req.client_id] = lst
+    await card.update(entities=ents)
+
+    # Kaiten comment
+    if card.task_id and card.task_id != 0:
+        comment = f"✏️ Обновлён entity {req.entity_id} ({req.client_id})"
+        await add_kaiten_comment(card.task_id, comment)
+
+    return {"entity": e}

@@ -48,6 +48,12 @@ class EntityViewPage(Page):
             'ignore_row': True
         })
 
+        buttons.append({
+            'text': '✏️ Редактировать',
+            'callback_data': callback_generator(self.scene.__scene_name__, 'edit'),
+            'ignore_row': True
+        })
+
         return buttons
 
     @Page.on_callback('delete')
@@ -75,6 +81,25 @@ class EntityViewPage(Page):
             await self.scene.update_message()
         else:
             await callback.answer('❌ Ошибка удаления')
+
+    @Page.on_callback('edit')
+    async def edit(self, callback, args):
+        e = self.scene.data.get(self.__page_name__, {}).get('entity')
+        if not e:
+            await callback.answer('❌ Entity не найден')
+            return
+
+        selected_client = self.scene.data.get('entities-main', {}).get('selected_client')
+        if not selected_client:
+            await callback.answer('❌ Клиент не выбран')
+            return
+
+        # Подготовить данные для страницы создания опроса и перейти на неё
+        # Сохраняем сущность в форме, чтобы PollCreatePage мог начать в режиме редактирования
+        await self.scene.update_key('entities-poll-create', 'data', e.get('data', {}) )
+        await self.scene.update_key('entities-poll-create', 'entity_id', e.get('id'))
+        await self.scene.update_page('entities-poll-create')
+        await self.scene.update_message()
 
     @Page.on_callback('back')
     async def back(self, callback, args):

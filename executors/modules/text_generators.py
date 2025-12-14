@@ -413,7 +413,7 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                         bot=client_executor.bot,
                         chat_id=group_forum,
                         entity_data=entity_data,
-                        reply_markup=None
+                        reply_to_message_id=complete_topic
                     )
                     if poll_result.get('success'):
                         entity_msg_id = poll_result.get('message_id')
