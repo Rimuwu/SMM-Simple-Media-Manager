@@ -7,6 +7,7 @@ from modules.api_client import brain_api, get_cards, update_card, get_users
 from modules.post_generator import generate_post
 from global_modules.classes.enums import CardStatus
 from modules.utils import get_telegram_user
+from modules.entities_sender import send_poll_preview, get_entities_for_client
 
 forum_topic = SETTINGS.get('forum_topic', 0)
 group_forum = SETTINGS.get('group_forum', 0)
@@ -399,6 +400,26 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
         if not post_id:
             return {"error": f"Failed to send preview: {result.get('error', 'Unknown error')}", "success": False}
         
+        # Получаем и отправляем entities (опросы и др.)
+        entities_result = await get_entities_for_client(card_id, client_key)
+        if entities_result.get('success') and entities_result.get('entities'):
+            entities = entities_result['entities']
+            for entity in entities:
+                entity_type = entity.get('type')
+                entity_data = entity.get('data', {})
+                
+                if entity_type == 'poll':
+                    poll_result = await send_poll_preview(
+                        bot=client_executor.bot,
+                        chat_id=group_forum,
+                        entity_data=entity_data,
+                        reply_markup=None
+                    )
+                    if poll_result.get('success'):
+                        entity_msg_id = poll_result.get('message_id')
+                        if entity_msg_id:
+                            post_ids.append(entity_msg_id)
+        
         # Формируем дату отправки
         send_time = card.get("send_time")
         date_str = "Не указана"
@@ -409,9 +430,42 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
             except:
                 pass
         
+        # Получаем исполнителя и редактора
+        executor_name = "Не назначен"
+        editor_name = "Не назначен"
+        
+        executor_id = card.get('executor_id')
+        if executor_id:
+            users = await get_users(user_id=executor_id)
+            if users:
+                user = users[0]
+                tg_user = await get_telegram_user(
+                    bot=client_executor.bot,
+                    telegram_id=user.get("telegram_id")
+                )
+                if tg_user:
+                    executor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name
+        
+        editor_id = card.get('editor_id')
+        if editor_id:
+            users = await get_users(user_id=editor_id)
+            if users:
+                user = users[0]
+                tg_user = await get_telegram_user(
+                    bot=client_executor.bot,
+                    telegram_id=user.get("telegram_id")
+                )
+                if tg_user:
+                    editor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name
+        
         # Отправляем информацию о задаче и клиенте
         card_name = card.get("name", "Без названия")
-        info_text = f"✅ Готовый пост для задачи <b>{card_name}</b> для клиента <b>{client_label}</b>\n📅 Дата отправки: <b>{date_str}</b>"
+        info_text = (
+            f"✅ Готовый пост для задачи <b>{card_name}</b> для клиента <b>{client_label}</b>\n"
+            f"📅 Дата отправки: <b>{date_str}</b>\n"
+            f"👤 Исполнитель: <code>{executor_name}</code>\n"
+            f"✏️ Редактор: <code>{editor_name}</code>"
+        )
         
         info_result = await client_executor.send_message(
             chat_id=group_forum,
@@ -519,6 +573,27 @@ async def update_complete_preview(card_id: str, client_key: str, post_id: int,
             new_preview = await send_complete_preview(card_id, client_key)
             return new_preview
         
+        # Обновляем или создаём entities
+        new_post_ids = [new_post_id]
+        entities_result = await get_entities_for_client(card_id, client_key)
+        if entities_result.get('success') and entities_result.get('entities'):
+            entities = entities_result['entities']
+            for entity in entities:
+                entity_type = entity.get('type')
+                entity_data = entity.get('data', {})
+                
+                if entity_type == 'poll':
+                    poll_result = await send_poll_preview(
+                        bot=client_executor.bot,
+                        chat_id=group_forum,
+                        entity_data=entity_data,
+                        reply_markup=None
+                    )
+                    if poll_result.get('success'):
+                        entity_msg_id = poll_result.get('message_id')
+                        if entity_msg_id:
+                            new_post_ids.append(entity_msg_id)
+        
         # Обновляем информационное сообщение с датой
         if info_id:
             send_time = card.get("send_time")
@@ -530,8 +605,41 @@ async def update_complete_preview(card_id: str, client_key: str, post_id: int,
                 except:
                     pass
             
+            # Получаем исполнителя и редактора
+            executor_name = "Не назначен"
+            editor_name = "Не назначен"
+            
+            executor_id = card.get('executor_id')
+            if executor_id:
+                users = await get_users(user_id=executor_id)
+                if users:
+                    user = users[0]
+                    tg_user = await get_telegram_user(
+                        bot=client_executor.bot,
+                        telegram_id=user.get("telegram_id")
+                    )
+                    if tg_user:
+                        executor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name
+            
+            editor_id = card.get('editor_id')
+            if editor_id:
+                users = await get_users(user_id=editor_id)
+                if users:
+                    user = users[0]
+                    tg_user = await get_telegram_user(
+                        bot=client_executor.bot,
+                        telegram_id=user.get("telegram_id")
+                    )
+                    if tg_user:
+                        editor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name
+            
             card_name = card.get("name", "Без названия")
-            info_text = f"✅ Готовый пост для задачи <b>{card_name}</b> для клиента <b>{client_label}</b>\n📅 Дата отправки: <b>{date_str}</b>"
+            info_text = (
+                f"✅ Готовый пост для задачи <b>{card_name}</b> для клиента <b>{client_label}</b>\n"
+                f"📅 Дата отправки: <b>{date_str}</b>\n"
+                f"👤 Исполнитель: <code>{executor_name}</code>\n"
+                f"✏️ Редактор: <code>{editor_name}</code>"
+            )
             
             info_result = await client_executor.edit_message(
                 chat_id=group_forum,
@@ -555,7 +663,7 @@ async def update_complete_preview(card_id: str, client_key: str, post_id: int,
                 if new_info_result.get("success"):
                     new_info_id = new_info_result.get("message_id")
         
-        return {"success": True, "post_id": new_post_id, "post_ids": [new_post_id], "info_id": new_info_id}
+        return {"success": True, "post_id": new_post_id, "post_ids": new_post_ids, "info_id": new_info_id}
     
     except Exception as e:
         return {"error": str(e), "success": False}

@@ -13,6 +13,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     Message
 )
+from modules.entities_sender import get_entities_for_client, send_poll_preview
 from modules.api_client import brain_api
 from global_modules.brain_client import brain_client
 from modules.post_generator import generate_post
@@ -128,7 +129,7 @@ async def send_post_preview(
     text: str,
     media_files: Optional[list[dict]] = None,
     parse_mode: str = "html",
-    with_delete_button: bool = True
+    entities: Optional[list] = None
 ) -> dict:
     """
     Отправляет пост (превью) в чат с поддержкой фото, видео и media group.
@@ -145,26 +146,19 @@ async def send_post_preview(
         {'success': bool, 'message_ids': list[int], 'error': str | None}
     """
     try:
-        keyboard = None
-        if with_delete_button:
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🗑 Удалить", callback_data="delete_message")]
-            ])
-        
         message_ids = []
-        
+
         # Если нет медиа - просто текст
         if not media_files:
             msg = await bot.send_message(
                 chat_id=chat_id,
                 text=text,
-                parse_mode=parse_mode,
-                reply_markup=keyboard
+                parse_mode=parse_mode
             )
-            return {'success': True, 'message_ids': [msg.message_id]}
-        
+            message_ids.append(msg.message_id)
+
         # Одиночный файл
-        if len(media_files) == 1:
+        elif len(media_files) == 1:
             file_info = media_files[0]
             file_data = file_info['data']
             file_name = file_info.get('name', 'file')
@@ -177,110 +171,85 @@ async def send_post_preview(
                     chat_id=chat_id,
                     video=input_file,
                     caption=text,
-                    parse_mode=parse_mode,
-                    reply_markup=keyboard
+                    parse_mode=parse_mode
                 )
             else:
                 msg = await bot.send_photo(
                     chat_id=chat_id,
                     photo=input_file,
                     caption=text,
-                    parse_mode=parse_mode,
-                    reply_markup=keyboard
+                    parse_mode=parse_mode
                 )
             
-            return {'success': True, 'message_ids': [msg.message_id]}
-        
-        # Media group (несколько файлов)
-        media_group = []
-        for idx, file_info in enumerate(media_files):
-            file_data = file_info['data']
-            file_name = file_info.get('name', f'file_{idx}')
-            file_type = file_info.get('type', 'photo')
+            message_ids.append(msg.message_id)
+        else:
+            # Media group (несколько файлов)
+            media_group = []
+            for idx, file_info in enumerate(media_files):
+                file_data = file_info['data']
+                file_name = file_info.get('name', f'file_{idx}')
+                file_type = file_info.get('type', 'photo')
+                
+                input_file = BufferedInputFile(file_data, filename=file_name)
+                
+                # Caption только для первого элемента
+                caption = text if idx == 0 else None
+                pm = parse_mode if idx == 0 else None
+                
+                if file_type == 'video':
+                    media_group.append(InputMediaVideo(
+                        media=input_file,
+                        caption=caption,
+                        parse_mode=pm
+                    ))
+                else:
+                    media_group.append(InputMediaPhoto(
+                        media=input_file,
+                        caption=caption,
+                        parse_mode=pm
+                    ))
             
-            input_file = BufferedInputFile(file_data, filename=file_name)
-            
-            # Caption только для первого элемента
-            caption = text if idx == 0 else None
-            pm = parse_mode if idx == 0 else None
-            
-            if file_type == 'video':
-                media_group.append(InputMediaVideo(
-                    media=input_file,
-                    caption=caption,
-                    parse_mode=pm
-                ))
-            else:
-                media_group.append(InputMediaPhoto(
-                    media=input_file,
-                    caption=caption,
-                    parse_mode=pm
-                ))
-        
-        # Отправляем media group
-        messages = await bot.send_media_group(
-            chat_id=chat_id,
-            media=media_group
-        )
-        message_ids = [m.message_id for m in messages]
-        
-        # Для media group добавляем кнопку удаления отдельным сообщением
-        if with_delete_button and message_ids:
-            ids_str = ' '.join(map(str, message_ids))
-            delete_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(
-                    text="🗑 Удалить", 
-                    callback_data=f"delete_message {ids_str}"
-                )]
-            ])
-            control_msg = await bot.send_message(
+            # Отправляем media group
+            messages = await bot.send_media_group(
                 chat_id=chat_id,
-                text="👆 Пост выше",
-                reply_markup=delete_keyboard
+                media=media_group
             )
-            message_ids.append(control_msg.message_id)
+            message_ids = [m.message_id for m in messages]
         
+        
+        for entity in entities or []:
+            entity_type = entity.get('type')
+
+            if entity_type == 'poll':
+                entity_data = entity.get('data', {})
+                res = await send_poll_preview(
+                    bot=bot,
+                    chat_id=chat_id,
+                    entity_data=entity_data
+                )
+                print(res)
+                if isinstance(res.get('message_id'), int):
+                    message_ids.append(res.get('message_id'))
+
+        ids_str = ' '.join(map(str, message_ids))
+        delete_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text="🗑 Удалить", 
+                callback_data=f"delete_message {ids_str}"
+            )]
+        ])
+        control_msg = await bot.send_message(
+            chat_id=chat_id,
+            text="👆 Удалить все сообщения превью",
+            reply_markup=delete_keyboard
+        )
+        message_ids.append(control_msg.message_id)
+
         return {'success': True, 'message_ids': message_ids}
     
     except Exception as e:
         logger.error(f"Error sending post preview: {e}", exc_info=True)
         return {'success': False, 'message_ids': [], 'error': str(e)}
-
-
-async def send_post_to_channel(
-    bot: Bot,
-    chat_id: Union[int, str],
-    text: str,
-    media_files: Optional[list[dict]] = None,
-    parse_mode: str = "html"
-) -> dict:
-    """
-    Отправляет пост в канал (без кнопок).
-    
-    Args:
-        bot: Telegram Bot instance
-        chat_id: ID канала
-        text: Текст поста
-        media_files: Список файлов [{'data': bytes, 'name': str, 'type': str}, ...]
-        parse_mode: Режим парсинга текста
-    
-    Returns:
-        {'success': bool, 'message_id': int | None, 'error': str | None}
-    """
-    result = await send_post_preview(
-        bot=bot,
-        chat_id=chat_id if isinstance(chat_id, int) else int(chat_id),
-        text=text,
-        media_files=media_files,
-        parse_mode=parse_mode,
-        with_delete_button=False
-    )
-    
-    return {
-        'success': result['success'],
-        'message_id': result['message_ids'][0] if result['message_ids'] else None,
-        'error': result.get('error')
-    }
 
 
 async def prepare_and_send_preview(
@@ -291,7 +260,8 @@ async def prepare_and_send_preview(
     client_key: Optional[str] = None,
     task_id: Optional[Union[int, str]] = None,
     post_images: Optional[list[str]] = None,
-    cached_files: Optional[dict] = None
+    cached_files: Optional[dict] = None,
+    card_id: Optional[str] = None,
 ) -> dict:
     """
     Высокоуровневая функция для подготовки и отправки превью.
@@ -325,10 +295,17 @@ async def prepare_and_send_preview(
             if cached_files is not None:
                 cached_files[cache_key] = media_files
     
+    entities = None
+    if card_id and client_key:
+        entities_result = await get_entities_for_client(card_id, client_key)
+        if entities_result['success'] and entities_result['entities']:
+            entities = entities_result['entities']
+
     # Отправляем
     return await send_post_preview(
         bot=bot,
         chat_id=chat_id,
         text=post_text,
-        media_files=media_files
+        media_files=media_files,
+        entities=entities
     )

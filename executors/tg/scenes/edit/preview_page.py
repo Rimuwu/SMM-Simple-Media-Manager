@@ -160,32 +160,16 @@ class PreviewPage(Page):
                 client_key=client,
                 task_id=task_id,
                 post_images=post_images,
-                cached_files=self._cached_files
+                cached_files=self._cached_files,
+                card_id=card_id
             )
-            
+
             if result['success']:
                 await callback.answer("✅ Предпросмотр показан")
-                
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🗑 Удалить", callback_data="delete_message")]
-                ])
-                
-                # Отправляем entities для этого клиента
-                if card_id:
-                    entities_result = await get_entities_for_client(card_id, client)
-                    if entities_result['success'] and entities_result['entities']:
-                        for entity in entities_result['entities']:
-                            entity_type = entity.get('type')
-                            if entity_type == 'poll':
-                                entity_data = entity.get('data', {})
-                                await send_poll_preview(
-                                    bot=self.scene.__bot__,
-                                    chat_id=callback.message.chat.id,
-                                    entity_data=entity_data,
-                                    reply_markup=keyboard
-                                )
+
             else:
-                await callback.answer(f"❌ Ошибка: {result.get('error', 'unknown')[:50]}")
+                await callback.answer(f"❌ Ошибка: {result.get('error', 'unknown')[:50]}", 
+                                      show_alert=True)
         
         except Exception as e:
             print(f"Error sending preview: {e}")

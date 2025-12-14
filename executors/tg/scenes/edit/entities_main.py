@@ -1,4 +1,3 @@
-"""Independent entities management page"""
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
@@ -30,15 +29,13 @@ class EntitiesMainPage(Page):
         clients = card.get('clients', [])
         if not clients:
             return 'ℹ️ _Сначала выберите каналы для публикации_'
-        
-        # If no client selected yet, use first
+
         if not self.selected_client:
             self.selected_client = clients[0]
-        
+
         client_info = CLIENTS.get(self.selected_client, {})
         client_name = client_info.get('label', self.selected_client)
-        
-        # Load entities for current client
+
         task_id = self.scene.data['scene'].get('task_id')
         if not task_id:
             return '❌ Задача не найдена'

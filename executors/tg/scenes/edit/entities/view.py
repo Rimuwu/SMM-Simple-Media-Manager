@@ -24,10 +24,15 @@ class EntityViewPage(Page):
         if not e:
             return '❌ Entity не найден'
 
-        txt = [f"Тип: {e.get('type')}", f"Имя: {e.get('name')}", f"ID: {e.get('id')}", f"Создано: {e.get('created_at')}"]
+        txt = [
+            f"Тип: {e.get('type')}", 
+            f"Имя: {e.get('name')}", 
+            f"ID: {e.get('id')}",
+            f"Создано: {e.get('created_at')}"
+        ]
         data = e.get('data') or {}
+
         if e.get('type') == 'poll':
-            txt.append('---')
             txt.append(f"Вопрос: {data.get('question')}")
             opts = data.get('options', [])
             for i, o in enumerate(opts, 1):

@@ -7,7 +7,6 @@ from modules.api_client import brain_api
 class PollCreatePage(TextTypeScene):
     __page_name__ = 'entities-poll-create'
     __scene_key__ = 'poll_text_input'
-    row_width = 3
 
     def __after_init__(self):
         super().__after_init__()
@@ -43,29 +42,28 @@ class PollCreatePage(TextTypeScene):
     async def content_worker(self) -> str:
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
         edit_mode = self.scene.data.get(self.__page_name__, {}).get('edit_mode')
-        
-        # If in edit mode, show input prompt
+        text_input = self.scene.data['scene'].get('poll_text_input', '').strip()
+
         if edit_mode == 'question':
             question = poll_data.get('question') or 'Не установлен'
-            return f"✏️ **Редактирование вопроса**\n\nТекущий вопрос: {question}\n\nВведите новый вопрос:"
+            return f"✏️ *Редактирование вопроса*\nТекущий вопрос: {question}\n\nВведите новый вопрос: {text_input}"
 
         elif edit_mode == 'add_option':
-            text = poll_data.get('options', [])
-            return f"➕ **Добавить вариант ответа**\n\nВведите новый вариант: {text}"
+            return f"➕ *Добавить вариант ответа*\n\nВведите новый вариант: {text_input}"
 
         elif edit_mode == 'edit_option':
             idx = self.scene.data.get(self.__page_name__, {}).get('edit_option_idx')
             options = poll_data.get('options', [])
+
             if idx is not None and 0 <= idx < len(options):
                 current = options[idx]
-                return f"✏️ **Редактирование варианта {idx + 1}**\n\nТекущий текст: {current}\n\nВведите новый текст:"
+                return f"✏️ *Редактирование варианта {idx + 1}*\n\nТекущий текст: {current}\n\nВведите новый текст: {text_input}"
             return "❌ Вариант не найден"
         
         elif edit_mode == 'explanation':
             explanation = poll_data.get('explanation') or 'Не установлено'
-            return f"💬 **Редактирование объяснения**\n\nТекущее объяснение: {explanation}\n\nВведите новое объяснение:"
-        
-        # Default view mode - show poll structure
+            return f"💬 *Редактирование объяснения*\n\nТекущее объяснение: {explanation}\n\nВведите новое объяснение: {text_input}"
+
         question = poll_data.get('question') or 'Вопрос не установлен'
         is_anonymous = poll_data.get('is_anonymous', True)
         poll_type = poll_data.get('type', 'regular')
@@ -78,14 +76,14 @@ class PollCreatePage(TextTypeScene):
             options_text = '\n'.join(f"{i+1}. {opt}" for i, opt in enumerate(options))
         else:
             options_text = 'Нет вариантов'
-        
-        content = "🗳 **Создание опроса**\n\n"
-        content += f"❓ **Вопрос:** {question}\n\n"
-        content += "**Варианты ответов:**\n"
+
+        content = "🗳 *Создание опроса*\n\n"
+        content += f"❓ *Вопрос:* {question}\n\n"
+        content += "*Варианты ответов:*\n"
         content += options_text + "\n\n"
-        content += "⚙️ **Настройки:**\n"
+        content += "⚙️ *Настройки:*\n"
         content += f"• Анонимно: {'✅' if is_anonymous else '❌'}\n"
-        content += f"• Тип: {poll_type}\n"
+        content += f"• Тип: {'Опрос' if poll_type == 'regular' else 'Викторина'}\n"
         content += f"• Несколько ответов: {'✅' if allows_multiple else '❌'}\n"
         
         if poll_type == 'quiz' and correct_option is not None:
@@ -146,7 +144,8 @@ class PollCreatePage(TextTypeScene):
         for i, opt in enumerate(options):
             buttons.append({
                 'text': f'{opt[:20]}',
-                'callback_data': callback_generator(self.scene.__scene_name__, 'edit_option', str(i))
+                'callback_data': callback_generator(self.scene.__scene_name__, 'edit_option', str(i)),
+                'next_line': True
             })
             buttons.append({
                 'text': '🗑',
@@ -158,7 +157,7 @@ class PollCreatePage(TextTypeScene):
                     'text': '⬆️',
                     'callback_data': callback_generator(self.scene.__scene_name__, 'move_up', str(i))
                 })
-            
+
             if i < len(options) - 1:
                 buttons.append({
                     'text': '⬇️',
@@ -256,11 +255,11 @@ class PollCreatePage(TextTypeScene):
         if len(args) < 2:
             await callback.answer('❌ Ошибка')
             return
-        
+
         idx = int(args[1])
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
         options = poll_data.get('options', [])
-        
+
         if 0 <= idx < len(options):
             options.pop(idx)
             await self.scene.update_key(self.__page_name__, 'data', poll_data)
@@ -275,11 +274,11 @@ class PollCreatePage(TextTypeScene):
         if len(args) < 2:
             await callback.answer('❌ Ошибка')
             return
-        
+
         idx = int(args[1])
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
         options = poll_data.get('options', [])
-        
+
         if idx > 0 and idx < len(options):
             options[idx-1], options[idx] = options[idx], options[idx-1]
             await self.scene.update_key(self.__page_name__, 'data', poll_data)
@@ -294,11 +293,11 @@ class PollCreatePage(TextTypeScene):
         if len(args) < 2:
             await callback.answer('❌ Ошибка')
             return
-        
+
         idx = int(args[1])
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
         options = poll_data.get('options', [])
-        
+
         if idx >= 0 and idx < len(options) - 1:
             options[idx], options[idx+1] = options[idx+1], options[idx]
             await self.scene.update_key(self.__page_name__, 'data', poll_data)
@@ -311,25 +310,38 @@ class PollCreatePage(TextTypeScene):
     async def settings(self, callback, args):
         """Show settings options"""
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        
+
         is_anon = poll_data.get('is_anonymous', True)
         poll_type = poll_data.get('type', 'regular')
         allows_multi = poll_data.get('allows_multiple_answers', False)
-        
-        settings_text = f"""⚙️ **Настройки опроса**
 
-• **Анонимно:** {'✅ Да' if is_anon else '❌ Нет'}
-• **Тип:** {poll_type}
-• **Несколько ответов:** {'✅ Да' if allows_multi else '❌ Нет'}"""
-        
+        settings_text = (f"⚙️ *Настройки опроса*\n"
+                         f"• *Анонимно:* {'✅ Да' if is_anon else '❌ Нет'}\n"
+                         f"• *Тип:* {'Опрос' if poll_type == 'regular' else 'Викторина'}\n"
+                         )
+
         keyboard = [
-            [{'text': '🔄 Анонимно', 'callback_data': callback_generator(self.scene.__scene_name__, 'toggle_anonymous')}],
-            [{'text': '📊 Тип опроса', 'callback_data': callback_generator(self.scene.__scene_name__, 'toggle_type')}],
-            [{'text': '☑️ Несколько ответов', 'callback_data': callback_generator(self.scene.__scene_name__, 'toggle_multiple')}],
-            [{'text': '⬅️ Назад', 'callback_data': callback_generator(self.scene.__scene_name__, 'back_to_main')}]
+            [{'text': '📊 Тип опроса',
+              'callback_data':
+                  callback_generator(self.scene.__scene_name__, 'toggle_type')}],
+            [{'text': '🔄 Анонимно',
+              'callback_data':
+                  callback_generator(self.scene.__scene_name__, 'toggle_anonymous')}],
+            [{'text': '⬅️ Назад',
+              'callback_data':
+                  callback_generator(self.scene.__scene_name__, 'back_to_main')}]
         ]
-        
-        await callback.message.edit_text(settings_text, reply_markup={'inline_keyboard': keyboard}, parse_mode='Markdown')
+
+        if poll_type == 'regular':
+            settings_text += f"• *Несколько ответов:* {'✅ Да' if allows_multi else '❌ Нет'}"
+            keyboard.insert(2, [{
+                'text': '☑️ Несколько ответов',
+                'callback_data':
+                    callback_generator(self.scene.__scene_name__, 'toggle_multiple')}]
+            )
+
+        await callback.message.edit_text(
+            settings_text, reply_markup={'inline_keyboard': keyboard}, parse_mode='Markdown')
 
     @Page.on_callback('toggle_anonymous')
     async def toggle_anonymous(self, callback, args):
@@ -345,11 +357,14 @@ class PollCreatePage(TextTypeScene):
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
         current_type = poll_data.get('type', 'regular')
         poll_data['type'] = 'quiz' if current_type == 'regular' else 'regular'
-        
+
         if poll_data['type'] == 'regular':
             poll_data['correct_option_id'] = None
             poll_data['explanation'] = None
-        
+
+        elif poll_data['type'] == 'quiz':
+            poll_data['allows_multiple_answers'] = None
+
         await self.scene.update_key(self.__page_name__, 'data', poll_data)
         await self.settings(callback, args)
 
@@ -357,7 +372,9 @@ class PollCreatePage(TextTypeScene):
     async def toggle_multiple(self, callback, args):
         """Toggle multiple answers"""
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        poll_data['allows_multiple_answers'] = not poll_data.get('allows_multiple_answers', False)
+        poll_data['allows_multiple_answers'] = not poll_data.get(
+            'allows_multiple_answers', False)
+
         await self.scene.update_key(self.__page_name__, 'data', poll_data)
         await self.settings(callback, args)
 
@@ -366,18 +383,24 @@ class PollCreatePage(TextTypeScene):
         """Set correct answer for quiz"""
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
         options = poll_data.get('options', [])
-        
+
         if not options:
             await callback.answer('❌ Нет вариантов ответов')
             return
-        
+
         keyboard = [
-            [{'text': f'{i+1}. {opt[:20]}', 'callback_data': callback_generator(self.scene.__scene_name__, 'select_correct', str(i))}]
+            [{'text': f'{i+1}. {opt[:20]}',
+              'callback_data': callback_generator(self.scene.__scene_name__, 'select_correct', str(i))
+              }]
             for i, opt in enumerate(options)
         ]
-        keyboard.append([{'text': '⬅️ Назад', 'callback_data': callback_generator(self.scene.__scene_name__, 'back_to_main')}])
-        
-        await callback.message.edit_text('🎯 **Выберите правильный ответ:**', reply_markup={'inline_keyboard': keyboard}, parse_mode='Markdown')
+        keyboard.append([
+            {'text': '⬅️ Назад',
+             'callback_data': callback_generator(self.scene.__scene_name__, 'back_to_main')
+             }]
+        )
+
+        await callback.message.edit_text('🎯 *Выберите правильный ответ:*', reply_markup={'inline_keyboard': keyboard}, parse_mode='Markdown')
 
     @Page.on_callback('select_correct')
     async def select_correct(self, callback, args):
@@ -385,7 +408,7 @@ class PollCreatePage(TextTypeScene):
         if len(args) < 2:
             await callback.answer('❌ Ошибка')
             return
-        
+
         idx = int(args[1])
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
         poll_data['correct_option_id'] = idx
@@ -404,11 +427,15 @@ class PollCreatePage(TextTypeScene):
         """Back to main poll page"""
         await self.scene.update_message()
 
+    @Page.on_callback('back')
+    async def back(self, callback, args):
+        await self.scene.update_page('entities-main')
+
     @Page.on_callback('save_poll')
     async def save_poll(self, callback, args):
         """Save poll to database"""
         poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        
+
         if not poll_data.get('question'):
             await callback.answer('❌ Установите вопрос')
             return
@@ -440,7 +467,7 @@ class PollCreatePage(TextTypeScene):
             },
             'name': poll_data['question'][:50]
         }
-        
+
         if poll_data.get('type') == 'quiz':
             if poll_data.get('correct_option_id') is not None:
                 payload['data']['correct_option_id'] = poll_data['correct_option_id']
@@ -449,233 +476,9 @@ class PollCreatePage(TextTypeScene):
 
         resp, status = await brain_api.post('/card/add-entity', data=payload)
         if status == 200 and resp:
+
             await self.scene.update_key(self.__page_name__, 'data', {})
             await self.scene.update_page('entities-main')
             await callback.answer('✅ Опрос создан')
         else:
             await callback.answer('❌ Ошибка создания опроса')
-
-    @Page.on_callback('back')
-    async def back(self, callback, args):
-        """Back to entities main page"""
-        await self.scene.update_key(self.__page_name__, 'data', {})
-        await self.scene.update_page('entities-main')
-        await self.scene.update_message()
-
-    @Page.on_callback('delete_option')
-    async def delete_option(self, callback, args):
-        """Delete option at index"""
-        if len(args) < 2:
-            await callback.answer('❌ Ошибка')
-            return
-        
-        idx = int(args[1])
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        options = poll_data.get('options', [])
-        
-        if 0 <= idx < len(options):
-            options.pop(idx)
-            await self.scene.update_key(self.__page_name__, 'data', poll_data)
-            await callback.answer(f'✅ Вариант удалён')
-            await self.scene.update_message()
-        else:
-            await callback.answer('❌ Ошибка')
-
-    @Page.on_callback('move_up')
-    async def move_up(self, callback, args):
-        """Move option up"""
-        if len(args) < 2:
-            await callback.answer('❌ Ошибка')
-            return
-        
-        idx = int(args[1])
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        options = poll_data.get('options', [])
-        
-        if idx > 0 and idx < len(options):
-            options[idx-1], options[idx] = options[idx], options[idx-1]
-            await self.scene.update_key(self.__page_name__, 'data', poll_data)
-            await callback.answer('✅ Перемещено')
-            await self.scene.update_message()
-        else:
-            await callback.answer('❌ Ошибка')
-
-    @Page.on_callback('move_down')
-    async def move_down(self, callback, args):
-        """Move option down"""
-        if len(args) < 2:
-            await callback.answer('❌ Ошибка')
-            return
-        
-        idx = int(args[1])
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        options = poll_data.get('options', [])
-        
-        if idx >= 0 and idx < len(options) - 1:
-            options[idx], options[idx+1] = options[idx+1], options[idx]
-            await self.scene.update_key(self.__page_name__, 'data', poll_data)
-            await callback.answer('✅ Перемещено')
-            await self.scene.update_message()
-        else:
-            await callback.answer('❌ Ошибка')
-
-    @Page.on_callback('settings')
-    async def settings(self, callback, args):
-        """Show settings options"""
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        
-        is_anon = poll_data.get('is_anonymous', True)
-        poll_type = poll_data.get('type', 'regular')
-        allows_multi = poll_data.get('allows_multiple_answers', False)
-        
-        settings_text = f"""⚙️ **Настройки опроса**
-
-• **Анонимно:** {'✅ Да' if is_anon else '❌ Нет'}
-• **Тип:** {poll_type}
-• **Несколько ответов:** {'✅ Да' if allows_multi else '❌ Нет'}"""
-        
-        keyboard = [
-            [{'text': '🔄 Анонимно', 'callback_data': callback_generator(self.scene.__scene_name__, 'toggle_anonymous')}],
-            [{'text': '📊 Тип опроса', 'callback_data': callback_generator(self.scene.__scene_name__, 'toggle_type')}],
-            [{'text': '☑️ Несколько ответов', 'callback_data': callback_generator(self.scene.__scene_name__, 'toggle_multiple')}],
-            [{'text': '⬅️ Назад', 'callback_data': callback_generator(self.scene.__scene_name__, 'back_to_main')}]
-        ]
-        
-        await callback.message.edit_text(settings_text, reply_markup={'inline_keyboard': keyboard}, parse_mode='Markdown')
-
-    @Page.on_callback('toggle_anonymous')
-    async def toggle_anonymous(self, callback, args):
-        """Toggle anonymous mode"""
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        poll_data['is_anonymous'] = not poll_data.get('is_anonymous', True)
-        await self.scene.update_key(self.__page_name__, 'data', poll_data)
-        await self.settings(callback, args)
-
-    @Page.on_callback('toggle_type')
-    async def toggle_type(self, callback, args):
-        """Toggle between regular and quiz"""
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        current_type = poll_data.get('type', 'regular')
-        poll_data['type'] = 'quiz' if current_type == 'regular' else 'regular'
-        
-        # Reset quiz-specific fields when switching to regular
-        if poll_data['type'] == 'regular':
-            poll_data['correct_option_id'] = None
-            poll_data['explanation'] = None
-        
-        await self.scene.update_key(self.__page_name__, 'data', poll_data)
-        await self.settings(callback, args)
-
-    @Page.on_callback('toggle_multiple')
-    async def toggle_multiple(self, callback, args):
-        """Toggle multiple answers"""
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        poll_data['allows_multiple_answers'] = not poll_data.get('allows_multiple_answers', False)
-        await self.scene.update_key(self.__page_name__, 'data', poll_data)
-        await self.settings(callback, args)
-
-    @Page.on_callback('set_correct_answer')
-    async def set_correct_answer(self, callback, args):
-        """Set correct answer for quiz"""
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        options = poll_data.get('options', [])
-        
-        if not options:
-            await callback.answer('❌ Нет вариантов ответов')
-            return
-        
-        keyboard = [
-            [{'text': f'{i+1}. {opt[:20]}', 'callback_data': callback_generator(self.scene.__scene_name__, 'select_correct', str(i))}]
-            for i, opt in enumerate(options)
-        ]
-        keyboard.append([{'text': '⬅️ Назад', 'callback_data': callback_generator(self.scene.__scene_name__, 'back_to_main')}])
-        
-        await callback.message.edit_text('🎯 **Выберите правильный ответ:**', reply_markup={'inline_keyboard': keyboard}, parse_mode='Markdown')
-
-    @Page.on_callback('select_correct')
-    async def select_correct(self, callback, args):
-        """Select correct answer"""
-        if len(args) < 2:
-            await callback.answer('❌ Ошибка')
-            return
-        
-        idx = int(args[1])
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        poll_data['correct_option_id'] = idx
-        await self.scene.update_key(self.__page_name__, 'data', poll_data)
-        await callback.answer(f'✅ Правильный ответ установлен: вариант {idx+1}')
-        await self.scene.update_message()
-
-    @Page.on_callback('edit_explanation')
-    async def edit_explanation(self, callback, args):
-        """Switch to explanation editing mode"""
-        await self.scene.update_key(self.__page_name__, 'edit_mode', 'explanation')
-        await self.scene.update_page('poll-edit-text')
-
-    @Page.on_callback('back_to_main')
-    async def back_to_main(self, callback, args):
-        """Back to main poll page"""
-        await self.scene.update_message()
-
-    @Page.on_callback('save_poll')
-    async def save_poll(self, callback, args):
-        """Save poll to database"""
-        poll_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
-        
-        # Validate required fields
-        if not poll_data.get('question'):
-            await callback.answer('❌ Установите вопрос')
-            return
-        
-        if len(poll_data.get('options', [])) < 2:
-            await callback.answer('❌ Минимум 2 варианта ответа')
-            return
-        
-        task_id = self.scene.data['scene'].get('task_id')
-        if not task_id:
-            await callback.answer('❌ Задача не найдена')
-            return
-
-        selected_client = self.scene.data.get('entities-main', {}).get('selected_client')
-        if not selected_client:
-            await callback.answer('❌ Клиент не выбран')
-            return
-
-        # Prepare payload
-        payload = {
-            'card_id': task_id,
-            'client_id': selected_client,
-            'entity_type': 'poll',
-            'data': {
-                'question': poll_data['question'],
-                'options': poll_data['options'],
-                'is_anonymous': poll_data.get('is_anonymous', True),
-                'type': poll_data.get('type', 'regular'),
-                'allows_multiple_answers': poll_data.get('allows_multiple_answers', False),
-            },
-            'name': poll_data['question'][:50]
-        }
-        
-        # Add quiz-specific fields if needed
-        if poll_data.get('type') == 'quiz':
-            if poll_data.get('correct_option_id') is not None:
-                payload['data']['correct_option_id'] = poll_data['correct_option_id']
-            if poll_data.get('explanation'):
-                payload['data']['explanation'] = poll_data['explanation']
-
-        resp, status = await brain_api.post('/card/add-entity', data=payload)
-        if status == 200 and resp:
-            # Clear poll data
-            await self.scene.update_key(self.__page_name__, 'data', {})
-            await self.scene.update_page('entities-main')
-            await callback.answer('✅ Опрос создан')
-        else:
-            await callback.answer('❌ Ошибка создания опроса')
-
-    @Page.on_callback('back')
-    async def back(self, callback, args):
-        """Back to entities main page"""
-        await self.scene.update_key(self.__page_name__, 'data', {})
-        await self.scene.update_page('entities-main')
-        await self.scene.update_message()
-

@@ -304,7 +304,8 @@
                 "row_width": 2
             },
             "entities-poll-create": {
-                "content": "🗳 **Создание опроса**\n\n{content}"
+                "content": "🗳 **Создание опроса**\n\n{content}",
+                "row_width": 4
             },
             "entities-view": {
                 "content": "🔍 **Просмотр entity**\n\n{entity_text}",
