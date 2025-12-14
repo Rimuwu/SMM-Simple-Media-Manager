@@ -231,7 +231,7 @@
                 "to_pages": {
                     "main-page": "⬅️ Назад"
                 },
-                "check_busy_slots": false
+                "check_busy_slots": true
             },
             "date-picker": {
                 "content": " 📅 *Календарь*\n"

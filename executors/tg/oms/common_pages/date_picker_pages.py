@@ -3,6 +3,12 @@ from tg.oms.utils import callback_generator
 from modules.api_client import brain_api
 from datetime import datetime, timedelta
 import calendar
+ 
+# Русские названия месяцев в родительном падеже для формата «День месяц год»
+MONTHS_RU = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+]
 
 
 class DatePickerPage(Page):
@@ -15,7 +21,32 @@ class DatePickerPage(Page):
         # busy_minutes -> set(int), busy_hour -> (date_iso, hour), now/min_delta
         self._cache: dict = {}
 
+    def _format_date(self, date_or_iso) -> str:
+        """Возвращает строку в формате 'День месяц год' (например, '14 декабря 2025').
+        Принимает datetime или ISO-строку 'YYYY-MM-DD'/'YYYY-MM-DDTHH:MM:SS'.
+        """
+        if isinstance(date_or_iso, str):
+            try:
+                dt = datetime.fromisoformat(date_or_iso)
+            except Exception:
+                return date_or_iso
+        elif isinstance(date_or_iso, datetime):
+            dt = date_or_iso
+        else:
+            try:
+                dt = datetime.fromisoformat(str(date_or_iso))
+            except Exception:
+                return str(date_or_iso)
+
+        return f"{dt.day} {MONTHS_RU[dt.month-1]} {dt.year}"
+
     async def page_enter(self, **kwargs) -> None:
+        # Логируем режим проверки занятости при входе на страницу
+        picker_meta = self.scene.data.get('scene', {}).get('date_picker', {}) if isinstance(getattr(self.scene, 'data', None), dict) else {}
+        check_busy = picker_meta.get('check_busy_slots', True)
+        state = 'ВКЛ' if check_busy else 'ВЫКЛ'
+        print(f"[date-picker] Проверять занятость слотов: {state}")
+
         return await super().page_enter(**kwargs)
 
     async def data_preparate(self) -> None:
@@ -115,20 +146,24 @@ class DatePickerPage(Page):
         hour = self.scene.get_key(self.__page_name__, 'selected_hour')
         if sel:
             try:
-                dt = datetime.fromisoformat(sel)
-                header = f"Просматривается дата: {dt.strftime('%d.%m.%Y')}\n\n"
+                header = f"Просматривается дата: {self._format_date(sel)}\n\n"
             except Exception:
                 header = "📅 Выбранная дата\n\n"
         else:
             ym = self.scene.get_key(self.__page_name__, 'year_month')
             year, month = ym
-            header = f"Просматривается дата: {year}-{month:02d}\n\n"
+            # Показываем месяц и год при просмотре календаря
+            header = f"Просматривается дата: {MONTHS_RU[month-1].capitalize()} {year}\n\n"
 
         # Легенда для значков
         legend = (
             "❌ — время прошло\n"
-            "⭕ — время занято\n"
-            "⬜ — весь час / день занят\n\n"
+            "⭕ — день полностью занят\n"
+            "⬜ — час полностью занят\n"
+            "🟩 — свободно\n"
+            "🟨 — немного занято\n"
+            "🟧 — частично занято\n"
+            "🟥 — почти заполнено\n\n"
         )
 
         if hour is not None:
@@ -194,8 +229,20 @@ class DatePickerPage(Page):
                             'callback_data': ' '
                         })
                     else:
+                        # Определим степень заполненности дня (в минутах)
+                        day_busy_minutes = sum(1 for dt in busy if dt.date() == day_dt.date())
+                        # Цветовой квадрат в зависимости от степени занятости дня
+                        if day_busy_minutes == 0:
+                            emoji = '🟩'
+                        elif day_busy_minutes <= 24 * 60 * 0.25:
+                            emoji = '🟨'
+                        elif day_busy_minutes <= 24 * 60 * 0.5:
+                            emoji = '🟧'
+                        else:
+                            emoji = '🟥'
+
                         buttons.append({
-                            'text': f'{day}',
+                            'text': f'{emoji} {day}',
                             'callback_data': callback_generator(self.scene.__scene_name__, 'pick_date', f"{year}-{month:02d}-{day:02d}")
                         })
 
@@ -205,7 +252,7 @@ class DatePickerPage(Page):
                 'callback_data': callback_generator(self.scene.__scene_name__, 'prev_month')
             })
             buttons.append({
-                'text': f'{datetime.now().date()}',
+                'text': self._format_date(datetime.now()),
                 'callback_data': callback_generator(self.scene.__scene_name__, 'now')
             })
             buttons.append({
@@ -228,7 +275,7 @@ class DatePickerPage(Page):
             self.row_width = 4
 
             buttons.append({
-                'text': f'Выбрано: {sel}',
+                'text': f'Выбрано: {self._format_date(sel)}',
                 'callback_data': ' ',
                 'ignore_row': True
             })
@@ -254,8 +301,18 @@ class DatePickerPage(Page):
                         'callback_data': ' '
                     })
                 else:
+                    # Цветовой квадрат в зависимости от степени занятости часа
+                    if hour_busy == 0:
+                        emoji = '🟩'
+                    elif hour_busy <= 15:
+                        emoji = '🟨'
+                    elif hour_busy <= 30:
+                        emoji = '🟧'
+                    else:
+                        emoji = '🟥'
+
                     buttons.append({
-                        'text': f'{hour:02d}',
+                        'text': f'{emoji} {hour:02d}',
                         'callback_data': callback_generator(self.scene.__scene_name__, 'pick_hour', str(hour))
                     })
 
