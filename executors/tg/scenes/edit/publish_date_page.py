@@ -1,33 +1,30 @@
-from tg.oms import Page
+from datetime import datetime
+from tg.oms.common_pages.date_input_page import DateInputPage
 from global_modules.brain_client import brain_client
 
-class PublishDateSetterPage(Page):
-    
-    __page_name__ = 'publish-date-setter'
-    
-    @Page.on_text('not_handled')
-    async def not_handled(self, message):
-        self.clear_content()
-        self.content += f'\n\n❗️ Некорректный формат даты. Попробуйте еще раз.'
-        await self.scene.update_message()
+class PublishDateSetterPage(DateInputPage):
 
-    @Page.on_text('time')
-    async def handle_time(self, message, value):
-        # Сохраняем дату в ISO формате
-        iso_date = value.isoformat()
-        
-        await self.scene.update_key('scene', 'send_time', iso_date)
-        
-        # Форматируем для отображения
-        display_date = value.strftime('%d.%m.%Y %H:%M')
-        await self.scene.update_key('scene', 'publish_date', display_date)
-        
-        # Обновляем карточку
+    __page_name__ = 'publish-date-setter'
+    __scene_key__ = 'publish_date'
+    __next_page__ = 'main'
+    check_busy_slots = True
+    update_to_db = True
+
+    async def update_to_database(self, publish_date: datetime) -> bool:
+        """Обновляем дату публикации в карточке"""
         task_id = self.scene.data['scene'].get('task_id')
-        if task_id:
-            await brain_client.update_card(
-                card_id=task_id,
-                send_time=iso_date
-            )
-        
-        await self.scene.update_page('main-page')
+
+        # Обновляем дату публикации в карточке
+        res = await brain_client.update_card(
+            card_id=task_id,
+            send_time=publish_date.isoformat()
+        )
+
+        if res is not None:
+            # Обновляем данные задачи
+            await self.scene.update_key('scene', self.__scene_key__, 
+                                        publish_date.isoformat()
+                                        )
+            return True
+
+        return False

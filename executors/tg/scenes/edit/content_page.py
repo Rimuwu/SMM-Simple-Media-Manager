@@ -1,7 +1,6 @@
 from tg.oms.models.text_page import TextTypeScene
-from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
-from aiogram.types import Message, MessageEntity
+from aiogram.types import Message
 import re
 from modules.api_client import brain_api
 
@@ -9,12 +8,62 @@ class ContentSetterPage(TextTypeScene):
     
     __page_name__ = 'content-setter'
     __scene_key__ = 'content'
-    __next_page__ = 'main-page'
     checklist = False
-    
+
     # Режим установки контента: 'all' (общий) или ключ конкретного клиента
     content_mode = 'all'
+    __max_length__ = 1024
     
+    async def _calculate_tags_length(self) -> int:
+        """
+        Вычисляет длину всех тегов с учетом суффиксов клиента.
+        Возвращает общую длину тегов, которую нужно вычесть из max_length.
+        """
+        card = await self.scene.get_card_data()
+        if not card:
+            return 0
+        
+        tags = card.get('tags', [])
+        if not tags:
+            return 0
+        
+        # Определяем клиента для получения суффикса
+        if self.content_mode == 'all':
+            # Если общий режим, берем суффикс первого клиента
+            clients = card.get('clients', [])
+            if not clients:
+                return 0
+            client_key = clients[0]
+        else:
+            client_key = self.content_mode
+        
+        # Получаем суффикс клиента
+        from modules.constants import CLIENTS, SETTINGS
+        tag_suffix = CLIENTS.get(client_key, {}).get('tag_suffix', '')
+        
+        # Подсчитываем длину всех тегов
+        total_length = 0
+        for tag in tags:
+            # Получаем отображаемое имя тега из настроек
+            tag_info = SETTINGS.get('properties', {}).get('tags', {}).get('values', {}).get(tag, {})
+            tag_name = tag_info.get('tag', tag)
+
+            # Добавляем # если его нет
+            if not tag_name.startswith("#"):
+                tag_name = f"#{tag_name}"
+
+            # Добавляем суффикс
+            full_tag = f"{tag_name}{tag_suffix}"
+
+            # +1 для переноса строки между тегами
+            total_length += len(full_tag) + 1
+
+        # +2 для двойного переноса строки перед блоком тегов
+        if total_length > 0:
+            total_length += 2
+
+        return total_length
+
     def _convert_html_to_markdown(self, html_text: str) -> str:
         """Конвертирует HTML в Markdown формат согласно Telegram entities"""
         if not html_text:
@@ -72,22 +121,14 @@ class ContentSetterPage(TextTypeScene):
         text = text.replace('&nbsp;', ' ')
         
         return text
-    
-    # def tags_len()
-    
-    # async def data_preparate(self) -> None:
-        
-    #     card = await brain_client.get_card(
-    #         task_id=self.scene.data['scene'].get('task_id')
-    #     )
-    #     if card:
-    #         tags = card['tags']
-            
 
     async def content_worker(self) -> str:
         # Получаем карточку для доступа к content dict
         card = await self.scene.get_card_data()
         content_dict = card.get('content', {}) if card else {}
+
+        tags_length = await self._calculate_tags_length()
+        self.max_length = self.__max_length__ - tags_length
         
         # Если content_dict не dict (старый формат), инициализируем
         if not isinstance(content_dict, dict):
@@ -188,20 +229,12 @@ class ContentSetterPage(TextTypeScene):
         # Переключаемся на следующий режим (циклично)
         next_index = (current_index + 1) % len(available_modes)
         self.content_mode = available_modes[next_index]
-        
+
         # Обновляем сообщение
         self.clear_content()
-        await self.content_worker()
+        # await self.content_worker()
         await self.scene.update_message()
-        
-        # Показываем уведомление
-        if self.content_mode == 'all':
-            await callback.answer("✅ Переключено на общий контент")
-        else:
-            from modules.constants import CLIENTS
-            client_info = CLIENTS.get(self.content_mode, {})
-            client_name = client_info.get('label', self.content_mode)
-            await callback.answer(f"✅ Переключено на {client_name}")
+
 
     @TextTypeScene.on_callback('clear_content')
     async def clear_content_handler(self, callback, args):
@@ -226,7 +259,7 @@ class ContentSetterPage(TextTypeScene):
         if status == 200 and response.get('success'):
             # Обновляем отображение
             self.clear_content()
-            await self.content_worker()
+            # await self.content_worker()
             await self.scene.update_message()
             
             # Показываем уведомление
@@ -243,7 +276,7 @@ class ContentSetterPage(TextTypeScene):
     @TextTypeScene.on_callback('to_content')
     async def to_content(self, callback, args):
         self.clear_content()
-        await self.content_worker()
+        # await self.content_worker()
 
         self.checklist = False
         await self.scene.update_message()
@@ -276,10 +309,13 @@ class ContentSetterPage(TextTypeScene):
 
         self.clear_content()
         if self.checklist: return
+    
+        # Вычисляем длину тегов и корректируем max_length
+        tags_length = await self._calculate_tags_length()
+        adjusted_max_length = self.__max_length__ - tags_length
 
-        if len(text) < self.min_length:
-            self.content += f"\n\n❗️ Текст слишком короткий. Минимальная длина: {self.min_length} символов. Длинна сейчас: {len(text)}."
-            await self.scene.update_message()
+        if len(text) > adjusted_max_length:
+            self.content += f"\n\n❗️ Текст слишком длинный. Максимальная длина: {adjusted_max_length} символов (с учётом тегов: {tags_length} символов). Длина сейчас: {len(text)}."
             return
 
         if len(text) > self.max_length:
@@ -302,9 +338,6 @@ class ContentSetterPage(TextTypeScene):
                 }
             )
 
-        # Переходим к следующей странице
-        if self.next_page:
-            await self.scene.update_page(self.next_page)
-        else:
-            self.clear_content()
-            await self.scene.update_message()
+
+        self.clear_content()
+        await self.scene.update_message()

@@ -3,10 +3,12 @@
 """
 from aiogram.types import CallbackQuery
 from tg.oms import Page
+from tg.oms.utils import callback_generator
 from global_modules.brain_client import brain_client
 from modules.constants import CLIENTS
 from modules.post_sender import prepare_and_send_preview, download_kaiten_files
-
+from modules.entities_sender import send_poll_preview, get_entities_for_client
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 class PreviewPage(Page):
     
@@ -69,8 +71,6 @@ class PreviewPage(Page):
     
     async def buttons_worker(self) -> list[dict]:
         """Создает кнопки с клиентами"""
-        from tg.oms.utils import callback_generator
-        
         buttons = []
         card = await self.scene.get_card_data()
         clients = self.scene.get_key(self.__page_name__, 'clients') or []
@@ -109,7 +109,8 @@ class PreviewPage(Page):
                 'callback_data': callback_generator(
                     self.scene.__scene_name__,
                     'preview_all'
-                )
+                ),
+                'ignore_row': True
             })
         
         return buttons
@@ -130,7 +131,7 @@ class PreviewPage(Page):
         await self.preview_all_clients(callback)
     
     async def preview_for_client(self, callback: CallbackQuery, client: str):
-        """Отправляет предпросмотр поста для конкретного клиента"""
+        """Отправляет предпросмотр поста и entities для конкретного клиента"""
         card = await self.scene.get_card_data()
         
         if not card:
@@ -148,6 +149,7 @@ class PreviewPage(Page):
         tags = card.get('tags', [])
         post_images = card.get('post_images') or []
         task_id = card.get('task_id')
+        card_id = card.get('card_id')
         
         try:
             result = await prepare_and_send_preview(
@@ -163,12 +165,32 @@ class PreviewPage(Page):
             
             if result['success']:
                 await callback.answer("✅ Предпросмотр показан")
+                
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🗑 Удалить", callback_data="delete_message")]
+                ])
+                
+                # Отправляем entities для этого клиента
+                if card_id:
+                    entities_result = await get_entities_for_client(card_id, client)
+                    if entities_result['success'] and entities_result['entities']:
+                        for entity in entities_result['entities']:
+                            entity_type = entity.get('type')
+                            if entity_type == 'poll':
+                                entity_data = entity.get('data', {})
+                                await send_poll_preview(
+                                    bot=self.scene.__bot__,
+                                    chat_id=callback.message.chat.id,
+                                    entity_data=entity_data,
+                                    reply_markup=keyboard
+                                )
             else:
                 await callback.answer(f"❌ Ошибка: {result.get('error', 'unknown')[:50]}")
         
         except Exception as e:
             print(f"Error sending preview: {e}")
             await callback.answer("❌ Ошибка при показе предпросмотра")
+    
     
     async def preview_all_clients(self, callback: CallbackQuery):
         """Показывает предпросмотр поста для всех клиентов"""
@@ -188,3 +210,4 @@ class PreviewPage(Page):
         
         for client in clients:
             await self.preview_for_client(callback, client)
+

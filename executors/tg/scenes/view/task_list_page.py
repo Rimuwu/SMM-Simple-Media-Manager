@@ -254,7 +254,8 @@ class TaskListPage(Page):
                     self.scene.__scene_name__, 
                     'view_task',
                     str(task.get('card_id', ''))
-                )
+                ),
+                "ignore_row": True
             })
         
         # Навигация по страницам
@@ -269,7 +270,7 @@ class TaskListPage(Page):
                     'page_nav', 
                     str(current_page - 1)
                 ),
-                "ignore_row": True
+                "ignore_row": False
             })
         
         # Следующая страница
@@ -281,7 +282,7 @@ class TaskListPage(Page):
                     'page_nav', 
                     str(current_page + 1)
                 ),
-                "ignore_row": True
+                "ignore_row": False
             })
         
         # Добавляем навигационные кнопки в новой строке

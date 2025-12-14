@@ -1,5 +1,4 @@
 from tg.oms.common_pages import DateInputPage
-from modules.api_client import brain_api
 from global_modules.brain_client import brain_client
 from datetime import datetime
 
@@ -9,7 +8,7 @@ class ChangeDeadlinePage(DateInputPage):
     __page_name__ = 'change-deadline'
     __scene_key__ = 'deadline'
     __next_page__ = 'task-detail'
-    
+
     update_to_db = True
 
     async def content_worker(self) -> str:
@@ -27,7 +26,7 @@ class ChangeDeadlinePage(DateInputPage):
             
         self.content = self.append_variables(deadline=deadline_str)
         return self.content
-    
+
     async def update_to_database(self, value) -> bool:
         """Обновляем дедлайн в карточке"""
         task = self.scene.data['scene'].get('current_task_data')
@@ -35,8 +34,7 @@ class ChangeDeadlinePage(DateInputPage):
             return False
 
         card_id = task.get('card_id')
-        old_deadline = task.get('deadline')
-        
+
         # Получаем user_id текущего пользователя
         telegram_id = self.scene.user_id
         users = await brain_client.get_users(telegram_id=telegram_id)

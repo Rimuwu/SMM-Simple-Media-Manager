@@ -10,6 +10,7 @@ from modules.constants import CLIENTS
 from modules.logs import executors_logger as logger
 from modules.post_generator import generate_post
 from modules.post_sender import download_kaiten_files
+from modules.entities_sender import send_poll_preview
 from tg.main import TelegramExecutor
 from vk.main import VKExecutor
 
@@ -35,6 +36,7 @@ class PostSendRequest(BaseModel):
     task_id: Optional[int] = None  # ID карточки в Kaiten для скачивания файлов
     post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten
     settings: dict = {}  # Дополнительные настройки для отправки
+    entities: Optional[list[dict]] = None  # Entities для отправки (опросы и т.д.)
 
 
 def get_client_config(client_key: str) -> tuple:
@@ -205,6 +207,27 @@ async def send_post(request: PostSendRequest):
         if result and result.get('success'):
             logger.info(
                 f"Post sent successfully for card {request.card_id}, client {request.client_key}, files: {len(downloaded_files)}")
+            
+            # Отправляем entities если они есть
+            if request.entities and isinstance(executor, TelegramExecutor):
+                for entity in request.entities:
+                    try:
+                        entity_type = entity.get('type')
+                        if entity_type == 'poll':
+                            entity_data = entity.get('data', {})
+                            poll_result = await send_poll_preview(
+                                bot=executor.bot,
+                                chat_id=chat_id,
+                                entity_data=entity_data,
+                                reply_markup=None
+                            )
+                            if poll_result['success']:
+                                logger.info(f"Entity {entity.get('id')} sent for card {request.card_id}")
+                            else:
+                                logger.error(f"Failed to send entity {entity.get('id')}: {poll_result.get('error')}")
+                    except Exception as e:
+                        logger.error(f"Error sending entity: {e}")
+            
             return {
                 "success": True, 
                 "message_id": result.get('message_id') or result.get('post_id')

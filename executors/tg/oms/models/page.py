@@ -353,7 +353,11 @@ class Page:
         """ Функция вызывающаяся при выходе со страницы
         """
         pass
-    
+
+    async def page_enter(self, **kwargs) -> None:
+        for key, value in kwargs.items():
+            await self.update_data(key, value)
+
     def get_parse_mode(self) -> Optional[str]:
         """ Получение parse_mode страницы с fallback на настройки сцены
             Если parse_mode страницы None, используется parse_mode из настроек сцены

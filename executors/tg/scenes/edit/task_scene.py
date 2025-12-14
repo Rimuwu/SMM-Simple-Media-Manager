@@ -12,6 +12,11 @@ from .files_page import FilesPage
 from .preview_page import PreviewPage
 from .editor_notes_page import EditorNotesPage
 from .image_prompt_page import ImagePromptPage
+from .client_settings_page import ClientSettingsPage
+from .image_view_setting_page import ImageViewSettingPage
+from tg.oms.common_pages import DatePickerPage
+from tg.scenes.edit.entities import poll, view
+from tg.scenes.edit.entities_main import EntitiesMainPage
 
 class TaskScene(Scene):
 
@@ -27,7 +32,13 @@ class TaskScene(Scene):
         FilesPage,
         PreviewPage,
         EditorNotesPage,
-        ImagePromptPage
+        ImagePromptPage,
+        ClientSettingsPage,
+        ImageViewSettingPage,
+        DatePickerPage,
+        poll.PollCreatePage,
+        view.EntityViewPage,
+        EntitiesMainPage
     ]
 
     # Привязываем функции для работы с БД
