@@ -17,10 +17,11 @@ async def image_view(card: Card,
         return False, "Invalid 'type' in data. Must be 'grid' or 'carousel'"
 
     await card.refresh()
-    card.clients_settings[client_key][
-        'image_view'
-        ] = data['type']
-    await card.save()
+    # Обновляем настройку через ClientSetting модель
+    current_settings = await card.get_clients_settings(client_key=client_key)
+    cur = current_settings[0].data if current_settings else {}
+    cur.update({'image_view': data['type']})
+    await card.set_client_setting(client_key=client_key, data=cur)
 
     return True, ""
 

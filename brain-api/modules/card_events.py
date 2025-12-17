@@ -465,17 +465,14 @@ async def on_content(
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
 
-    # Получаем текущий content dict (или создаем пустой)
-    content_dict = card.content if isinstance(card.content, dict) else {}
-    
-    # Если client_key не указан, используем ключ 'all' для общего контента
-    key = client_key if client_key else 'all'
-    
-    # Обновляем контент
-    content_dict[key] = new_content
-    
-    # Сохраняем обновленный content dict
-    await card.update(content=content_dict)
+    # Если client_key не указан, используем общий контент (client_key=None)
+    key = client_key if client_key else None
+
+    # Создаём или обновляем запись в таблице CardContent
+    from models.CardContent import CardContent
+    existing, created = await CardContent.first_or_create(card_id=card.card_id, client_key=key, defaults={"text": new_content})
+    if not created:
+        await existing.update(text=new_content)
 
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
@@ -545,25 +542,24 @@ async def on_clients(
     old_clients = set(card.clients or [])
     removed_clients = old_clients - set(new_clients)
     
-    # Удаляем из clients_settings клиентов, которых больше нет
+    # Удаляем настройки и контент клиентов, которых больше нет
+    from models.ClientSetting import ClientSetting
     for client_key in removed_clients:
-        card.clients_settings.pop(client_key, None)
-    
-    # Добавляем новых клиентов в clients_settings
-    for client_key in new_clients:
-        if client_key not in card.clients_settings.keys():
-            card.clients_settings[client_key] = {}
-    
-    # Обновляем content dict - удаляем ключи удаленных клиентов
-    content_dict = card.content if isinstance(card.content, dict) else {}
-    for client_key in removed_clients:
-        content_dict.pop(client_key, None)
+        settings = await card.get_clients_settings(client_key=client_key)
+        for s in settings:
+            await s.delete()
+        # Удаляем контент
+        contents = await card.get_content(client_key=client_key)
+        for c in contents:
+            await c.delete()
 
-    await card.update(
-        clients=new_clients, 
-        clients_settings=card.clients_settings,
-        content=content_dict
-    )
+    # Добавляем новых клиентов (пустые настройки) если их ещё нет
+    for client_key in new_clients:
+        settings = await card.get_clients_settings(client_key=client_key)
+        if not settings:
+            await card.set_client_setting(client_key=client_key, data={}, type=None)
+
+    await card.update(clients=new_clients)
 
     # Перепланируем задачи публикации
     try:

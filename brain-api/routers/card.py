@@ -178,8 +178,15 @@ async def create_card(card_data: CardCreate):
         executor_id=card_data.executor_id,
         need_check=card_data.need_check,
         editor_id=card_data.editor_id,
-        clients_settings=clients_settings
     )
+
+    # Создаём пустые настройки клиентов в отдельной таблице
+    from models.ClientSetting import ClientSetting
+    for key in card_data.channels or []:
+        try:
+            await ClientSetting.create(card_id=card.card_id, client_key=str(key), data={})
+        except Exception:
+            pass
 
     logger.info(f"Карточка создана в БД: {card.card_id} (Kaiten ID: {card_id})")
 
@@ -309,6 +316,27 @@ async def get(task_id: Optional[str] = None,
                 }
             else:
                 card_dict['executor'] = None
+
+            # Backwards-compatible normalized fields: content, editor_notes, clients_settings, entities
+            contents = await card.get_content(session=session)
+            card_dict['content'] = {c.client_key or 'all': c.text for c in contents}
+
+            notes = await card.get_editor_notes(session=session)
+            card_dict['editor_notes'] = [n.to_dict() for n in notes]
+
+            settings = await card.get_clients_settings(session=session)
+            clients_settings = {}
+            for s in settings:
+                key = s.client_key or 'all'
+                clients_settings.setdefault(key, {}).update(s.data or {})
+            card_dict['clients_settings'] = clients_settings
+
+            entities = await card.get_entities(session=session)
+            entities_map = {}
+            for e in entities:
+                key = e.client_key or 'all'
+                entities_map.setdefault(key, []).append(e.to_dict())
+            card_dict['entities'] = entities_map
             
             result.append(card_dict)
         
@@ -741,17 +769,15 @@ async def clear_content(request: ClearContentRequest):
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
     
-    # Получаем текущий content dict
-    content_dict = card.content if isinstance(card.content, dict) else {}
-    
-    # Определяем ключ для очистки
-    key = request.client_key if request.client_key else 'all'
-    
-    # Удаляем ключ из словаря
-    if key in content_dict:
-        content_dict.pop(key)
-        await card.update(content=content_dict)
-        
+    # Определяем ключ для очистки (None означает общий контент)
+    key = request.client_key if request.client_key else None
+
+    # Получаем все записи контента для карточки и очищаем нужные
+    contents = await card.get_content(client_key=key)
+    if contents:
+        for c in contents:
+            await c.delete()
+
         # Добавляем комментарий в Kaiten
         if card.task_id and card.task_id != 0:
             comment = f"🗑 Контент очищен для {'клиента: ' + request.client_key if request.client_key else 'общего контента'}"
@@ -775,12 +801,12 @@ async def set_client_settings_endpoint(data: CardSettings):
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
 
-    if data.client_id not in card.clients_settings:
-        if data.client_id not in (card.clients or []):
-            raise HTTPException(status_code=400, detail="Client ID not found in card settings")
-        else:
-            card.clients_settings[data.client_id] = {}
-            await card.save()
+    # Убедимся, что клиент настроен для карточки
+    if data.client_id not in (card.clients or []):
+        raise HTTPException(status_code=400, detail="Client ID not found in card settings")
+
+    # Создаём или обновляем настройку клиента в отдельной таблице
+    await card.set_client_setting(client_key=data.client_id, data=data.data, type=data.setting_type)
 
     clients = open_clients() or {}
     executor_type = clients.get(

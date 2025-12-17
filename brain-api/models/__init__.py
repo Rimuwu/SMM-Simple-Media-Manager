@@ -3,6 +3,10 @@ from .User import User
 from .Card import Card
 from .Scene import Scene
 from .ScheduledTask import ScheduledTask
+from .CardContent import CardContent
+from .CardEditorNote import CardEditorNote
+from .ClientSetting import ClientSetting
+from .Entity import Entity
 # from .Message import Message
 # from .Automation import Automation, Preset
 
@@ -14,6 +18,7 @@ __all__ = [
     "User", "UserRole",
     "Card", "CardStatus", 
     "ScheduledTask", "TaskStatus",
+    "CardContent", "CardEditorNote", "ClientSetting", "Entity",
     # "Message", "MessageType",
     # "Automation", "AutomationTypes", "Preset"
 ]
