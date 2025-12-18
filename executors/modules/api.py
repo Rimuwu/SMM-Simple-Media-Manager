@@ -20,10 +20,9 @@ app = get_fastapi_app(
         forum_router,
         events_router,
         post_router
-        ],
-    # api_logger=executors_logger,
+        ]
 )
-# app.add_middleware(RequestLoggingMiddleware, logger=executors_logger)
+app.add_middleware(RequestLoggingMiddleware, logger=executors_logger)
 
 @app.get("/")
 async def root():

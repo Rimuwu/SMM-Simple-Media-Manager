@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY storage-api/requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY storage-api/main.py .
+COPY global_modules/ ./global_modules/
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002", "--log-level", "info", "--no-access-log"]

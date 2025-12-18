@@ -56,17 +56,3 @@ async def start(message: Message):
     )
 
     await message.answer(text, parse_mode="Markdown")
-
-@dp.message(Command("test"))
-async def test(message: Message):
-    from aiogram.types.input_poll_option import InputPollOption
-    
-    await bot.send_poll(
-        chat_id=message.chat.id,
-        question="Test poll?",
-        options=["Option 1", "Option 2", "Option 3"],
-        is_anonymous=False,
-        type="regular",
-        correct_option_id=1,
-        open_period=600
-    )

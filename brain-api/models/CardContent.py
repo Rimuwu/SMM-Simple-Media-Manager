@@ -1,7 +1,7 @@
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID as _UUID
-from sqlalchemy import Text, String, DateTime
+from sqlalchemy import Text, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.connection import Base
@@ -15,7 +15,7 @@ class CardContent(Base, AsyncCRUDMixin):
     __tablename__ = "card_contents"
 
     id: Mapped[uuidPK]
-    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id"), nullable=False)
     client_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     meta: Mapped[dict] = mapped_column(JSON, nullable=False, default={})

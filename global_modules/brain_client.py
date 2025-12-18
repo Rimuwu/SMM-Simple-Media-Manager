@@ -499,6 +499,87 @@ class BrainAPIClient:
             print(f"Ошибка upload_file_to_kaiten: {e}")
             return False
     
+    async def upload_file(self, card_id: str, file_data: bytes, 
+                          filename: str, content_type: Optional[str] = None) -> dict | None:
+        """Загрузить файл в карточку через brain-api (/files/upload/{card_id}).
+        Возвращает ответ сервера или None при ошибке."""
+        import aiohttp
+        try:
+            async with aiohttp.ClientSession() as session:
+                data = aiohttp.FormData()
+                data.add_field('file', file_data, filename=filename, content_type=content_type)
+                async with session.post(f"{self.api.base_url}/files/upload/{card_id}", data=data) as resp:
+                    status = resp.status
+                    if status != 200:
+                        return None
+                    return await resp.json()
+        except Exception:
+            return None
+
+    async def list_files(self, card_id: str) -> dict | None:
+        """Список файлов карточки через /files/list/{card_id}"""
+        res, status = await self.api.get(f"/files/list/{card_id}")
+        if status == 200:
+            return res
+        return None
+
+    async def download_file(self, file_id: str) -> tuple[bytes | None, int | None]:
+        """Скачать файл по file_id через /files/download/{file_id}. Возвращает (bytes, status)"""
+        data, status = await self.api.get(f"/files/download/{file_id}", return_bytes=True)
+        return data, status
+
+    async def get_file_info(self, file_id: str) -> dict | None:
+        res, status = await self.api.get(f"/files/info/{file_id}")
+        if status == 200:
+            return res
+        return None
+
+    async def delete_file(self, file_id: str) -> bool:
+        res, status = await self.api.delete(f"/files/delete/{file_id}")
+        return status == 200
+
+    async def reorder_files(self, card_id: str, file_ids: list[str]) -> bool:
+        res, status = await self.api.post(f"/files/reorder/{card_id}", data={"file_ids": file_ids})
+        return status == 200
+
+    async def set_content(self, card_id: str, content: str, client_key: Optional[str] = None) -> bool:
+        res, status = await self.api.post("/card/set-content", data={"card_id": card_id, "content": content, "client_key": client_key})
+        return status == 200
+
+    async def clear_content(self, card_id: str, client_key: Optional[str] = None) -> bool:
+        res, status = await self.api.post("/card/clear-content", data={"card_id": card_id, "client_key": client_key})
+        return status == 200
+
+    async def set_client_settings(self, card_id: str, client_id: str, setting_type: str, data: dict) -> tuple[dict | None, int]:
+        res, status = await self.api.post("/card/set-client_settings", data={"card_id": card_id, "client_id": client_id, "setting_type": setting_type, "data": data})
+        return res, status
+
+    async def add_entity(self, card_id: str, client_id: str, entity_type: str, data: dict, name: Optional[str] = None) -> dict | None:
+        res, status = await self.api.post("/card/add-entity", data={"card_id": card_id, "client_id": client_id, "entity_type": entity_type, "data": data, "name": name})
+        if status == 200:
+            return res
+        return None
+
+    async def get_entities(self, card_id: str, client_id: str) -> list[dict] | None:
+        res, status = await self.api.get(f"/card/entities?card_id={card_id}&client_id={client_id}")
+        if status == 200:
+            return res
+        return None
+
+    async def get_entity(self, card_id: str, client_id: str, entity_id: str) -> dict | None:
+        res, status = await self.api.get(f"/card/entity?card_id={card_id}&client_id={client_id}&entity_id={entity_id}")
+        if status == 200:
+            return res
+        return None
+
+    async def delete_entity(self, card_id: str, client_id: str, entity_id: str) -> tuple[dict | None, int]:
+        res, status = await self.api.post("/card/delete-entity", data={"card_id": card_id, "client_id": client_id, "entity_id": entity_id})
+        return res, status
+
+    async def update_entity(self, card_id: str, client_id: str, entity_id: str, data: dict, name: Optional[str] = None) -> tuple[dict | None, int]:
+        res, status = await self.api.post("/card/update-entity", data={"card_id": card_id, "client_id": client_id, "entity_id": entity_id, "data": data, "name": name})
+        return res, status
+
     def _sanitize_filename(self, filename: str) -> str:
         """
         Нормализует имя файла для безопасной передачи.
@@ -531,23 +612,6 @@ class BrainAPIClient:
                 return f'video_{timestamp}{ext}'
             else:
                 return f'file_{timestamp}{ext}'
-        
-        # Заменяем опасные символы для файловой системы
-        name_part = re.sub(r'[<>:"/\\|?*]', '_', name_part)
-        
-        # Убираем множественные пробелы и подчёркивания
-        name_part = re.sub(r'[\s_]+', '_', name_part)
-        
-        # Убираем точки в начале (скрытые файлы)
-        name_part = name_part.lstrip('.')
-        
-        # Ограничиваем длину
-        max_name_len = 200 - len(ext)
-        if len(name_part) > max_name_len:
-            name_part = name_part[:max_name_len]
-        
-        result = name_part + ext
-        return result if result and result != ext else f'file_{int(time.time())}{ext}'
     
     def _is_image_file(self, file_data: bytes, file_name: str) -> bool:
         """Проверяет, является ли файл изображением"""
@@ -592,6 +656,23 @@ class BrainAPIClient:
         image.save(output, format='PNG', optimize=True)
         return output.getvalue()
     
+    async def send_now(self, card_id: str) -> bool:
+        """Отправить карточку немедленно (/card/send-now)"""
+        res, status = await self.api.post("/card/send-now", data={"card_id": card_id})
+        return status == 200
+
+    async def get_busy_slots(self, start: Optional[str] = None, end: Optional[str] = None) -> dict | None:
+        """Получить занятые слоты (/time/busy-slots)"""
+        params = {}
+        if start is not None:
+            params['start'] = start
+        if end is not None:
+            params['end'] = end
+        res, status = await self.api.get("/time/busy-slots", params=params)
+        if status == 200:
+            return res
+        return None
+
     def _detect_content_type(self, file_data: bytes, file_name: str) -> str:
         """Определяет content_type файла"""
         # По magic bytes
@@ -654,3 +735,25 @@ get_kaiten_files = brain_client.get_kaiten_files
 upload_file_to_kaiten = brain_client.upload_file_to_kaiten
 upload_files_to_card = brain_client.upload_files_to_card
 notify_executor = brain_client.notify_executor
+
+# Files
+upload_file = brain_client.upload_file
+list_files = brain_client.list_files
+download_file = brain_client.download_file
+get_file_info = brain_client.get_file_info
+delete_file = brain_client.delete_file
+reorder_files = brain_client.reorder_files
+
+# Content & entities
+set_content = brain_client.set_content
+clear_content = brain_client.clear_content
+set_client_settings = brain_client.set_client_settings
+add_entity = brain_client.add_entity
+get_entities = brain_client.get_entities
+get_entity = brain_client.get_entity
+delete_entity = brain_client.delete_entity
+update_entity = brain_client.update_entity
+
+# Misc
+send_now = brain_client.send_now
+get_busy_slots = brain_client.get_busy_slots

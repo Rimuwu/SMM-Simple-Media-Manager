@@ -19,6 +19,7 @@ from modules.properties import multi_properties
 from modules.scheduler import reschedule_post_tasks, reschedule_card_notifications
 from modules.calendar import update_calendar_event
 from modules.status_changers import to_edited
+from models.CardMessage import CardMessage
 
 
 def get_content_for_client(card: Card, client_key: str) -> str:
@@ -88,7 +89,7 @@ async def on_name(
     await notify_users(listeners, comment, 'change-name')
 
     # Обновляем форум
-    if card.forum_message_id:
+    if await card.get_forum_message():
         await update_forum_message(str(card.card_id))
 
     if card.calendar_id:
@@ -157,7 +158,7 @@ async def on_description(
     await notify_users(listeners, comment, 'change-description')
 
     # Обновляем форум
-    if card.forum_message_id:
+    if await card.get_forum_message():
         await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
@@ -233,7 +234,7 @@ async def on_deadline(
     await notify_users(listeners, comment, 'change-deadline')
 
     # Обновляем форум
-    if card.forum_message_id:
+    if await card.get_forum_message():
         await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
@@ -276,21 +277,21 @@ async def on_send_time(
 
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
-    if card.status == CardStatus.ready and card.complete_message_id:
+    if card.status == CardStatus.ready:
         try:
-            complete_message_ids = card.complete_message_id or {}
+            complete_messages = await card.get_complete_preview_messages()
             clients = card.clients or []
-            
+
             for client_key in clients:
-                if client_key in complete_message_ids:
-                    msg_data = complete_message_ids[client_key]
-                    if isinstance(msg_data, dict):
-                        await update_complete_preview(
-                            str(card.card_id), client_key,
-                            msg_data.get("post_id"),
-                            msg_data.get("post_ids", []),
-                            msg_data.get("info_id")
-                        )
+                # Найти сообщение для этого клиента
+                msg = next((m for m in complete_messages if m.data_info == client_key), None)
+                if msg:
+                    await update_complete_preview(
+                        str(card.card_id), client_key,
+                        int(msg.external_id),
+                        [],  # post_ids больше не используются в CardMessage
+                        None  # info_id больше не используется в CardMessage
+                    )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
 
@@ -381,7 +382,7 @@ async def on_executor(
         await add_kaiten_comment(card.task_id, kaiten_comment)
 
     # Обновляем форум
-    if card.forum_message_id and not forum_upd:
+    if await card.get_forum_message() and not forum_upd:
         await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
@@ -426,7 +427,7 @@ async def on_editor(
                           f"📝 Вы назначены редактором задачи: {card.name}",
                           'editor-assigned')
 
-    if card.forum_message_id:
+    if await card.get_forum_message():
         await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
@@ -476,29 +477,24 @@ async def on_content(
 
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
-    if card.status == CardStatus.ready and card.complete_message_id:
+    if card.status == CardStatus.ready:
         try:
-            complete_message_ids = card.complete_message_id or {}
+            complete_messages = await card.get_complete_preview_messages()
             clients = card.clients or []
             
             for client_key in clients:
-                if client_key in complete_message_ids:
-                    msg_data = complete_message_ids[client_key]
-                    if isinstance(msg_data, dict):
-                        update_res = await update_complete_preview(
-                            str(card.card_id), client_key,
-                            msg_data.get("post_id"),
-                            msg_data.get("post_ids", []),
-                            msg_data.get("info_id")
-                        )
-                        if update_res.get("post_id"):
-                            complete_message_ids[client_key] = {
-                                "post_id": update_res.get("post_id"),
-                                "post_ids": update_res.get("post_ids", []),
-                                "info_id": update_res.get("info_id")
-                            }
-            
-            await card.update(complete_message_id=complete_message_ids)
+                # Найти сообщение для этого клиента
+                msg = next((m for m in complete_messages if m.data_info == client_key), None)
+                if msg:
+                    update_res = await update_complete_preview(
+                        str(card.card_id), client_key,
+                        int(msg.external_id),
+                        [],
+                        None
+                    )
+                    # Обновляем external_id если он изменился
+                    if update_res.get("post_id") and update_res.get("post_id") != int(msg.external_id):
+                        await msg.update(external_id=update_res.get("post_id"))
         except Exception as e:
             print(f"Error updating complete previews: {e}")
 
@@ -571,33 +567,32 @@ async def on_clients(
     
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
-    if card.status == CardStatus.ready and card.complete_message_id:
+    if card.status == CardStatus.ready:
         try:
-            complete_message_ids = card.complete_message_id or {}
+            complete_messages = await card.get_complete_preview_messages()
+            existing_clients = {msg.data_info for msg in complete_messages if msg.data_info}
             
             # Удаляем превью для клиентов, которых больше нет
-            for client_key in list(complete_message_ids.keys()):
-                if client_key not in new_clients:
-                    msg_data = complete_message_ids.pop(client_key)
-                    if isinstance(msg_data, dict):
-                        await delete_complete_preview(
-                            post_id=msg_data.get("post_id"),
-                            post_ids=msg_data.get("post_ids"),
-                            info_id=msg_data.get("info_id")
-                        )
+            for msg in complete_messages:
+                if msg.data_info and msg.data_info not in new_clients:
+                    await delete_complete_preview(
+                        post_id=int(msg.external_id),
+                        post_ids=[],
+                        info_id=None
+                    )
+                    await msg.delete()
             
             # Добавляем превью для новых клиентов
             for client_key in new_clients:
-                if client_key not in complete_message_ids:
+                if client_key not in existing_clients:
                     preview_res = await send_complete_preview(str(card.card_id), client_key)
-                    if preview_res.get("success"):
-                        complete_message_ids[client_key] = {
-                            "post_id": preview_res.get("post_id"),
-                            "post_ids": preview_res.get("post_ids", []),
-                            "info_id": preview_res.get("info_id")
-                        }
-            
-            await card.update(complete_message_id=complete_message_ids)
+                    if preview_res.get("success") and preview_res.get("post_id"):
+                        post_id = preview_res.get("post_id")
+                        if post_id is not None:
+                            await card.add_complete_preview_message(
+                                external_id=int(post_id),
+                                data_info=client_key
+                            )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
 
@@ -642,7 +637,7 @@ async def on_need_check(
     await card.update(need_check=need_check)
     
     # Обновляем форум
-    if card.forum_message_id:
+    if await card.get_forum_message():
         await update_forum_message(str(card.card_id))
     
     # Обновляем сцены
@@ -697,21 +692,21 @@ async def on_tags(
     
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
-    if card.status == CardStatus.ready and card.complete_message_id:
+    if card.status == CardStatus.ready:
         try:
-            complete_message_ids = card.complete_message_id or {}
+            complete_messages = await card.get_complete_preview_messages()
             clients = card.clients or []
             
             for client_key in clients:
-                if client_key in complete_message_ids:
-                    msg_data = complete_message_ids[client_key]
-                    if isinstance(msg_data, dict):
-                        await update_complete_preview(
-                            str(card.card_id), client_key,
-                            msg_data.get("post_id"),
-                            msg_data.get("post_ids", []),
-                            msg_data.get("info_id")
-                        )
+                # Найти сообщение для этого клиента
+                msg = next((m for m in complete_messages if m.data_info == client_key), None)
+                if msg:
+                    await update_complete_preview(
+                        str(card.card_id), client_key,
+                        int(msg.external_id),
+                        [],
+                        None
+                    )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
     
@@ -722,7 +717,7 @@ async def on_tags(
     )
 
     # Обновляем форум
-    if card.forum_message_id:
+    if await card.get_forum_message():
         await update_forum_message(str(card.card_id))
 
     await asyncio.create_task(
@@ -780,27 +775,21 @@ async def on_forum_message_id(
         card = await Card.get_by_key('card_id', str(card_id))
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
-    
-    # Обновляем карточку
-    await card.update(forum_message_id=forum_message_id)
 
-async def on_complete_message_id(
-    complete_message_id: dict,
-    card: Optional[Card] = None, 
-    card_id: Optional[_UUID] = None
-):
-    """Обработчик изменения словаря с ID превью готовых постов."""
-    
-    if not card_id and not card:
-        raise ValueError("Необходимо указать card или card_id")
-    
-    if not card:
-        card = await Card.get_by_key('card_id', str(card_id))
-        if not card:
-            raise ValueError(f"Карточка с card_id {card_id} не найдена")
-    
-    # Обновляем карточку
-    await card.update(complete_message_id=complete_message_id)
+    forum_message = await card.get_forum_message()
+    if forum_message_id is None:
+        if forum_message:
+            await forum_message.delete()
+    else:
+        if forum_message:
+            await forum_message.update(message_id=forum_message_id)
+        else:
+            await CardMessage.create(
+                card_id=card.card_id,
+                message_id=forum_message_id
+            )
+
+# Обработчик on_complete_message_id удален - используется модель CardMessage
 
 async def on_editor_notes(
     editor_notes: list[dict],
@@ -855,21 +844,21 @@ async def on_clients_settings(
     
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
-    if card.status == CardStatus.ready and card.complete_message_id:
+    if card.status == CardStatus.ready:
         try:
-            complete_message_ids = card.complete_message_id or {}
+            complete_messages = await card.get_complete_preview_messages()
             clients = card.clients or []
             
             for client_key in clients:
-                if client_key in complete_message_ids:
-                    msg_data = complete_message_ids[client_key]
-                    if isinstance(msg_data, dict):
-                        await update_complete_preview(
-                            str(card.card_id), client_key,
-                            msg_data.get("post_id"),
-                            msg_data.get("post_ids", []),
-                            msg_data.get("info_id")
-                        )
+                # Найти сообщение для этого клиента
+                msg = next((m for m in complete_messages if m.data_info == client_key), None)
+                if msg:
+                    await update_complete_preview(
+                        str(card.card_id), client_key,
+                        int(msg.external_id),
+                        [],
+                        None
+                    )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
     
@@ -904,21 +893,21 @@ async def on_entities(
     
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
-    if card.status == CardStatus.ready and card.complete_message_id:
+    if card.status == CardStatus.ready:
         try:
-            complete_message_ids = card.complete_message_id or {}
+            complete_messages = await card.get_complete_preview_messages()
             clients = card.clients or []
             
             for client_key in clients:
-                if client_key in complete_message_ids:
-                    msg_data = complete_message_ids[client_key]
-                    if isinstance(msg_data, dict):
-                        await update_complete_preview(
-                            str(card.card_id), client_key,
-                            msg_data.get("post_id"),
-                            msg_data.get("post_ids", []),
-                            msg_data.get("info_id")
-                        )
+                # Найти сообщение для этого клиента
+                msg = next((m for m in complete_messages if m.data_info == client_key), None)
+                if msg:
+                    await update_complete_preview(
+                        str(card.card_id), client_key,
+                        int(msg.external_id),
+                        [],
+                        None
+                    )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
     

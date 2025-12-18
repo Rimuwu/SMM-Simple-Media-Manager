@@ -6,6 +6,10 @@ from database.annotated_types import uuidPK
 from global_modules.classes.enums import UserRole, Department
 from modules.kaiten import get_kaiten_user_name
 from time import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.Card import Card
 
 class User(Base, AsyncCRUDMixin):
     __tablename__ = "users"
@@ -26,9 +30,9 @@ class User(Base, AsyncCRUDMixin):
     about: Mapped[str] = mapped_column(String, nullable=True, default=None)
 
     # Связи
-    cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer", foreign_keys="[Card.customer_id]")
-    executed_cards: Mapped[list["Card"]] = relationship("Card", back_populates="executor", foreign_keys="[Card.executor_id]")
-    edited_cards: Mapped[list["Card"]] = relationship("Card", back_populates="editor", foreign_keys="[Card.editor_id]")
+    cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer", foreign_keys="Card.customer_id")
+    executed_cards: Mapped[list["Card"]] = relationship("Card", back_populates="executor", foreign_keys="Card.executor_id")
+    edited_cards: Mapped[list["Card"]] = relationship("Card", back_populates="editor", foreign_keys="Card.editor_id")
 
     async def name(self) -> str:
         """Возвращает имя пользователя для отображения."""

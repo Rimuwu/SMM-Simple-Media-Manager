@@ -35,32 +35,36 @@ async def upload_image_to_kaiten(card_id: str, file_data: bytes, file_name: str)
     Использует общий метод из brain_client.
     """
     try:
-        # Загружаем файл через общий метод
-        success = await brain_client.upload_file_to_kaiten(
-            card_id=card_id,
-            file_data=file_data,
-            file_name=file_name,
-            convert_to_png=True
-        )
-        
-        if success:
+        # Конвертируем картинку в PNG если нужно
+        try:
+            converted = brain_client._convert_to_png(file_data)
+            file_data_to_upload = converted
+            file_name = file_name.rsplit('.', 1)[0] + '.png' if '.' in file_name else file_name + '.png'
+            content_type = 'image/png'
+        except Exception:
+            file_data_to_upload = file_data
+            content_type = None
+
+        # Загружаем файл через brain-api
+        res = await brain_client.upload_file(card_id=str(card_id), file_data=file_data_to_upload, filename=file_name, content_type=content_type)
+        if res:
             logger.info(f"Файл {file_name} загружен для задачи {card_id}")
-            
+
             # Уведомляем исполнителя через общий метод
             notify_success = await brain_client.notify_executor(
                 card_id=card_id,
                 message="🖼 К вашей задаче добавлено новое изображение от дизайнеров!"
             )
-            
+
             if notify_success:
                 logger.info(f"Уведомление отправлено исполнителю задачи {card_id}")
             else:
                 logger.warning(f"Не удалось отправить уведомление для задачи {card_id}")
-            
+
             return True
         else:
             return False
-            
+
     except Exception as e:
         logger.error(f"Ошибка загрузки файла: {e}")
         return False

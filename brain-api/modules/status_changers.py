@@ -126,14 +126,10 @@ async def to_pass(
         await session.commit()
 
     # Удаление всех превью сообщений
-    if card.complete_message_id:
-        await asyncio.create_task(
-            delete_complete_preview(
-                card.complete_message_id.get('post_id'),
-                card.complete_message_id.get('posts_id'),
-                card.complete_message_id.get('info_id')
-                )
-        )
+    async with session_factory() as delete_session:
+        complete_messages = await card.get_complete_preview_messages(session=delete_session)
+        if complete_messages:
+            await delete_all_complete_previews(complete_messages)
 
     # Комментарий и обновление колонки 
     async with kaiten as kc:
@@ -154,7 +150,7 @@ async def to_pass(
         scene_name=SceneNames.VIEW_TASK
     )
 
-    if card.forum_message_id:
+    if await card.get_forum_message():
         await delete_forum_message(str(card.card_id))
         message_id, _ = await send_forum_message(str(card.card_id))
         
@@ -230,9 +226,9 @@ async def to_edited(
                 card=card
             )
 
-        if card.complete_message_id:
-            await delete_all_complete_previews(card.complete_message_id)
-            await card.update(complete_message_id={})
+        complete_messages = await card.get_complete_preview_messages()
+        if complete_messages:
+            await delete_all_complete_previews(complete_messages)
 
     # Обновление карточки в базе
     await card.update(status=CardStatus.edited)
@@ -257,13 +253,13 @@ async def to_edited(
         scene_name=SceneNames.VIEW_TASK
     )
     
-    if card.forum_message_id:
+    if await card.get_forum_message():
         card_type = 'public'
     else:
         card_type = 'private'
 
     # Обновление сообщения на форуме для public задач
-    if card_type == 'public' and card.forum_message_id:
+    if card_type == 'public' and await card.get_forum_message():
         await update_forum_message(
             str(card.card_id)
         )
@@ -332,9 +328,10 @@ async def to_review(
                 card_id=str(card.card_id)
             )
 
-        if card.complete_message_id:
-            await delete_all_complete_previews(card.complete_message_id)
-            await card.update(complete_message_id={})
+        async with session_factory() as delete_session:
+            complete_messages = await card.get_complete_preview_messages(session=delete_session)
+            if complete_messages:
+                await delete_all_complete_previews(complete_messages)
 
     # Обновление карточки в базе
     await card.update(status=CardStatus.review)
@@ -360,7 +357,7 @@ async def to_review(
     )
 
     # Удаление старого сообщения с форума
-    if card.forum_message_id:
+    if await card.get_forum_message():
         if await delete_forum_message(str(card.card_id)):
             await card.update(forum_message_id=None)
 
@@ -506,32 +503,38 @@ async def to_ready(
 
     # Отправка превью постов для каждого клиента
     await card.refresh()
-    complete_message_ids = card.complete_message_id or {}
+    async with session_factory() as preview_session:
+        complete_messages = await card.get_complete_preview_messages(session=preview_session)
+        existing_clients = {msg.data_info for msg in complete_messages if msg.data_info}
 
-    clients = card.clients or []
-    for client_key in clients:
+        clients = card.clients or []
+        for client_key in clients:
+            # Найти сообщение для этого клиента
+            msg = next((m for m in complete_messages if m.data_info == client_key), None)
+            
+            if msg:
+                # Обновление существующего превью
+                preview_res = await update_complete_preview(
+                    str(card.card_id), 
+                    client_key,
+                    int(msg.external_id),
+                    [],
+                    None
+                )
+                # Обновляем external_id если он изменился
+                if preview_res.get("post_id") and preview_res.get("post_id") != int(msg.external_id):
+                    await msg.update(external_id=preview_res.get("post_id"))
+            else:
+                # Создание нового превью
+                preview_res = await send_complete_preview(str(card.card_id), client_key)
+                if preview_res.get("success") and preview_res.get("post_id"):
+                    post_id = preview_res.get("post_id")
+                    if post_id is not None:
+                        await card.add_complete_preview_message(
+                            external_id=int(post_id),
+                            data_info=client_key
+                        )
 
-        if client_key in complete_message_ids:
-            # Обновление существующего превью
-            preview_res = await update_complete_preview(
-                str(card.card_id), 
-                client_key,
-                complete_message_ids[client_key].get("post_id", 0),
-                complete_message_ids[client_key].get("post_ids"),
-                complete_message_ids[client_key].get("info_id")
-            )
-
-        else:
-            preview_res = await send_complete_preview(str(card.card_id), client_key)
-            if preview_res.get("success"):
-                complete_message_ids[client_key] = {
-                    "post_id": preview_res.get("post_id"),
-                    "post_ids": preview_res.get("post_ids", []),
-                    "info_id": preview_res.get("info_id")
-                }
-
-    if complete_message_ids:
-        await card.update(complete_message_id=complete_message_ids)
         logger.info(f"Отправлены превью постов для карточки {card.card_id}")
 
     # Уведомление заказчику о готовности задачи
@@ -595,7 +598,7 @@ async def to_sent(
             )
 
     # Удаление сообщения с форума
-    if card.forum_message_id:
+    if await card.get_forum_message():
         if await delete_forum_message(str(card.card_id)):
             await card.update(forum_message_id=None)
 

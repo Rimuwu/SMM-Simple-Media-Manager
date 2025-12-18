@@ -60,66 +60,71 @@ def detect_media_type(file_data: bytes, file_name: str = '') -> str:
 
 async def download_kaiten_files(task_id: Union[int, str], file_names: list[str]) -> list[dict]:
     """
-    Скачать файлы из Kaiten по именам.
-    
+    Скачать файлы карточки по именам (используется локальное файловое хранилище).
+
     Args:
-        task_id: ID карточки в Kaiten
+        task_id: ID карточки (card_id)
         file_names: Список имён файлов для скачивания
-    
+
     Returns:
         Список словарей: [{'data': bytes, 'name': str, 'type': str}, ...]
     """
     if not task_id or not file_names:
         return []
-    
+
     downloaded_files = []
-    
+
     try:
-        # Получаем список файлов карточки
-        response = await brain_client.get_kaiten_files(str(task_id))
-        
+        # Получаем список файлов карточки через локальный endpoint
+        response = await brain_client.list_files(str(task_id))
+
         if not response or not response.get('files'):
-            logger.warning(f"No files found for task {task_id}")
+            logger.warning(f"No files found for card {task_id}")
             return []
-        
-        kaiten_files = response['files']
-        
-        # Ищем файлы по именам и скачиваем (в порядке file_names)
-        for file_name in file_names:
-            target_file = next(
-                (f for f in kaiten_files if f.get('name') == file_name),
-                None
-            )
-            
-            if not target_file:
-                logger.warning(f"File '{file_name}' not found in task {task_id}")
-                continue
-            
-            file_id = target_file.get('id')
+
+        files_list = response['files']
+
+        # Ищем файлы по id или имени и скачиваем (в порядке file_names)
+        for file_ref in file_names:
+            file_id = None
+            file_name = None
+
+            # Сначала пробуем интерпретировать как id
+            match = next((f for f in files_list if str(f.get('id')) == str(file_ref)), None)
+            if match:
+                file_id = str(match.get('id'))
+                file_name = match.get('original_filename', match.get('name'))
+            else:
+                # Ищем по имени
+                target_file = next(
+                    (f for f in files_list if f.get('original_filename') == file_ref or f.get('name') == file_ref),
+                    None
+                )
+                if target_file:
+                    file_id = str(target_file.get('id'))
+                    file_name = target_file.get('original_filename', target_file.get('name'))
+
             if not file_id:
+                logger.warning(f"File '{file_ref}' not found in card {task_id}")
                 continue
-            
-            # Скачиваем файл
-            file_data, dl_status = await brain_api.get(
-                f"/kaiten/files/{file_id}",
-                params={"task_id": task_id},
-                return_bytes=True
-            )
-            
+
+            # Скачиваем файл через brain_client
+            file_data, dl_status = await brain_client.download_file(file_id)
+
             if dl_status == 200 and isinstance(file_data, bytes):
-                media_type = detect_media_type(file_data, file_name)
+                media_type = detect_media_type(file_data, file_name or str(file_ref))
                 downloaded_files.append({
                     'data': file_data,
-                    'name': file_name,
+                    'name': file_name or str(file_ref),
                     'type': media_type
                 })
-                logger.info(f"Downloaded file '{file_name}' ({len(file_data)} bytes, type: {media_type})")
+                logger.info(f"Downloaded file '{file_name or file_ref}' ({len(file_data)} bytes, type: {media_type})")
             else:
-                logger.error(f"Failed to download file '{file_name}'")
-    
+                logger.error(f"Failed to download file '{file_ref}'")
+
     except Exception as e:
-        logger.error(f"Error downloading files from Kaiten: {e}", exc_info=True)
-    
+        logger.error(f"Error downloading files: {e}", exc_info=True)
+
     return downloaded_files
 
 

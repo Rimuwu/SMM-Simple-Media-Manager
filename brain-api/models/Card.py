@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Boolean, DateTime, BigInteger
+from sqlalchemy import String, Text, Boolean, DateTime, BigInteger, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from datetime import datetime
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from models.CardEditorNote import CardEditorNote
     from models.ClientSetting import ClientSetting
     from models.Entity import Entity
+    from models.CardMessage import CardMessage
     from sqlalchemy.ext.asyncio import AsyncSession
 
 class Card(Base, AsyncCRUDMixin):
@@ -31,16 +32,17 @@ class Card(Base, AsyncCRUDMixin):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Связь с пользователем (заказчиком)
-    customer_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    customer_id: Mapped[Optional[_UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
     customer: Mapped[Optional["User"]] = relationship(
         "User", back_populates="cards", foreign_keys=[customer_id])
 
     # Исполнитель
-    executor_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    executor_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
     executor: Mapped[Optional["User"]] = relationship(
         "User", back_populates="executed_cards", foreign_keys=[executor_id])
 
-    editor_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    editor_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
     editor: Mapped[Optional["User"]] = relationship(
         "User", back_populates="edited_cards", foreign_keys=[editor_id])
 
@@ -63,10 +65,6 @@ class Card(Base, AsyncCRUDMixin):
     # Список имён файлов из Kaiten для публикации
     post_images: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
-    forum_message_id: Mapped[Optional[int]] = mapped_column(nullable=True)
-    # Формат: {"client_key": {"post_id": int, "info_id": int}, ...}
-    complete_message_id: Mapped[dict[str, dict]] = mapped_column(JSON, nullable=False, default={})
-
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Замена JSON-поля `editor_notes` отдельной таблицей `card_editor_notes`
@@ -80,6 +78,9 @@ class Card(Base, AsyncCRUDMixin):
     # Ентити для по клиентам. Перенесены в `entities`
     entities_entries: Mapped[list["Entity"]] = relationship(
         "Entity", back_populates="card", cascade="all, delete-orphan")
+
+    # Порядок отправки файлов (список имён файлов)
+    files_order: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     # Временные метки
     created_at: Mapped[createAT]
@@ -125,7 +126,6 @@ class Card(Base, AsyncCRUDMixin):
             res.setdefault(key, []).append(e.to_dict())
         return res
 
-    # ---- Backwards compatible accessors (work with new normalized tables) ----
     async def get_content(self, session: Optional["AsyncSession"] = None, client_key: Optional[str] = None) -> List["CardContent"]:
         from models.CardContent import CardContent
         filters: dict[str, object] = {"card_id": self.card_id}
@@ -174,3 +174,44 @@ class Card(Base, AsyncCRUDMixin):
         if not created:
             await obj.update(session=session, data=data, type=type)
         return obj
+
+    async def get_messages(self, session: Optional["AsyncSession"] = None, message_type: Optional[str] = None):
+        """Получить сообщения карточки"""
+        from models.CardMessage import CardMessage
+        from database.connection import session_factory
+        
+        # Если сессия не передана, создаём свою
+        if session is None:
+            async with session_factory() as new_session:
+                if message_type:
+                    return await CardMessage.filter_by(session=new_session, card_id=self.card_id, message_type=message_type)
+                else:
+                    return await CardMessage.filter_by(session=new_session, card_id=self.card_id)
+        else:
+            if message_type:
+                return await CardMessage.filter_by(session=session, card_id=self.card_id, message_type=message_type)
+            else:
+                return await CardMessage.filter_by(session=session, card_id=self.card_id)
+
+    async def get_forum_message(self, session: Optional["AsyncSession"] = None):
+        """Получить forum сообщение карточки"""
+        messages = await self.get_messages(session=session, message_type='forum')
+        return messages[0] if messages else None
+
+    async def add_message(self, message_type: str, external_id: int,
+                          data_info: Optional[str] = None, session: Optional["AsyncSession"] = None):
+        """Добавить сообщение к карточке"""
+        from models.CardMessage import CardMessage
+        return await CardMessage.create(session=session, 
+                                        card_id=self.card_id, message_type=message_type, external_id=external_id, data_info=data_info)
+
+    async def get_complete_preview_messages(self, session: Optional["AsyncSession"] = None):
+        """Получить complete_preview сообщение карточки"""
+        messages = await self.get_messages(session=session, message_type='complete_preview')
+        return messages
+
+    async def add_complete_preview_message(self, external_id: int,
+                                          data_info: Optional[str] = None, session: Optional["AsyncSession"] = None):
+        """Добавить complete_preview сообщение к карточке"""
+        return await self.add_message(message_type='complete_preview', external_id=external_id,
+                                      data_info=data_info, session=session)

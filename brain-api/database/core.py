@@ -4,6 +4,13 @@ from database.connection import Base, engine, session_factory
 from sqlalchemy import select, text
 from os import getenv
 from models import User
+from models.Card import Card
+from models.CardContent import CardContent
+from models.CardEditorNote import CardEditorNote
+from models.ClientSetting import ClientSetting
+from models.Entity import Entity
+from models.CardFile import CardFile
+from models.CardMessage import CardMessage
 from global_modules.classes.enums import UserRole
 
 async def create_tables():
@@ -43,7 +50,8 @@ async def create_superuser():
         new_admin = User(
             telegram_id=int(admin_id),
             role=UserRole.admin,
-            department='smm'
+            department='smm',
+            about="Superuser"
         )
         session.add(new_admin)
         await session.commit()

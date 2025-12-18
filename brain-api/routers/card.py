@@ -199,7 +199,7 @@ async def create_card(card_data: CardCreate):
         if error:
             print(f"Error in forum send: {error}")
         if message_id:
-            await card.update(forum_message_id=message_id)
+            await card.add_message('forum', message_id)
 
     try:
         if card_data.send_time is None:
@@ -258,7 +258,6 @@ async def get(task_id: Optional[str] = None,
               customer_id: Optional[str] = None,
               executor_id: Optional[str] = None,
               need_check: Optional[bool] = None,
-              forum_message_id: Optional[int] = None,
               editor_id: Optional[str] = None
               ):
     # Используем явный запрос с eager loading для связанных объектов
@@ -280,8 +279,6 @@ async def get(task_id: Optional[str] = None,
             stmt = stmt.where(Card.editor_id == editor_id)
         if need_check:
             stmt = stmt.where(Card.need_check == need_check)
-        if forum_message_id:
-            stmt = stmt.where(Card.forum_message_id == forum_message_id)
 
         result_db = await session.execute(stmt)
         cards = result_db.scalars().all()
@@ -357,8 +354,6 @@ class CardUpdate(BaseModel):
 
     need_check: Optional[bool] | S = S.Nothing
     need_send: Optional[bool] | S = S.Nothing  # Нужно ли отправлять в каналы
-
-    forum_message_id: Optional[int] | S = S.Nothing
 
     clients: Optional[list[str]] | S = S.Nothing
     tags: Optional[list[str]] | S = S.Nothing
@@ -473,16 +468,6 @@ async def update_card(card_data: CardUpdate):
         await card_events.on_prompt_message(data['prompt_message'], card=card)
         del data['prompt_message']
 
-    # Изменение forum_message_id через card_events.on_forum_message_id
-    if 'forum_message_id' in data:
-        await card_events.on_forum_message_id(data['forum_message_id'], card=card)
-        del data['forum_message_id']
-
-    # Изменение complete_message_id через card_events.on_complete_message_id
-    if 'complete_message_id' in data:
-        await card_events.on_complete_message_id(data['complete_message_id'], card=card)
-        del data['complete_message_id']
-
     # Изменение editor_notes через card_events.on_editor_notes
     if 'editor_notes' in data:
         await card_events.on_editor_notes(data['editor_notes'], card=card)
@@ -516,7 +501,12 @@ async def change_status(request: ChangeStatusRequest):
     """Изменить статус карточки через функции status_changers"""
     logger.info(f"Запрос на изменение статуса карточки {request.card_id} на {request.new_status}")
     
-    card = await Card.get_by_key('card_id', request.card_id)
+    # Загружаем карточку с eager loading для editor_notes_entries
+    async with session_factory() as session:
+        stmt = select(Card).options(selectinload(Card.editor_notes_entries)).where(Card.card_id == request.card_id)
+        result = await session.execute(stmt)
+        card = result.scalar_one_or_none()
+    
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
     
@@ -576,10 +566,38 @@ async def delete_card(card_id: str):
         raise HTTPException(
             status_code=404, detail="Card not found")
 
-    if card.complete_message_id:
-        await delete_all_complete_previews(
-            card.complete_message_id
-            )
+    # Удаляем все файлы карточки из storage_api
+    try:
+        from modules.api_client import storage_api
+        from models.CardFile import CardFile
+        files = await CardFile.filter_by(card_id=card_id)
+        for card_file in files:
+            try:
+                await storage_api.delete(f'/delete/{card_file.filename}')
+                logger.info(f"File {card_file.filename} deleted from storage")
+            except Exception as e:
+                logger.warning(f"Failed to delete file {card_file.filename} from storage: {e}")
+    except Exception as e:
+        logger.error(f"Error deleting files for card {card_id}: {e}")
+
+    # Удаляем сообщения форума и превью
+    try:
+        forum_msg = await card.get_forum_message()
+        if forum_msg:
+            if not await delete_forum_message_by_id(forum_msg.external_id):
+                logger.warning(f"Ошибка удаления сообщения форума для карточки {card_id}")
+        
+        complete_msgs = await card.get_messages(message_type='complete_preview')
+        if complete_msgs:
+            await delete_all_complete_previews(complete_msgs)
+        
+        # Явно удаляем все CardMessage записи перед удалением карточки
+        from models.CardMessage import CardMessage
+        all_messages = await CardMessage.filter_by(card_id=card.card_id)
+        for msg in all_messages:
+            await msg.delete()
+    except Exception as e:
+        logger.warning(f"Error deleting messages for card {card_id}: {e}")
     
     await close_card_related_scenes(
         str(card.card_id))
@@ -608,11 +626,6 @@ async def delete_card(card_id: str):
         except Exception as e:
             logger.error(f"Ошибка удаления события календаря для карточки {card_id}: {e}")
             return {"detail": f"Card deleted from DB, but failed to delete from Calendar: {e}"}
-
-    if card.forum_message_id:
-        if not await delete_forum_message_by_id(card.forum_message_id):
-            logger.error(f"Ошибка удаления сообщения форума для карточки {card_id}")
-            return {"detail": "Card deleted from DB, but failed to delete forum message"}
 
     logger.info(f"Карточка {card_id} успешно удалена")
     return {"detail": "Card deleted successfully"}

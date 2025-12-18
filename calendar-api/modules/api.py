@@ -11,8 +11,7 @@ app = get_fastapi_app(
     lifespan=None,
     limiter=False,
     middlewares=[],
-    routers=[calendar_router],
-    api_logger=calendar_logger
+    routers=[calendar_router]
 )
 app.add_middleware(RequestLoggingMiddleware, logger=calendar_logger)
 

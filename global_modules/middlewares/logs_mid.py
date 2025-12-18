@@ -9,8 +9,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         self.logger = logger
     
     async def dispatch(self, request: Request, call_next):
+        # Пропускаем логирование для health check запросов (GET /)
+        if request.method == "GET" and request.url.path == "/":
+            return await call_next(request)
+
         start_time = time.perf_counter()
-        
+
         try:
             response = await call_next(request)
 

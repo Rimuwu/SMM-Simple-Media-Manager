@@ -25,6 +25,7 @@ from modules.reset_tasks import init_reset_tasks
 from database.connection import session_factory
 import asyncio
 from modules.api_client import executors_api
+from routers.files import router as files_router
 
 # Глобальный экземпляр планировщика
 scheduler = None
@@ -91,7 +92,7 @@ app = get_fastapi_app(
     routers=[
         standart_router, card_router, ai_router,
         kaiten_router, kaiten_files_router, user_router,
-        scene_router, avaible_time_router
+        scene_router, avaible_time_router, files_router
     ],
     api_logger=brain_logger
 )

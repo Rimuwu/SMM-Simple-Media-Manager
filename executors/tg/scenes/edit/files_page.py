@@ -44,12 +44,47 @@ class FilesPage(Page):
         task_id = card.get('task_id')
         
         try:
-            # Запрос файлов карточки из Kaiten
-            response = await brain_client.get_kaiten_files(task_id)
+            # Запрос файлов карточки из локального файлового API
+            response = await brain_client.list_files(card_id=str(card.get('card_id')))
             status = 200 if response else 404
-            
+
             if status == 200 and response.get('files'):
-                await self.scene.update_key(self.__page_name__, 'files', response['files'])
+                files_list = response['files']
+                await self.scene.update_key(self.__page_name__, 'files', files_list)
+
+                # Нормализуем выбранные файлы: сохраняем UUID'ы вместо имён
+                saved_images = card.get('post_images') or []
+
+                # Маппинг по id и по именам
+                id_by_name = {f.get('original_filename') or f.get('name'): str(f.get('id')) for f in files_list}
+                ids = []
+                for it in saved_images:
+                    # если уже id
+                    if any(str(f.get('id')) == str(it) for f in files_list):
+                        ids.append(str(it))
+                    else:
+                        # пробуем сопоставить по имени
+                        mapped = id_by_name.get(it)
+                        if mapped:
+                            ids.append(mapped)
+
+                # Если в данных сцены нет selected_files — устанавливаем нормализованное значение
+                existing_selected = self.scene.get_key(self.__page_name__, 'selected_files')
+                if existing_selected is None:
+                    await self.scene.update_key(self.__page_name__, 'selected_files', ids)
+                else:
+                    # Попробуем нормализовать существующие значения, если это имена
+                    normalized = []
+                    for it in existing_selected:
+                        if any(str(f.get('id')) == str(it) for f in files_list):
+                            normalized.append(str(it))
+                        else:
+                            mapped = id_by_name.get(it)
+                            if mapped:
+                                normalized.append(mapped)
+                    if normalized and normalized != existing_selected:
+                        await self.scene.update_key(self.__page_name__, 'selected_files', normalized)
+
             else:
                 await self.scene.update_key(self.__page_name__, 'files', [])
         except Exception as e:
@@ -66,31 +101,37 @@ class FilesPage(Page):
             'selected_count': len(selected_files),
             'max_files': self.max_files
         }
-        
+
         # Формируем список выбранных файлов для отображения (с порядком загрузки)
         if selected_files:
             files_list = []
-            for idx, file_name in enumerate(selected_files, 1):
-                files_list.append(f"📌 {idx}. `{file_name}`")
+            # Мап id -> имя
+            id_to_name = {str(f.get('id')): f.get('original_filename', f.get('name', 'без имени')) for f in files}
+            for idx, file_id in enumerate(selected_files, 1):
+                name = id_to_name.get(str(file_id), str(file_id))
+                files_list.append(f"📌 {idx}. `{name}`")
             add_vars['selected_files_list'] = '\n'.join(files_list)
         else:
             add_vars['selected_files_list'] = '📭 Нет выбранных файлов'
 
-        # Формируем список файлов из Kaiten (показываем номер в очереди если выбран)
+        # Формируем список файлов карточки (показываем номер в очереди если выбран)
         if files:
             files_list = []
-            for idx, file_info in enumerate(files, 1):
-                file_name = file_info.get('name', 'без имени')
+            for idx, file_info in enumerate(files):
+                file_id = str(file_info.get('id'))
+                file_name = file_info.get('original_filename', file_info.get('name', 'без имени'))
                 # Проверяем, выбран ли файл и его позицию в очереди
-                if file_name in selected_files:
-                    order_num = selected_files.index(file_name) + 1
+                if file_id in selected_files:
+                    order_num = selected_files.index(file_id) + 1
                     mark = f'✅ {order_num}.'
+                else:
+                    mark = f'{idx+1}.'
 
-                    files_list.append(f"{mark} `{file_name}`")
+                files_list.append(f"{mark} `{file_name}`")
 
             add_vars['kaiten_files_list'] = '\n'.join(files_list)
         else:
-            add_vars['kaiten_files_list'] = '📭 Нет файлов в карточке Kaiten'
+            add_vars['kaiten_files_list'] = '📭 Нет файлов в карточке' 
         
         return self.append_variables(**add_vars)
     
@@ -105,14 +146,24 @@ class FilesPage(Page):
         # Получаем сохранённые файлы из карточки для сравнения
         card = await self.scene.get_card_data()
         saved_images = card.get('post_images') or [] if card else []
-        
-        # Кнопки для файлов из Kaiten (просмотр и toggle выбора)
-        for file in files:
+        # Нормализуем сохранённые значения в UUID'ы, если они были именами
+        id_by_name = {f.get('original_filename'): str(f.get('id')) for f in files}
+        normalized_saved = []
+        for it in saved_images:
+            if any(str(f.get('id')) == str(it) for f in files):
+                normalized_saved.append(str(it))
+            else:
+                mapped = id_by_name.get(it)
+                if mapped:
+                    normalized_saved.append(mapped)
+
+        # Кнопки для файлов карточки (просмотр и toggle выбора)
+        for idx, file in enumerate(files):
             file_id = file.get('id')
-            file_name = file.get('name', 'Без названия')
+            file_name = file.get('original_filename', 'Без названия')
             
             # Проверяем выбран ли файл
-            is_selected = file_name in selected_files
+            is_selected = str(file_id) in selected_files
             mark = '✅' if is_selected else '⬜️'
             
             # Ограничиваем длину имени для кнопки
@@ -123,23 +174,15 @@ class FilesPage(Page):
                 'callback_data': callback_generator(
                     self.scene.__scene_name__,
                     'select_file',  # Нажатие показывает превью файла
-                    str(file_id)
+                    str(idx)
                 )
             })
         
         # Проверяем, изменились ли выбранные файлы по сравнению с сохранёнными
-        files_changed = set(selected_files) != set(saved_images)
+        files_changed = set(selected_files) != set(normalized_saved)
         
-        # Кнопка сохранения выбранных файлов в карточку (только если есть изменения)
-        if selected_files and files_changed:
-            buttons.append({
-                'text': f'💾 Сохранить выбранные ({len(selected_files)})',
-                'callback_data': callback_generator(
-                    self.scene.__scene_name__,
-                    'save_selected'
-                ),
-                'ignore_row': True
-            })
+        # (Сохранение теперь происходит автоматически при выходе со страницы)
+
         
         # Кнопка очистки выбранных (только если есть выбранные)
         if selected_files:
@@ -205,33 +248,7 @@ class FilesPage(Page):
             print(f"Error toggling select: {e}")
             await callback.answer(f'❌ Ошибка: {str(e)}')
     
-    @Page.on_callback('save_selected')
-    async def save_selected_handler(self, callback: CallbackQuery, args: list):
-        """Сохранить выбранные файлы в карточку"""
-        try:
-            selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
-            
-            card = await self.scene.get_card_data()
-            if not card:
-                await callback.answer('❌ Карточка не найдена')
-                return
-            
-            card_id = card.get('card_id')
-            
-            # Сохраняем в карточку
-            success = await brain_client.update_card(
-                card_id=card_id,
-                post_images=selected_files
-            )
-            
-            if success:
-                await callback.answer(f'✅ Сохранено {len(selected_files)} файл(ов)')
-            else:
-                await callback.answer('❌ Ошибка сохранения')
-        
-        except Exception as e:
-            print(f"Error saving selected: {e}")
-            await callback.answer(f'❌ Ошибка: {str(e)}')
+
     
     @Page.on_callback('view_all_uploaded')
     async def view_all_uploaded_handler(self, callback: CallbackQuery, args: list):
@@ -270,22 +287,25 @@ class FilesPage(Page):
         files = self.scene.get_key(self.__page_name__, 'files') or []
         selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
         
-        # Находим файл по ID чтобы получить имя
-        target_file = next((f for f in files if str(f.get('id')) == file_id), None)
-        if not target_file:
+        # Получаем файл по индексу
+        try:
+            idx = int(file_id)
+        except Exception:
+            await callback.answer("❌ Ошибка: неверный индекс файла")
+            return
+
+        if idx < 0 or idx >= len(files):
             await callback.answer("❌ Файл не найден")
             return
-        
-        file_name = target_file.get('name', 'Без имени')
-        is_selected = file_name in selected_files
-        
+
+        target_file = files[idx]
+        file_id_str = str(target_file.get('id'))
+        file_name = target_file.get('original_filename', target_file.get('name', 'Без имени'))
+        is_selected = file_id_str in selected_files
+
         try:
-            # Получаем бинарные данные файла
-            file_data, status = await brain_api.get(
-                f"/kaiten/files/{file_id}",
-                params={"task_id": task_id},
-                return_bytes=True
-            )
+            # Получаем бинарные данные файла через локальный endpoint
+            file_data, status = await brain_client.download_file(file_id_str)
             
             if status == 200 and isinstance(file_data, bytes):
                 # Определяем текст и callback кнопки в зависимости от состояния
@@ -304,7 +324,7 @@ class FilesPage(Page):
                             callback_data=callback_generator(
                                 self.scene.__scene_name__,
                                 toggle_action,
-                                file_id
+                                str(idx)
                             )
                         )
                     ],
@@ -334,34 +354,39 @@ class FilesPage(Page):
     
     @Page.on_callback('toggle_add')
     async def toggle_add_handler(self, callback: CallbackQuery, args: list):
-        """Добавить файл к выбранным"""
+        """Добавить файл к выбранным (использует индекс файла)"""
         if len(args) < 2:
             await callback.answer("❌ Ошибка")
             return
-        
-        file_id = args[1]
+        try:
+            idx = int(args[1])
+        except Exception:
+            await callback.answer("❌ Ошибка: неверный индекс")
+            return
+
         files = self.scene.get_key(self.__page_name__, 'files') or []
         selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
-        
-        target_file = next((f for f in files if str(f.get('id')) == file_id), None)
-        if not target_file:
+
+        if idx < 0 or idx >= len(files):
             await callback.answer("❌ Файл не найден")
             return
-        
-        file_name = target_file.get('name')
-        
-        if file_name in selected_files:
+
+        target_file = files[idx]
+        file_id = str(target_file.get('id'))
+        file_name = target_file.get('original_filename', target_file.get('name', ''))
+
+        if file_id in selected_files:
             await callback.answer("⚠️ Уже добавлен")
             return
-        
+
         if len(selected_files) >= self.max_files:
             await callback.answer(f"❌ Максимум {self.max_files} файлов")
             return
-        
-        selected_files.append(file_name)
+
+        selected_files.append(file_id)
         await self.scene.update_key(self.__page_name__, 'selected_files', selected_files)
         await callback.answer(f"✅ Добавлен: {file_name[:30]}")
-        
+
         # Удаляем сообщение с превью
         try:
             await callback.message.delete()
@@ -371,30 +396,35 @@ class FilesPage(Page):
     
     @Page.on_callback('toggle_remove')
     async def toggle_remove_handler(self, callback: CallbackQuery, args: list):
-        """Убрать файл из выбранных"""
+        """Убрать файл из выбранных (использует индекс файла)"""
         if len(args) < 2:
             await callback.answer("❌ Ошибка")
             return
-        
-        file_id = args[1]
+        try:
+            idx = int(args[1])
+        except Exception:
+            await callback.answer("❌ Ошибка: неверный индекс")
+            return
+
         files = self.scene.get_key(self.__page_name__, 'files') or []
         selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
-        
-        target_file = next((f for f in files if str(f.get('id')) == file_id), None)
-        if not target_file:
+
+        if idx < 0 or idx >= len(files):
             await callback.answer("❌ Файл не найден")
             return
-        
-        file_name = target_file.get('name')
-        
-        if file_name not in selected_files:
+
+        target_file = files[idx]
+        file_id = str(target_file.get('id'))
+        file_name = target_file.get('original_filename', target_file.get('name', ''))
+
+        if file_id not in selected_files:
             await callback.answer("⚠️ Не был добавлен")
             return
-        
-        selected_files.remove(file_name)
+
+        selected_files.remove(file_id)
         await self.scene.update_key(self.__page_name__, 'selected_files', selected_files)
         await callback.answer(f"❌ Убран: {file_name[:30]}")
-        
+
         # Удаляем сообщение с превью
         try:
             await callback.message.delete()
@@ -414,7 +444,7 @@ class FilesPage(Page):
     
     @Page.on_callback('toggle_kaiten')
     async def toggle_kaiten_handler(self, callback: CallbackQuery, args: list):
-        """Toggle выбора файла из Kaiten - теперь открывает превью"""
+        """Toggle выбора файла - теперь открывает превью"""
         await self.select_file_handler(callback, args)
         card = await self.scene.get_card_data()
         
@@ -475,7 +505,7 @@ class FilesPage(Page):
             file_info = uploaded_files[file_idx]
             file_id = file_info.get('file_id')
             file_type = file_info.get('type')
-            file_name = file_info.get('name', 'файл')
+            file_name = file_info.get('original_filename', 'файл')
 
             delete_mark = list_to_inline([
                 {
@@ -549,7 +579,7 @@ class FilesPage(Page):
             deleted_file = uploaded_files.pop(file_idx)
             await self.scene.update_key(self.__page_name__, 'uploaded_files', uploaded_files)
             
-            await callback.answer(f'✅ Файл "{deleted_file.get("name", "")}" удален')
+            await callback.answer(f'✅ Файл "{deleted_file.get("original_filename", "")}" удален')
             await self.scene.update_message()
             try:
                 await callback.message.delete()
@@ -623,8 +653,24 @@ class FilesPage(Page):
             print(f"Error setting uploaded file: {e}")
             await callback.answer(f'❌ Ошибка: {str(e)}')
     
+    async def page_leave(self) -> None:
+        """Сохраняем выбранные файлы (UUID) в карточку при выходе со страницы"""
+        try:
+            selected_files = self.scene.get_key(self.__page_name__, 'selected_files') or []
+            card = await self.scene.get_card_data()
+            if not card:
+                return
+            card_id = card.get('card_id')
+            if not card_id:
+                return
+            # Сохраняем список UUID файлов в поле post_images для карточки
+            await brain_client.update_card(card_id=card_id, post_images=selected_files)
+            logger.info(f"Saved selected files for card {card_id}: {selected_files}")
+        except Exception as e:
+            logger.error(f"Error saving selected files on page leave: {e}")
+
     async def photo_handler(self, message: Message) -> None:
-        """Обработка фотографий - загружает в Kaiten"""
+        """Обработка фотографий - загружает в карточку"""
         card = await self.scene.get_card_data()
         if not card:
             await message.answer('❌ Карточка не найдена')
@@ -650,22 +696,22 @@ class FilesPage(Page):
             
             file_name = f'photo_{message.message_id}.png'
             
-            # Загружаем в Kaiten через общий метод
-            success = await brain_client.upload_file_to_kaiten(
-                card_id=card_id,
-                file_data=file_bytes,
-                file_name=file_name,
-                convert_to_png=True
-            )
-            
-            if success:
-                logger.info(f"Фото {file_name} загружено в Kaiten для карточки {card_id}")
-                msg = await message.answer('✅ Фото загружено в Kaiten!')
-                
+            # Загружаем через brain-api upload endpoint
+            try:
+                converted = brain_client._convert_to_png(file_bytes) if is_image_by_mime_or_extension('image/png', file_name) else file_bytes
+            except Exception:
+                converted = file_bytes
+
+            res = await brain_client.upload_file(card_id=card_id, file_data=converted, filename=file_name, content_type='image/png')
+
+            if res:
+                logger.info(f"Фото {file_name} загружено в карточку {card_id}")
+                msg = await message.answer('✅ Фото загружено!')
+
                 # Обновляем список файлов
                 await self.data_preparate()
                 await self.scene.update_message()
-                
+
                 try:
                     from asyncio import sleep
                     await sleep(3)
@@ -685,7 +731,7 @@ class FilesPage(Page):
     
     @Page.on_text('all')
     async def document_handler(self, message: Message):
-        """Обработка документов и других типов файлов - загружаем в Kaiten"""
+        """Обработка документов и других типов файлов - загружаем"""
         print(f"[FilesPage] document_handler called. photo={message.photo}, document={message.document}, video={message.video}")
         
         # Фото обрабатываем отдельно
@@ -731,22 +777,23 @@ class FilesPage(Page):
             
             logger.info(f"Загрузка файла {file_name} для карточки {card_id}")
             
-            # Загружаем в Kaiten через общий метод
-            success = await brain_client.upload_file_to_kaiten(
-                card_id=card_id,
-                file_data=file_bytes,
-                file_name=file_name or 'file',
-                convert_to_png=is_image
-            )
-            
-            if success:
-                logger.info(f"Файл {file_name} успешно загружен в Kaiten")
+            # Загружаем через brain-api upload endpoint
+            try:
+                converted = brain_client._convert_to_png(file_bytes) if is_image else file_bytes
+            except Exception:
+                converted = file_bytes
+
+            content_type = 'image/png' if is_image else (mime_type or 'application/octet-stream')
+            res = await brain_client.upload_file(card_id=card_id, file_data=converted, filename=file_name or 'file', content_type=content_type)
+
+            if res:
+                logger.info(f"Файл {file_name} успешно загружен в карточку {card_id}")
                 msg = await message.answer('✅ Файл загружен')
-                
+
                 # Обновляем список файлов
                 await self.data_preparate()
                 await self.scene.update_message()
-                
+
                 try:
                     from asyncio import sleep
                     await sleep(3)

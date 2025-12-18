@@ -85,7 +85,7 @@ async def send_forum_deadline_passed(card: Card, **kwargs):
             data={
                 "user_id": group_forum,
                 "message": message_text,
-                "reply_to": card.forum_message_id
+                "reply_to": await card.get_forum_message()
             }
         )
         
@@ -123,7 +123,7 @@ async def send_forum_no_executor_alert(card: Card, **kwargs):
             data={
                 "user_id": group_forum,
                 "message": message_text,
-                "reply_to": card.forum_message_id
+                "reply_to": await card.get_forum_message()
             }
         )
 
@@ -325,7 +325,7 @@ async def finalize_card_publication(card: Card, **kwargs):
             logger.error(f"Ошибка создания задачи удаления: {e}")
         
         # Удаляем сообщение с форума
-        if card.forum_message_id:
+        if await card.get_forum_message():
             try:
                 await executors_api.delete(f"/forum/delete-forum-message/{card.card_id}")
                 await card.update(forum_message_id=None)

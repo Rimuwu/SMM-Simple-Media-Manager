@@ -11,3 +11,4 @@ __pycache__
 
 clients.json
 backups/*
+storage_data/*

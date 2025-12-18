@@ -1,5 +1,6 @@
 
 from datetime import datetime
+from global_modules import brain_client
 from tg.main import TelegramExecutor
 from modules.executors_manager import manager
 from modules.constants import SETTINGS, CLIENTS
@@ -260,46 +261,43 @@ async def card_executed(card_id: str, telegram_id: int):
 
 async def download_kaiten_files(task_id: int, file_names: list[str]) -> list[bytes]:
     """
-    Скачать файлы из Kaiten по именам.
+    Скачать файлы карточки по именам (через локальное файловое хранилище).
     """
     if not task_id or not file_names:
         return []
-    
+
     downloaded_files = []
-    
+
     try:
-        response, status = await brain_api.get(f"/kaiten/get-files/{task_id}")
+        response = await brain_client.list_files(str(task_id))
         
-        if status != 200 or not response.get('files'):
+        if not response or not response.get('files'):
             return []
         
-        kaiten_files = response['files']
+        files_list = response['files']
         
-        for file_name in file_names:
-            target_file = next(
-                (f for f in kaiten_files if f.get('name') == file_name),
-                None
-            )
-            
-            if not target_file:
-                continue
-            
-            file_id = target_file.get('id')
+        for file_ref in file_names:
+            # Попытаемся найти по id, затем по имени
+            match = next((f for f in files_list if str(f.get('id')) == str(file_ref)), None)
+            if match:
+                file_id = match.get('id')
+            else:
+                target_file = next((f for f in files_list if f.get('original_filename') == file_ref or f.get('name') == file_ref), None)
+                if not target_file:
+                    continue
+                file_id = target_file.get('id')
+
             if not file_id:
                 continue
-            
-            file_data, dl_status = await brain_api.get(
-                f"/kaiten/files/{file_id}",
-                params={"task_id": task_id},
-                return_bytes=True
-            )
-            
+
+            file_data, dl_status = await brain_client.download_file(str(file_id))
+
             if dl_status == 200 and isinstance(file_data, bytes):
                 downloaded_files.append(file_data)
-    
+
     except Exception as e:
-        print(f"Error downloading files from Kaiten: {e}")
-    
+        print(f"Error downloading files: {e}")
+
     return downloaded_files
 
 

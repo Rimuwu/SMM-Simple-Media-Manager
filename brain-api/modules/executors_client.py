@@ -188,31 +188,28 @@ async def delete_complete_preview(
 
 
 async def delete_all_complete_previews(
-    complete_message_ids: dict
+    complete_messages: list
     ) -> bool:
     """
     Удалить все превью для карточки.
     
     Args:
-        complete_message_ids: Словарь {client_key: {"post_id": int, "post_ids": list, "info_id": int}}
+        complete_messages: Список объектов CardMessage типа 'complete_preview'
         
     Returns:
         True если все удалены успешно
     """
     success = True
-    for client_key, msg_data in complete_message_ids.items():
+    for msg in complete_messages:
         try:
-            if isinstance(msg_data, dict):
-                await delete_complete_preview(
-                    post_id=msg_data.get("post_id"),
-                    post_ids=msg_data.get("post_ids"),
-                    info_id=msg_data.get("info_id")
-                )
-            else:
-                # Старый формат - просто int
-                await delete_complete_preview(post_id=msg_data)
+            await delete_complete_preview(
+                post_id=msg.external_id,
+                post_ids=[],
+                info_id=None
+            )
+            await msg.delete()
         except Exception as e:
-            logger.error(f"Ошибка удаления complete preview для {client_key}: {e}")
+            logger.error(f"Ошибка удаления complete preview: {e}")
             success = False
     return success
 

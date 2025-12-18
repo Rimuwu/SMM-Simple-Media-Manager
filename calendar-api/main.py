@@ -3,13 +3,14 @@ import uvicorn
 from modules.api import app
 from modules.logs import calendar_logger
 
+
 async def api_start():
     calendar_logger.info("Starting Calendar API...")
 
     config = uvicorn.Config(app, 
                             host="0.0.0.0", 
                             port=8001, # 8001
-                            # log_level="info",
+                            log_level="warning"
                             )
     server = uvicorn.Server(config)
     await server.serve()

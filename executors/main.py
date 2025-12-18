@@ -11,14 +11,13 @@ async def api_start():
     config = uvicorn.Config(app, 
                             host="0.0.0.0", 
                             port=8003, 
-                            # log_level="info"
+                            log_level="warning"
                             )
     server = uvicorn.Server(config)
     await server.serve()
 
 async def main():
-    # logging.basicConfig(level=logging.INFO)
-
+    logging.basicConfig(level=logging.INFO)
     tasks = await executors_start() # Запускаем всех исполнителей
 
     tasks.append(

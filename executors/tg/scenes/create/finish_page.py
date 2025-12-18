@@ -220,11 +220,17 @@ class FinishPage(Page):
                 files = data.get('files', [])
                 uploaded_count = 0
                 if files:
-                    uploaded_count = await brain_client.upload_files_to_card(
-                        card_id=card_id,
-                        files=files,
-                        bot=self.scene.__bot__
-                    )
+                    for file_info in files:
+                        file_data = file_info.get('data')
+                        file_name = file_info.get('name', 'file')
+                        if file_data:
+                            upload_res = await brain_client.upload_file(
+                                card_id=str(card_id),
+                                file_data=file_data,
+                                filename=file_name
+                            )
+                            if upload_res:
+                                uploaded_count += 1
 
                 await self.scene.end()
 

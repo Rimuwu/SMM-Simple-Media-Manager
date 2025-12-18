@@ -52,7 +52,9 @@ services:
     networks:
       - smm_network
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000')"]
+      test: [
+        "CMD", "python", "-c", 
+        "import urllib.request; urllib.request.urlopen('http://localhost:8000')"]
       interval: 5s
       timeout: 1s
       retries: 10
@@ -143,6 +145,36 @@ services:
           cpus: '0.25'
           memory: 256M
 
+  storage:
+    build:
+      context: .
+      dockerfile: storage-api/Dockerfile.storage
+    environment:
+      - DEBUG=${DEBUG}
+      - TZ=Europe/Moscow
+    ports:
+      - "127.0.0.1:8012:8002"
+    restart: unless-stopped
+    volumes:
+      - ./storage_data:/storage:rw
+      - ./logs:/logs:rw
+    networks:
+      - smm_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
   backup:
     image: postgres:15-alpine
     environment:
@@ -183,6 +215,10 @@ volumes:
   postgres_data:
     driver: local
     name: smm_manager_postgres_data
+
+  storage_data:
+    driver: local
+    name: smm_manager_storage_data
 
 networks:
   smm_network:

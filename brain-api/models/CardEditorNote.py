@@ -1,7 +1,7 @@
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID as _UUID
-from sqlalchemy import Text, DateTime
+from sqlalchemy import Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.connection import Base
@@ -15,7 +15,7 @@ class CardEditorNote(Base, AsyncCRUDMixin):
     __tablename__ = "card_editor_notes"
 
     id: Mapped[uuidPK]
-    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id"), nullable=False)
     author: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=False)
 
