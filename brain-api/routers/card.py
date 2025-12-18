@@ -7,40 +7,43 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from database.connection import session_factory
-from global_modules.classes.enums import CardType, ChangeType, UserRole
+from global_modules.classes.enums import CardType
 from global_modules.timezone import now_naive as moscow_now
-from modules.kaiten import add_kaiten_comment, get_kaiten_user_name, kaiten
+from modules.kaiten import add_kaiten_comment, kaiten
 from modules.properties import multi_properties
-from global_modules.json_get import open_settings, open_properties, open_clients
+from global_modules.json_get import open_settings, open_properties
 from models.Card import Card, CardStatus
 from models.User import User
-from modules.calendar import create_calendar_event, delete_calendar_event, update_calendar_event
-from modules.scheduler import reschedule_post_tasks, schedule_card_notifications, cancel_card_tasks, reschedule_card_notifications, schedule_post_tasks, update_post_tasks_time
+from modules.calendar import create_calendar_event, delete_calendar_event
+from modules.scheduler import schedule_card_notifications, cancel_card_tasks,  schedule_post_tasks, update_post_tasks_time
 from modules.constants import (
     KaitenBoardNames, PropertyNames, 
     SceneNames, Messages
 )
 from modules.card_service import (
-    notify_executor, increment_reviewers_tasks, increment_customer_tasks
+    notify_executor, increment_customer_tasks
 )
 from modules.executors_client import (
-    send_forum_message, update_forum_message, delete_forum_message, delete_forum_message_by_id,
-    send_complete_preview, update_complete_preview, delete_complete_preview, delete_all_complete_previews,
-    close_user_scene, update_task_scenes, close_card_related_scenes,
-    notify_user, notify_users
+    send_forum_message, delete_forum_message_by_id,
+    delete_all_complete_previews, close_card_related_scenes,
 )
 from modules.logs import brain_logger as logger
 from modules import status_changers
 from modules import card_events
 
-from modules.settings import vk_executor
-from modules.settings import all_settings
-from modules.settings import tg_executor
-from modules.entities import avaibale_entities
-
-
-
 router = APIRouter(prefix='/card')
+
+try:
+    from .card_settings import router as settings_router
+    from .card_entities import router as entities_router
+    from .card_content import router as content_router
+    router.include_router(settings_router)
+    router.include_router(entities_router)
+    router.include_router(content_router)
+
+except Exception:
+    pass
+
 settings = open_settings() or {}
 
 BOARD_ID = settings['space']['boards'][KaitenBoardNames.QUEUE]['id']
@@ -262,8 +265,11 @@ async def get(task_id: Optional[str] = None,
               ):
     # Используем явный запрос с eager loading для связанных объектов
     async with session_factory() as session:
-        stmt = select(Card).options(selectinload(Card.executor))
-        
+        stmt = select(Card).options(selectinload(Card.executor),
+                                    selectinload(Card.customer),
+                                    selectinload(Card.editor)
+                                    )
+    
         # Применяем фильтры
         if task_id:
             stmt = stmt.where(Card.task_id == int(task_id))
@@ -500,16 +506,16 @@ class ChangeStatusRequest(BaseModel):
 async def change_status(request: ChangeStatusRequest):
     """Изменить статус карточки через функции status_changers"""
     logger.info(f"Запрос на изменение статуса карточки {request.card_id} на {request.new_status}")
-    
+
     # Загружаем карточку с eager loading для editor_notes_entries
     async with session_factory() as session:
         stmt = select(Card).options(selectinload(Card.editor_notes_entries)).where(Card.card_id == request.card_id)
         result = await session.execute(stmt)
         card = result.scalar_one_or_none()
-    
+
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
-    
+
     # Добавляем комментарий если он указан
     if request.comment:
         try:
@@ -735,293 +741,3 @@ async def notify_executor_endpoint(data: NotifyExecutorRequest):
     await notify_executor(str(card.executor_id), data.message, task_id=data.card_id)
 
     return {"detail": "Notification sent"}
-
-class SetContentRequest(BaseModel):
-    card_id: str
-    content: str
-    client_key: Optional[str] = None  # None означает установку общего контента ('all')
-
-@router.post("/set-content")
-async def set_content(request: SetContentRequest):
-    """Установить контент для карточки.
-    
-    Если client_key не указан - устанавливает общий контент (ключ 'all').
-    Если client_key указан - устанавливает контент для конкретного клиента.
-    """
-    logger.info(f"Установка контента для карточки {request.card_id}, клиент: {request.client_key or 'all'}")
-    
-    card = await Card.get_by_key('card_id', request.card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-    
-    # Используем функцию on_content для установки контента
-    await card_events.on_content(
-        new_content=request.content,
-        card=card,
-        client_key=request.client_key
-    )
-    
-    await card.refresh()
-    return {"success": True, "card_id": str(card.card_id)}
-
-
-class ClearContentRequest(BaseModel):
-    card_id: str
-    client_key: Optional[str] = None  # None означает очистку общего контента ('all')
-
-@router.post("/clear-content")
-async def clear_content(request: ClearContentRequest):
-    """Очистить контент для карточки.
-    
-    Если client_key не указан - очищает общий контент (ключ 'all').
-    Если client_key указан - очищает контент для конкретного клиента.
-    """
-    logger.info(f"Очистка контента для карточки {request.card_id}, клиент: {request.client_key or 'all'}")
-    
-    card = await Card.get_by_key('card_id', request.card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-    
-    # Определяем ключ для очистки (None означает общий контент)
-    key = request.client_key if request.client_key else None
-
-    # Получаем все записи контента для карточки и очищаем нужные
-    contents = await card.get_content(client_key=key)
-    if contents:
-        for c in contents:
-            await c.delete()
-
-        # Добавляем комментарий в Kaiten
-        if card.task_id and card.task_id != 0:
-            comment = f"🗑 Контент очищен для {'клиента: ' + request.client_key if request.client_key else 'общего контента'}"
-            await add_kaiten_comment(card.task_id, comment)
-    
-    await card.refresh()
-    return {"success": True, "card_id": str(card.card_id), "cleared_key": key}
-
-
-class CardSettings(BaseModel):
-    card_id: str
-    client_id: str
-    setting_type: str
-    data: dict
-
-@router.post("/set-client_settings")
-async def set_client_settings_endpoint(data: CardSettings):
-    """ Установка настроек клиентов для карточки  """
-
-    card = await Card.get_by_key('card_id', data.card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-
-    # Убедимся, что клиент настроен для карточки
-    if data.client_id not in (card.clients or []):
-        raise HTTPException(status_code=400, detail="Client ID not found in card settings")
-
-    # Создаём или обновляем настройку клиента в отдельной таблице
-    await card.set_client_setting(client_key=data.client_id, data=data.data, type=data.setting_type)
-
-    clients = open_clients() or {}
-    executor_type = clients.get(
-        data.client_id, {}).get('executor_name') or clients.get(
-        data.client_id, {}).get('executor')
-    
-    print(f"Executor type for client {data.client_id}: {executor_type}")
-
-    types = all_settings.avaibale_types.copy()
-    if executor_type == 'vk_executor':
-        types.update(vk_executor.avaibale_types)
-
-    elif executor_type == 'telegram_executor':
-        types.update(tg_executor.avaibale_types)
-    
-    print(f"Available types for executor {executor_type}: {list(types.keys())}")
-
-    if data.setting_type not in types:
-        raise HTTPException(status_code=400, detail="Invalid setting type for client")
-
-    res, error = await vk_executor.avaibale_types[
-        data.setting_type](
-        card, data.client_id, data.data
-    )
-
-    return res, error
-
-
-class AddEntityRequest(BaseModel):
-    card_id: str
-    client_id: str
-    entity_type: str
-    data: dict
-    name: Optional[str] = None
-
-
-@router.post("/add-entity")
-async def add_entity_endpoint(req: AddEntityRequest):
-    """Добавляет entity (например опрос) для конкретного клиента внутри карточки"""
-    card = await Card.get_by_key('card_id', req.card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-
-    if req.client_id not in (card.clients or []):
-        raise HTTPException(status_code=400, detail="Client ID not found in card clients")
-
-    # Validate entity type for client executor via entities handlers
-    clients = open_clients() or {}
-    executor_type = clients.get(req.client_id, {}).get('executor_name')
-
-    handlers = avaibale_entities.get(executor_type, {})
-    handler = handlers.get(req.entity_type)
-    if not handler:
-        raise HTTPException(status_code=400, detail="Invalid entity type for client")
-
-    # Validate / normalize via handler (may raise HTTPException)
-    normalized = handler(req.data)
-
-    import uuid
-
-    entity = {
-        'id': str(uuid.uuid4()),
-        'type': req.entity_type,
-        'name': req.name or '',
-        'data': normalized,
-        'created_at': datetime.now().isoformat()
-    }
-
-    ents = card.entities or {}
-    lst = ents.get(req.client_id, [])
-    lst.append(entity)
-    ents[req.client_id] = lst
-
-    await card.update(entities=ents)
-
-    # Add Kaiten comment
-    if card.task_id and card.task_id != 0:
-        comment = f"🧩 Добавлен entity: {req.entity_type} для клиента {req.client_id}"
-        await add_kaiten_comment(card.task_id, comment)
-
-    return {"entity": entity}
-
-
-@router.get('/entities')
-async def list_entities(card_id: str, client_id: str):
-    card = await Card.get_by_key('card_id', card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-
-    ents = card.entities or {}
-    return {"entities": ents.get(client_id, [])}
-
-
-@router.get('/entity')
-async def get_entity(card_id: str, client_id: str, entity_id: str):
-    card = await Card.get_by_key('card_id', card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-
-    ents = card.entities or {}
-    for e in ents.get(client_id, []):
-        if e.get('id') == entity_id:
-            return e
-
-    raise HTTPException(status_code=404, detail="Entity not found")
-
-
-class DeleteEntityRequest(BaseModel):
-    card_id: str
-    client_id: str
-    entity_id: str
-
-
-@router.post('/delete-entity')
-async def delete_entity(req: DeleteEntityRequest):
-    card = await Card.get_by_key('card_id', req.card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-
-    ents = card.entities or {}
-    lst = ents.get(req.client_id, [])
-    new_lst = [e for e in lst if e.get('id') != req.entity_id]
-    if len(new_lst) == len(lst):
-        raise HTTPException(status_code=404, detail="Entity not found")
-
-    ents[req.client_id] = new_lst
-    await card.update(entities=ents)
-
-    # Kaiten comment
-    if card.task_id and card.task_id != 0:
-        comment = f"🗑 Удалён entity {req.entity_id} ({req.client_id})"
-        await add_kaiten_comment(card.task_id, comment)
-
-    return {"detail": "Entity deleted"}
-
-
-class UpdateEntityRequest(BaseModel):
-    card_id: str
-    client_id: str
-    entity_id: str
-    data: dict
-    name: Optional[str] = None
-
-
-@router.post('/update-entity')
-async def update_entity(req: UpdateEntityRequest):
-    """Обновляет существующий entity для клиента внутри карточки"""
-    card = await Card.get_by_key('card_id', req.card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-
-    if req.client_id not in (card.clients or []):
-        raise HTTPException(status_code=400, detail="Client ID not found in card clients")
-
-    ents = card.entities or {}
-    lst = ents.get(req.client_id, [])
-    found = False
-
-    # Найдём сущность и определим её тип
-    target_entity = None
-    for i, e in enumerate(lst):
-        if e.get('id') == req.entity_id:
-            target_entity = e
-            target_idx = i
-            break
-
-    if not target_entity:
-        raise HTTPException(status_code=404, detail="Entity not found")
-
-    clients = open_clients() or {}
-    executor_type = clients.get(req.client_id, {}).get('executor_name')
-    handlers = avaibale_entities.get(executor_type, {})
-    handler = handlers.get(target_entity.get('type')) if handlers else None
-
-    # Try to normalize using handler if available
-    normalized = req.data
-    try:
-        if handler:
-            normalized = handler(req.data)
-    except HTTPException:
-        raise
-    except Exception:
-        # If normalization fails, keep provided data
-        pass
-
-    # Обновляем найденную сущность
-    target_entity['data'] = normalized
-    if req.name is not None:
-        target_entity['name'] = req.name
-    target_entity['updated_at'] = datetime.now().isoformat()
-    lst[target_idx] = target_entity
-    found = True
-
-    if not found:
-        raise HTTPException(status_code=404, detail="Entity not found")
-
-    ents[req.client_id] = lst
-    await card.update(entities=ents)
-
-    # Kaiten comment
-    if card.task_id and card.task_id != 0:
-        comment = f"✏️ Обновлён entity {req.entity_id} ({req.client_id})"
-        await add_kaiten_comment(card.task_id, comment)
-
-    return {"entity": e}

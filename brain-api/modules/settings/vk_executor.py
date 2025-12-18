@@ -21,6 +21,7 @@ async def image_view(card: Card,
     current_settings = await card.get_clients_settings(client_key=client_key)
     cur = current_settings[0].data if current_settings else {}
     cur.update({'image_view': data['type']})
+
     await card.set_client_setting(client_key=client_key, data=cur)
 
     return True, ""

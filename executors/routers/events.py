@@ -68,7 +68,9 @@ async def update_scenes(event: ScenesEvent):
         # Если все критерии совпадают - обновляем сцену
         if match:
             try:
-                if event.action == "close": await scene.end()
+                if event.action == "close": 
+                    await scene.end()
+                    print(f"Получен сигнал остановки сцены для пользователя {scene.user_id}")
                 else: await scene.update_message()
 
                 updated_count += 1

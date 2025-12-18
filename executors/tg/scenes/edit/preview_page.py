@@ -4,11 +4,8 @@
 from aiogram.types import CallbackQuery
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.brain_client import brain_client
 from modules.constants import CLIENTS
 from modules.post_sender import prepare_and_send_preview, download_kaiten_files
-from modules.entities_sender import send_poll_preview, get_entities_for_client
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 class PreviewPage(Page):
     

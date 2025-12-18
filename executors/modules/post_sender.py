@@ -287,19 +287,19 @@ async def prepare_and_send_preview(
     """
     # Генерируем текст поста
     post_text = generate_post(content, tags, client_key=client_key)
-    
+
     # Скачиваем файлы из Kaiten или берём из кэша
     media_files = []
     if post_images and task_id:
         cache_key = f"{task_id}:{','.join(post_images)}"
-        
+
         if cached_files and cache_key in cached_files:
             media_files = cached_files[cache_key]
         else:
             media_files = await download_kaiten_files(task_id, post_images)
             if cached_files is not None:
                 cached_files[cache_key] = media_files
-    
+
     entities = None
     if card_id and client_key:
         entities_result = await get_entities_for_client(card_id, client_key)

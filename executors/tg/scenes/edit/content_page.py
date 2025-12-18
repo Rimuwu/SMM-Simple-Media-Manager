@@ -1,3 +1,4 @@
+from global_modules import brain_client
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms.utils import callback_generator
 from aiogram.types import Message
@@ -125,11 +126,12 @@ class ContentSetterPage(TextTypeScene):
     async def content_worker(self) -> str:
         # Получаем карточку для доступа к content dict
         card = await self.scene.get_card_data()
+        print(card)
         content_dict = card.get('content', {}) if card else {}
 
         tags_length = await self._calculate_tags_length()
         self.max_length = self.__max_length__ - tags_length
-        
+
         # Если content_dict не dict (старый формат), инициализируем
         if not isinstance(content_dict, dict):
             content_dict = {'all': content_dict} if content_dict else {}
@@ -284,7 +286,7 @@ class ContentSetterPage(TextTypeScene):
     @TextTypeScene.on_callback('checklist')
     async def show_checklist(self, callback, args):
         checklist_text = (
-            "📑 **Памятка по написанию поста:**\n\n"
+            "📑 <b>Памятка по написанию поста:</b>\n\n"
             "1. Текст должен быть написан на «ты», конкретным и емким.\n"
             "2. Используйте корректное тире (`–`) и ставьте пробелы после смайликов.\n"
             "3. После каждого абзаца должна быть пустая строка.\n"
@@ -292,7 +294,7 @@ class ContentSetterPage(TextTypeScene):
             "5. Ссылки должны быть укорочены или скрыты под гиперссылку.\n"
             "6. Избегайте длинных сложных предложений."
             "\n\n"
-            "[Ссылка на памятку](https://docs.google.com/document/d/18Jp7d1pseL84vlkA4D6ORcXCvJNOnCL66gtb7SNWUAE/edit?tab=t.0)"
+            "<a href=\"https://docs.google.com/document/d/18Jp7d1pseL84vlkA4D6ORcXCvJNOnCL66gtb7SNWUAE/edit?tab=t.0\">Ссылка на памятку</a>"
         )
 
         self.content = checklist_text
@@ -304,7 +306,6 @@ class ContentSetterPage(TextTypeScene):
     async def handle_text(self, message: Message, value: str):
         # Получаем текст в HTML формате (сохраняем форматирование)
         text = message.text or ""
-        print(message.md_text)
         html_text = message.html_text or text
 
         self.clear_content()
@@ -328,16 +329,12 @@ class ContentSetterPage(TextTypeScene):
         if task_id:
             # Определяем client_key в зависимости от режима
             client_key = None if self.content_mode == 'all' else self.content_mode
-            
-            await brain_api.post(
-                '/card/set-content',
-                data={
-                    'card_id': task_id,
-                    'content': html_text,
-                    'client_key': client_key
-                }
-            )
 
+            await brain_client.set_content(
+                card_id=task_id,
+                content=html_text,
+                client_key=client_key
+            )
 
         self.clear_content()
         await self.scene.update_message()

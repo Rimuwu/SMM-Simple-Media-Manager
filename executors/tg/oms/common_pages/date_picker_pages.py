@@ -220,12 +220,12 @@ class DatePickerPage(Page):
 
                     if day_end < (now + timedelta(seconds=min_delta)):
                         buttons.append({
-                            'text': f'❌ {day}',
+                            'text': f'{day} ❌',
                             'callback_data': ' '
                         })
                     elif full_day:
                         buttons.append({
-                            'text': f'⭕ {day}',
+                            'text': f'{day} ⭕',
                             'callback_data': ' '
                         })
                     else:
@@ -242,7 +242,7 @@ class DatePickerPage(Page):
                             emoji = '🟥'
 
                         buttons.append({
-                            'text': f'{emoji} {day}',
+                            'text': f'{day} {emoji}',
                             'callback_data': callback_generator(self.scene.__scene_name__, 'pick_date', f"{year}-{month:02d}-{day:02d}")
                         })
 
@@ -292,12 +292,12 @@ class DatePickerPage(Page):
 
                 if hour_start < (now + timedelta(seconds=min_delta)):
                     buttons.append({
-                        'text': f'❌ {hour:02d}',
+                        'text': f'{hour:02d} ❌',
                         'callback_data': ' '
                     })
                 elif full_hour:
                     buttons.append({
-                        'text': f'⬜ {hour:02d}',
+                        'text': f'{hour:02d} ⬜',
                         'callback_data': ' '
                     })
                 else:
@@ -312,7 +312,7 @@ class DatePickerPage(Page):
                         emoji = '🟥'
 
                     buttons.append({
-                        'text': f'{emoji} {hour:02d}',
+                        'text': f'{hour:02d} {emoji}',
                         'callback_data': callback_generator(self.scene.__scene_name__, 'pick_hour', str(hour))
                     })
 

@@ -74,22 +74,19 @@ async def take_task(callback: CallbackQuery):
     # Открываем сцену редактирования задачи
     try:
         from tg.scenes.edit.task_scene import TaskScene
-        
+
         # Закрываем существующую сцену если есть
-        if scene_manager.has_scene(callback.from_user.id):
-            old_scene = scene_manager.get_scene(callback.from_user.id)
-            if old_scene:
-                await old_scene.end()
-        
-        # Создаём новую сцену
-        task_scene: TaskScene = scene_manager.create_scene(
-            callback.from_user.id, 
-            TaskScene, 
-            bot
-        )
-        task_scene.set_taskid(card_id)
-        await task_scene.start()
-        
+        if not scene_manager.has_scene(callback.from_user.id):
+
+            # Создаём новую сцену
+            task_scene: TaskScene = scene_manager.create_scene(
+                callback.from_user.id, 
+                TaskScene, 
+                bot
+            )
+            task_scene.set_taskid(card_id)
+            await task_scene.start()
+
         logger.info(f"Сцена user-task открыта для пользователя {callback.from_user.id}")
     except Exception as e:
         logger.error(f"Ошибка открытия сцены user-task: {e}")

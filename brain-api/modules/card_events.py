@@ -471,9 +471,19 @@ async def on_content(
 
     # Создаём или обновляем запись в таблице CardContent
     from models.CardContent import CardContent
-    existing, created = await CardContent.first_or_create(card_id=card.card_id, client_key=key, defaults={"text": new_content})
-    if not created:
-        await existing.update(text=new_content)
+    content_records = await CardContent.filter_by(
+        card_id=card.card_id,
+        client_key=key
+    )
+    if content_records:
+        content_record = content_records[0]
+        await content_record.update(text=new_content)
+    else:
+        await CardContent.create(
+            card_id=card.card_id,
+            client_key=key,
+            text=new_content
+        )
 
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
