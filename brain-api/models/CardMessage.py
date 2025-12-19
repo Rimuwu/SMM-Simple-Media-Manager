@@ -25,7 +25,7 @@ class CardMessage(Base, AsyncCRUDMixin):
     message_type: Mapped[str] = mapped_column(String, nullable=False)
     
     # ID сообщения в целевой системе (например, ID в форуме, ID в executor API)
-    external_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     
     # Дополнительные данные (например, информация о клиенте для complete_preview)
     data_info: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -42,10 +42,10 @@ class CardMessage(Base, AsyncCRUDMixin):
             "id": str(self.id),
             "card_id": str(self.card_id),
             "message_type": self.message_type,
-            "external_id": self.external_id,
+            "message_id": self.message_id,
             "data_info": self.data_info,
             "created_at": getattr(self, 'created_at', None)
         }
 
     def __repr__(self) -> str:
-        return f"<CardMessage(id={self.id}, type='{self.message_type}', external_id={self.external_id})>"
+        return f"<CardMessage(id={self.id}, type='{self.message_type}', message_id={self.message_id})>"

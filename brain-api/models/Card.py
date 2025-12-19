@@ -198,20 +198,20 @@ class Card(Base, AsyncCRUDMixin):
         messages = await self.get_messages(session=session, message_type='forum')
         return messages[0] if messages else None
 
-    async def add_message(self, message_type: str, external_id: int,
+    async def add_message(self, message_type: str, message_id: int,
                           data_info: Optional[str] = None, session: Optional["AsyncSession"] = None):
         """Добавить сообщение к карточке"""
         from models.CardMessage import CardMessage
         return await CardMessage.create(session=session, 
-                                        card_id=self.card_id, message_type=message_type, external_id=external_id, data_info=data_info)
+                                        card_id=self.card_id, message_type=message_type, message_id=message_id, data_info=data_info)
 
     async def get_complete_preview_messages(self, session: Optional["AsyncSession"] = None):
         """Получить complete_preview сообщение карточки"""
         messages = await self.get_messages(session=session, message_type='complete_preview')
         return messages
 
-    async def add_complete_preview_message(self, external_id: int,
+    async def add_complete_preview_message(self, message_id: int,
                                           data_info: Optional[str] = None, session: Optional["AsyncSession"] = None):
         """Добавить complete_preview сообщение к карточке"""
-        return await self.add_message(message_type='complete_preview', external_id=external_id,
+        return await self.add_message(message_type='complete_preview', message_id=message_id,
                                       data_info=data_info, session=session)

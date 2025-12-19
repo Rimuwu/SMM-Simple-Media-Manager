@@ -30,6 +30,7 @@ from modules.executors_client import (
 from modules.logs import brain_logger as logger
 from modules import status_changers
 from modules import card_events
+from models.CardMessage import CardMessage
 
 router = APIRouter(prefix='/card')
 
@@ -590,13 +591,13 @@ async def delete_card(card_id: str):
     try:
         forum_msg = await card.get_forum_message()
         if forum_msg:
-            if not await delete_forum_message_by_id(forum_msg.external_id):
+            if not await delete_forum_message_by_id(forum_msg.message_id):
                 logger.warning(f"Ошибка удаления сообщения форума для карточки {card_id}")
-        
+
         complete_msgs = await card.get_messages(message_type='complete_preview')
         if complete_msgs:
             await delete_all_complete_previews(complete_msgs)
-        
+
         # Явно удаляем все CardMessage записи перед удалением карточки
         from models.CardMessage import CardMessage
         all_messages = await CardMessage.filter_by(card_id=card.card_id)
@@ -741,3 +742,42 @@ async def notify_executor_endpoint(data: NotifyExecutorRequest):
     await notify_executor(str(card.executor_id), data.message, task_id=data.card_id)
 
     return {"detail": "Notification sent"}
+
+@router.get("/get-messages")
+async def get_messages(card_id: Optional[str] = None,
+              message_type: Optional[str] = None):
+
+    async with session_factory() as session:
+        stmt = select(CardMessage).options()
+
+        # Применяем фильтры
+        if message_type:
+            stmt = stmt.where(CardMessage.message_type == message_type)
+        if card_id:
+            stmt = stmt.where(CardMessage.card_id == _UUID(card_id))
+
+        result_db = await session.execute(stmt)
+        messages = result_db.scalars().all()
+
+        if not messages:
+            raise HTTPException(status_code=404, detail="Messages not found")
+
+        return [msg.to_dict() for msg in messages]
+
+@router.get("/get-card-by-message_id")
+async def get_card_by_message_id(message_id: str):
+    """Получить карточку по ID сообщения"""
+    async with session_factory() as session:
+        stmt = select(CardMessage).options().where(CardMessage.message_id == int(message_id))
+
+        result_db = await session.execute(stmt)
+        message = result_db.scalars().first()
+
+        if not message:
+            raise HTTPException(status_code=404, detail="Message not found")
+
+        card = await Card.get_by_key('card_id', message.card_id)
+        if not card:
+            raise HTTPException(status_code=404, detail="Card not found")
+
+        return card.to_dict()

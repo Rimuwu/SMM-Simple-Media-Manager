@@ -1,5 +1,6 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, CallbackQuery
+from global_modules import brain_client
 from global_modules.classes.enums import CardStatus
 from modules.text_generators import card_executed, forum_message
 from modules.logs import executors_logger as logger
@@ -29,11 +30,9 @@ async def take_task(callback: CallbackQuery):
             "Вы не зарегистрированы в системе.", show_alert=True)
         return
 
-    cards = await get_cards(
-        forum_message_id=message_id
-    )
+    card = await brain_client.get_card_by_message_id(message_id)
 
-    if not cards:
+    if not card:
         await callback.answer(
             "Задание не найдено или уже взято другим исполнителем.", show_alert=True)
         await bot.delete_message(
@@ -42,7 +41,6 @@ async def take_task(callback: CallbackQuery):
         )
         return
 
-    card = cards[0]
     card_id = card['card_id']
 
     if not card:
@@ -113,9 +111,9 @@ async def edit_task(callback: CallbackQuery):
             "Только редакторы и админы могут взять задание на проверку.", show_alert=True)
         return
 
-    cards = await get_cards(forum_message_id=message_id)
+    card = await brain_client.get_card_by_message_id(message_id)
 
-    if not cards:
+    if not card:
         await callback.answer(
             "Задание не найдено или уже на проверке.", show_alert=True)
         await bot.delete_message(
@@ -124,7 +122,6 @@ async def edit_task(callback: CallbackQuery):
         )
         return
 
-    card = cards[0]
     card_id = card['card_id']
 
     if not card:
@@ -178,7 +175,7 @@ async def edit_task(callback: CallbackQuery):
         )
         task_scene.set_taskid(card_id)
         await task_scene.start()
-        
+
         logger.info(f"Сцена user-task открыта для редактора {callback.from_user.id}")
     except Exception as e:
         logger.error(f"Ошибка открытия сцены user-task: {e}")

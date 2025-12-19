@@ -288,9 +288,7 @@ async def on_send_time(
                 if msg:
                     await update_complete_preview(
                         str(card.card_id), client_key,
-                        int(msg.external_id),
-                        [],  # post_ids больше не используются в CardMessage
-                        None  # info_id больше не используется в CardMessage
+                        int(msg.message_id)
                     )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
@@ -498,13 +496,11 @@ async def on_content(
                 if msg:
                     update_res = await update_complete_preview(
                         str(card.card_id), client_key,
-                        int(msg.external_id),
-                        [],
-                        None
+                        int(msg.message_id)
                     )
-                    # Обновляем external_id если он изменился
-                    if update_res.get("post_id") and update_res.get("post_id") != int(msg.external_id):
-                        await msg.update(external_id=update_res.get("post_id"))
+                    # Обновляем message_id если он изменился
+                    if update_res.get("post_id") and update_res.get("post_id") != int(msg.message_id):
+                        await msg.update(message_id=update_res.get("post_id"))
         except Exception as e:
             print(f"Error updating complete previews: {e}")
 
@@ -586,9 +582,7 @@ async def on_clients(
             for msg in complete_messages:
                 if msg.data_info and msg.data_info not in new_clients:
                     await delete_complete_preview(
-                        post_id=int(msg.external_id),
-                        post_ids=[],
-                        info_id=None
+                        post_id=int(msg.message_id)
                     )
                     await msg.delete()
             
@@ -600,7 +594,7 @@ async def on_clients(
                         post_id = preview_res.get("post_id")
                         if post_id is not None:
                             await card.add_complete_preview_message(
-                                external_id=int(post_id),
+                                message_id=int(post_id),
                                 data_info=client_key
                             )
         except Exception as e:
@@ -713,9 +707,7 @@ async def on_tags(
                 if msg:
                     await update_complete_preview(
                         str(card.card_id), client_key,
-                        int(msg.external_id),
-                        [],
-                        None
+                        int(msg.message_id)
                     )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
@@ -770,36 +762,6 @@ async def on_prompt_message(
     
     # Обновляем карточку
     await card.update(prompt_message=message_id)
-
-async def on_forum_message_id(
-    forum_message_id: Optional[int],
-    card: Optional[Card] = None, 
-    card_id: Optional[_UUID] = None
-):
-    """Обработчик изменения ID сообщения на форуме."""
-    
-    if not card_id and not card:
-        raise ValueError("Необходимо указать card или card_id")
-    
-    if not card:
-        card = await Card.get_by_key('card_id', str(card_id))
-        if not card:
-            raise ValueError(f"Карточка с card_id {card_id} не найдена")
-
-    forum_message = await card.get_forum_message()
-    if forum_message_id is None:
-        if forum_message:
-            await forum_message.delete()
-    else:
-        if forum_message:
-            await forum_message.update(message_id=forum_message_id)
-        else:
-            await CardMessage.create(
-                card_id=card.card_id,
-                message_id=forum_message_id
-            )
-
-# Обработчик on_complete_message_id удален - используется модель CardMessage
 
 async def on_editor_notes(
     editor_notes: list[dict],
@@ -865,9 +827,7 @@ async def on_clients_settings(
                 if msg:
                     await update_complete_preview(
                         str(card.card_id), client_key,
-                        int(msg.external_id),
-                        [],
-                        None
+                        int(msg.message_id)
                     )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
@@ -914,9 +874,7 @@ async def on_entities(
                 if msg:
                     await update_complete_preview(
                         str(card.card_id), client_key,
-                        int(msg.external_id),
-                        [],
-                        None
+                        int(msg.message_id)
                     )
         except Exception as e:
             print(f"Error updating complete previews: {e}")

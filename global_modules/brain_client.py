@@ -28,8 +28,7 @@ class BrainAPIClient:
         status: Optional[CardStatus] = None,
         customer_id: Optional[str] = None,
         executor_id: Optional[str] = None,
-        need_check: Optional[bool] = None,
-        forum_message_id: Optional[int] = None
+        need_check: Optional[bool] = None
     ) -> list[dict]:
         """Получить карточки по различным параметрам"""
         params = {
@@ -38,8 +37,7 @@ class BrainAPIClient:
             "status": status.value if status else None,
             "customer_id": customer_id,
             "executor_id": executor_id,
-            "need_check": need_check,
-            "forum_message_id": forum_message_id
+            "need_check": need_check
         }
         cards, res_status = await self.api.get("/card/get", params=params)
 
@@ -57,7 +55,6 @@ class BrainAPIClient:
         customer_id: Optional[str | Nothing] = '__nothing__',
         need_check: Optional[bool | Nothing] = '__nothing__',
         need_send: Optional[bool | Nothing] = '__nothing__',
-        forum_message_id: Optional[int | Nothing] = '__nothing__',
         clients: Optional[list[str] | Nothing] = '__nothing__',
         tags: Optional[list[str] | Nothing] = '__nothing__',
         deadline: Optional[str | Nothing] = '__nothing__',
@@ -80,7 +77,6 @@ class BrainAPIClient:
             "customer_id": customer_id,
             "need_check": need_check,
             "need_send": need_send,
-            "forum_message_id": forum_message_id,
             "clients": clients,
             "tags": tags,
             "deadline": deadline,
@@ -673,6 +669,27 @@ class BrainAPIClient:
             return res
         return None
 
+    async def get_messages(self, card_id: Optional[str] = None, 
+                           message_type: Optional[str] = None) -> dict | None:
+        """Получить сообщения карточки (/card/get-messages)"""
+        params = {}
+        if card_id is not None:
+            params['card_id'] = card_id
+        if message_type is not None:
+            params['message_type'] = message_type
+        res, status = await self.api.get("/card/get-messages", params=params)
+        if status == 200:
+            return res
+        return None
+    
+    async def get_card_by_message_id(self, message_id: int) -> dict | None:
+        """Получить карточку по ID сообщения"""
+        
+        res, status = await self.api.get(f"/card/get-card-by-message_id/{message_id}")
+        if status == 200:
+            return res
+        return None
+
     def _detect_content_type(self, file_data: bytes, file_name: str) -> str:
         """Определяет content_type файла"""
         # По magic bytes
@@ -757,3 +774,7 @@ update_entity = brain_client.update_entity
 # Misc
 send_now = brain_client.send_now
 get_busy_slots = brain_client.get_busy_slots
+
+# Messages
+get_messages = brain_client.get_messages
+get_card_by_message_id = brain_client.get_card_by_message_id

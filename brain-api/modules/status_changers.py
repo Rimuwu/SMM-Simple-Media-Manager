@@ -20,6 +20,7 @@ from modules.executors_client import (
     notify_user, notify_users
 )
 from modules.logs import brain_logger as logger
+from models.CardMessage import CardMessage
 
 settings = open_settings() or {}
 
@@ -153,9 +154,17 @@ async def to_pass(
     if await card.get_forum_message():
         await delete_forum_message(str(card.card_id))
         message_id, _ = await send_forum_message(str(card.card_id))
-        
+
         if message_id:
-            await card.update(forum_message_id=message_id)
+            forum_message = await card.get_forum_message()
+            if forum_message:
+                await forum_message.update(message_id=message_id)
+            else:
+                await CardMessage.create(
+                    card_id=card.card_id,
+                    message_id=message_id
+                )
+
     else:
         customer = await User.get_by_key('user_id', card.customer_id)
         if customer and customer.role != UserRole.admin:
@@ -359,7 +368,10 @@ async def to_review(
     # Удаление старого сообщения с форума
     if await card.get_forum_message():
         if await delete_forum_message(str(card.card_id)):
-            await card.update(forum_message_id=None)
+            forum_mes = await card.get_messages(message_type='forum')
+            if forum_mes:
+                for mes in forum_mes:
+                    await mes.delete()
 
     # Создание нового сообщения на форуме со статусом review
     await card.refresh()
@@ -367,22 +379,13 @@ async def to_review(
         str(card.card_id)
     )
     if message_id:
-        await card.update(forum_message_id=message_id)
+        forum_mes = await card.get_messages(message_type='forum')
+        if forum_mes:
+            for mes in forum_mes:
+                await mes.update(message_id=message_id)
 
     # Уведомления редакторам и админам
     recipients = []
-    # admins = await User.filter_by(role=UserRole.admin)
-    # editors = await User.filter_by(role=UserRole.editor)
-
-    # if admins:
-    #     recipients.extend(admins)
-    # if editors:
-    #     recipients.extend(editors)
-
-    # # Убираем дубликаты
-    # recipients = list(
-    #     {u.user_id: u for u in recipients}.values()
-    # )
 
     if card.editor_id:
         editor = await User.get_by_key('user_id', card.editor_id)
@@ -499,13 +502,16 @@ async def to_ready(
         str(card.card_id)
     )
     if message_id:
-        await card.update(forum_message_id=message_id)
+        forum_mes = await card.get_messages(message_type='forum')
+        if forum_mes:
+            for mes in forum_mes:
+                await mes.update(message_id=message_id)
 
     # Отправка превью постов для каждого клиента
     await card.refresh()
     async with session_factory() as preview_session:
         complete_messages = await card.get_complete_preview_messages(session=preview_session)
-        existing_clients = {msg.data_info for msg in complete_messages if msg.data_info}
+        # existing_clients = {msg.data_info for msg in complete_messages if msg.data_info}
 
         clients = card.clients or []
         for client_key in clients:
@@ -517,13 +523,11 @@ async def to_ready(
                 preview_res = await update_complete_preview(
                     str(card.card_id), 
                     client_key,
-                    int(msg.external_id),
-                    [],
-                    None
+                    int(msg.message_id)
                 )
-                # Обновляем external_id если он изменился
-                if preview_res.get("post_id") and preview_res.get("post_id") != int(msg.external_id):
-                    await msg.update(external_id=preview_res.get("post_id"))
+                # Обновляем message_id если он изменился
+                if preview_res.get("post_id") and preview_res.get("post_id") != int(msg.message_id):
+                    await msg.update(message_id=preview_res.get("post_id"))
             else:
                 # Создание нового превью
                 preview_res = await send_complete_preview(str(card.card_id), client_key)
@@ -531,7 +535,7 @@ async def to_ready(
                     post_id = preview_res.get("post_id")
                     if post_id is not None:
                         await card.add_complete_preview_message(
-                            external_id=int(post_id),
+                            message_id=int(post_id),
                             data_info=client_key
                         )
 
@@ -600,7 +604,10 @@ async def to_sent(
     # Удаление сообщения с форума
     if await card.get_forum_message():
         if await delete_forum_message(str(card.card_id)):
-            await card.update(forum_message_id=None)
+            forum_mes = await card.get_messages(message_type='forum')
+            if forum_mes:
+                for mes in forum_mes:
+                    await mes.delete()
 
     # Обновление сцены просмотра задачи
     await update_task_scenes(

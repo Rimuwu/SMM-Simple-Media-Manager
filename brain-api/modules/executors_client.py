@@ -128,9 +128,7 @@ async def send_complete_preview(
 async def update_complete_preview(
     card_id: str, 
     client_key: str, 
-    post_id: int,
-    post_ids: list[int] | None = None,
-    info_id: int | None = None
+    post_id: int
     ) -> dict:
     """
     Обновить превью готового поста в complete_topic.
@@ -144,16 +142,12 @@ async def update_complete_preview(
             data={
                 "card_id": card_id,
                 "client_key": client_key,
-                "post_id": post_id,
-                "post_ids": post_ids or [],
-                "info_id": info_id
+                "post_id": post_id
             }
         )
         return {
             "success": update_res.get("success", True),  # Считаем успехом если нет ошибки
             "post_id": update_res.get("post_id"),
-            "post_ids": update_res.get("post_ids", []),
-            "info_id": update_res.get("info_id"),
             "error": update_res.get("error")
         }
     except Exception as e:
@@ -162,9 +156,7 @@ async def update_complete_preview(
 
 
 async def delete_complete_preview(
-    post_id: int | None = None,
-    post_ids: list[int] | None = None,
-    info_id: int | None = None
+    post_id: int | None = None
     ) -> bool:
     """
     Удалить превью готового поста из complete_topic.
@@ -176,9 +168,7 @@ async def delete_complete_preview(
         await executors_api.post(
             ApiEndpoints.COMPLETE_DELETE_PREVIEW,
             data={
-                "post_id": post_id,
-                "post_ids": post_ids,
-                "info_id": info_id
+                "post_id": post_id
             }
         )
         return True
@@ -203,9 +193,7 @@ async def delete_all_complete_previews(
     for msg in complete_messages:
         try:
             await delete_complete_preview(
-                post_id=msg.external_id,
-                post_ids=[],
-                info_id=None
+                post_id=msg.message_id
             )
             await msg.delete()
         except Exception as e:

@@ -262,5 +262,5 @@ class FinishPage(Page):
             await self.scene.update_message()
             await self.scene.__bot__.send_message(
                 self.scene.user_id,
-                f'❌ Произошла ошибка при создании задачи: {str(e)[:200]}'
+                f'❌ Произошла ошибка при создании задачи: {str(e)[:1024]}'
             )

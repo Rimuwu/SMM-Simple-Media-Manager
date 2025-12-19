@@ -328,7 +328,10 @@ async def finalize_card_publication(card: Card, **kwargs):
         if await card.get_forum_message():
             try:
                 await executors_api.delete(f"/forum/delete-forum-message/{card.card_id}")
-                await card.update(forum_message_id=None)
+
+                forum_message = await card.get_forum_message()
+                if forum_message: await forum_message.delete()
+
                 logger.info(f"Сообщение с форума для карточки {card.card_id} удалено")
             except Exception as e:
                 logger.error(f"Ошибка удаления сообщения с форума: {e}")

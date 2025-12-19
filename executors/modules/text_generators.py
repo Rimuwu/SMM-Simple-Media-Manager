@@ -1,5 +1,6 @@
 
 from datetime import datetime
+from pprint import pprint
 from global_modules import brain_client
 from tg.main import TelegramExecutor
 from modules.executors_manager import manager
@@ -9,6 +10,7 @@ from modules.post_generator import generate_post
 from global_modules.classes.enums import CardStatus
 from modules.utils import get_telegram_user
 from modules.entities_sender import send_poll_preview, get_entities_for_client
+from global_modules.brain_client import brain_client
 
 forum_topic = SETTINGS.get('forum_topic', 0)
 group_forum = SETTINGS.get('group_forum', 0)
@@ -35,8 +37,13 @@ async def card_deleted(card_id: str):
     if not cards:
         return {"error": f"Card not found for {card_id}", "success": False}
     else:
-        card = cards[0]
-        message_id = card.get("forum_message_id", None)
+        forum_messages = await brain_client.get_messages(
+            card_id=card_id, message_type="forum"
+        )
+
+        first_or_none = forum_messages[0] if forum_messages else {}
+
+        message_id = first_or_none.get("message_id", None)
         if not message_id:
             return {"error": "No forum message ID", "success": False}
 
@@ -186,7 +193,13 @@ async def forum_message(card_id: str):
 
     text = await text_getter(card, tag, client_executor)
 
-    if not card.get("forum_message_id", None):
+    forum_messages = await brain_client.get_messages(
+        card_id=card_id, message_type="forum"
+    )
+    
+    first_or_none = forum_messages[0] if forum_messages else None
+
+    if not first_or_none:
 
         data = await client_executor.send_message(
             reply_to_message_id=forum_topic,
@@ -199,7 +212,7 @@ async def forum_message(card_id: str):
     else:
         data = await client_executor.edit_message(
             chat_id=group_forum,
-            message_id=card["forum_message_id"],
+            message_id=first_or_none['message_id'],
             text=text,
             parse_mode="Markdown",
             list_markup=markup
@@ -474,7 +487,11 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
         
         info_id = info_result.get("message_id") if info_result.get("success") else None
         
-        return {"success": True, "post_id": post_id, "post_ids": post_ids, "info_id": info_id}
+        return {"success": True, 
+                "post_id": post_id, 
+                "post_ids": post_ids, 
+                "info_id": info_id
+                }
     
     except Exception as e:
         return {"error": str(e), "success": False}
