@@ -272,44 +272,23 @@ async def card_executed(card_id: str, telegram_id: int):
     return {"success": True}
 
 
-async def download_kaiten_files(task_id: int, file_names: list[str]) -> list[bytes]:
+async def download_files_raw(file_ids: list[str]) -> list[bytes]:
     """
-    Скачать файлы карточки по именам (через локальное файловое хранилище).
+    Скачать файлы по их ID из БД и вернуть список raw bytes.
     """
-    if not task_id or not file_names:
+    if not file_ids:
         return []
 
-    downloaded_files = []
+    downloaded_files: list[bytes] = []
 
-    try:
-        response = await brain_client.list_files(str(task_id))
-        
-        if not response or not response.get('files'):
-            return []
-        
-        files_list = response['files']
-        
-        for file_ref in file_names:
-            # Попытаемся найти по id, затем по имени
-            match = next((f for f in files_list if str(f.get('id')) == str(file_ref)), None)
-            if match:
-                file_id = match.get('id')
-            else:
-                target_file = next((f for f in files_list if f.get('original_filename') == file_ref or f.get('name') == file_ref), None)
-                if not target_file:
-                    continue
-                file_id = target_file.get('id')
-
-            if not file_id:
-                continue
-
-            file_data, dl_status = await brain_client.download_file(str(file_id))
-
-            if dl_status == 200 and isinstance(file_data, bytes):
-                downloaded_files.append(file_data)
-
-    except Exception as e:
-        print(f"Error downloading files: {e}")
+    for file_ref in file_ids:
+        try:
+            file_id = str(file_ref)
+            file_data, dl_status = await brain_client.download_file(file_id)
+            if dl_status == 200 and isinstance(file_data, (bytes, bytearray)):
+                downloaded_files.append(bytes(file_data))
+        except Exception as e:
+            print(f"Error downloading file {file_ref}: {e}")
 
     return downloaded_files
 
@@ -366,8 +345,8 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     post_images = card.get("post_images", []) or []
     
     downloaded_images = []
-    if task_id and post_images:
-        downloaded_images = await download_kaiten_files(task_id, post_images)
+    if post_images:
+        downloaded_images = await download_files_raw(post_images)
     
     post_id = None
     post_ids = []  # Список всех ID сообщений для медиа-групп

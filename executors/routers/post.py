@@ -9,23 +9,12 @@ from modules.executors_manager import manager
 from modules.constants import CLIENTS
 from modules.logs import executors_logger as logger
 from modules.post_generator import generate_post
-from modules.post_sender import download_kaiten_files
+from modules.post_sender import download_files
 from modules.entities_sender import send_poll_preview
 from tg.main import TelegramExecutor
 from vk.main import VKExecutor
 
 router = APIRouter(prefix="/post", tags=["Post"])
-
-class PostScheduleRequest(BaseModel):
-    """Запрос на планирование поста"""
-    card_id: str
-    client_key: str
-    content: str  # Сырой контент
-    tags: Optional[list[str]] = None
-    send_time: Optional[str] = None  # ISO 8601 format
-    task_id: Optional[int] = None  # ID карточки в Kaiten для скачивания файлов
-    post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten
-
 
 class PostSendRequest(BaseModel):
     """Запрос на немедленную отправку поста"""
@@ -33,8 +22,7 @@ class PostSendRequest(BaseModel):
     client_key: str
     content: str  # Сырой контент
     tags: Optional[list[str]] = None
-    task_id: Optional[int] = None  # ID карточки в Kaiten для скачивания файлов
-    post_images: Optional[list[str]] = None  # Список имён файлов из Kaiten
+    post_images: Optional[list[str]] = None  # Список имён файлов
     settings: dict = {}  # Дополнительные настройки для отправки
     entities: Optional[list[dict]] = None  # Entities для отправки (опросы и т.д.)
 
@@ -97,11 +85,11 @@ async def send_post(request: PostSendRequest):
         # Получаем имена файлов для отправки
         post_image_names = request.post_images or []
 
-        # Скачиваем файлы из Kaiten если есть
+        # Скачиваем файлы по ID из БД если есть
         downloaded_files = []
-        if post_image_names and request.task_id:
-            downloaded_files = await download_kaiten_files(request.task_id, post_image_names)
-            logger.info(f"Downloaded {len(downloaded_files)} files from Kaiten for card {request.card_id}")
+        if post_image_names:
+            downloaded_files = await download_files(post_image_names)
+            logger.info(f"Downloaded {len(downloaded_files)} files from DB for card {request.card_id}")
 
         if isinstance(executor, VKExecutor):
 

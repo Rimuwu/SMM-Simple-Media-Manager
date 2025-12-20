@@ -58,72 +58,40 @@ def detect_media_type(file_data: bytes, file_name: str = '') -> str:
     return 'unknown'
 
 
-async def download_kaiten_files(task_id: Union[int, str], file_names: list[str]) -> list[dict]:
+async def download_files(file_ids: list[str]) -> list[dict]:
     """
-    Скачать файлы карточки по именам (используется локальное файловое хранилище).
+    Скачать файлы по их ID из БД (через brain_client).
 
     Args:
-        task_id: ID карточки (card_id)
-        file_names: Список имён файлов для скачивания
+        file_ids: Список идентификаторов файлов (ID в БД)
 
     Returns:
-        Список словарей: [{'data': bytes, 'name': str, 'type': str}, ...]
+        Список словарей: [{'id': str, 'data': bytes, 'name': str, 'type': str}, ...]
     """
-    if not task_id or not file_names:
+    if not file_ids:
         return []
 
-    downloaded_files = []
+    downloaded_files: list[dict] = []
 
-    try:
-        # Получаем список файлов карточки через локальный endpoint
-        response = await brain_client.list_files(str(task_id))
+    for file_ref in file_ids:
+        try:
+            file_id = str(file_ref)
 
-        if not response or not response.get('files'):
-            logger.warning(f"No files found for card {task_id}")
-            return []
+            file_data, status = await brain_client.download_file(file_id)
+            if status == 200 and isinstance(file_data, (bytes, bytearray)):
+                file_info = await brain_client.get_file_info(file_id)
+                file_name = None
+                if isinstance(file_info, dict):
+                    file_name = file_info.get('original_filename') or file_info.get('name')
+                file_name = file_name or file_id
 
-        files_list = response['files']
-
-        # Ищем файлы по id или имени и скачиваем (в порядке file_names)
-        for file_ref in file_names:
-            file_id = None
-            file_name = None
-
-            # Сначала пробуем интерпретировать как id
-            match = next((f for f in files_list if str(f.get('id')) == str(file_ref)), None)
-            if match:
-                file_id = str(match.get('id'))
-                file_name = match.get('original_filename', match.get('name'))
+                media_type = detect_media_type(file_data, file_name)
+                downloaded_files.append({'id': file_id, 'data': file_data, 'name': file_name, 'type': media_type})
+                logger.info(f"Downloaded file '{file_name}' ({len(file_data)} bytes, type: {media_type})")
             else:
-                # Ищем по имени
-                target_file = next(
-                    (f for f in files_list if f.get('original_filename') == file_ref or f.get('name') == file_ref),
-                    None
-                )
-                if target_file:
-                    file_id = str(target_file.get('id'))
-                    file_name = target_file.get('original_filename', target_file.get('name'))
-
-            if not file_id:
-                logger.warning(f"File '{file_ref}' not found in card {task_id}")
-                continue
-
-            # Скачиваем файл через brain_client
-            file_data, dl_status = await brain_client.download_file(file_id)
-
-            if dl_status == 200 and isinstance(file_data, bytes):
-                media_type = detect_media_type(file_data, file_name or str(file_ref))
-                downloaded_files.append({
-                    'data': file_data,
-                    'name': file_name or str(file_ref),
-                    'type': media_type
-                })
-                logger.info(f"Downloaded file '{file_name or file_ref}' ({len(file_data)} bytes, type: {media_type})")
-            else:
-                logger.error(f"Failed to download file '{file_ref}'")
-
-    except Exception as e:
-        logger.error(f"Error downloading files: {e}", exc_info=True)
+                logger.warning(f"Failed to download file {file_ref}: status={status}")
+        except Exception as e:
+            logger.error(f"Error downloading file {file_ref}: {e}", exc_info=True)
 
     return downloaded_files
 

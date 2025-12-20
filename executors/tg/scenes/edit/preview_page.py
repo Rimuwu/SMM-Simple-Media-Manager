@@ -5,7 +5,7 @@ from aiogram.types import CallbackQuery
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
-from modules.post_sender import prepare_and_send_preview, download_kaiten_files
+from modules.post_sender import prepare_and_send_preview, download_files
 
 class PreviewPage(Page):
     
@@ -27,13 +27,14 @@ class PreviewPage(Page):
         
         # Предварительно скачиваем файлы если есть
         post_images = card.get('post_images') or []
-        task_id = card.get('task_id')
         
-        if post_images and task_id:
-            cache_key = f"{task_id}:{','.join(post_images)}"
-            if cache_key not in self._cached_files:
-                downloaded = await download_kaiten_files(task_id, post_images)
-                self._cached_files[cache_key] = downloaded
+        if post_images:
+            # Кэшируем по ID файлов: self._cached_files — словарь id->file_info
+            missing = [f for f in post_images if f not in self._cached_files]
+            if missing:
+                downloaded = await download_files(missing)
+                for fi in downloaded:
+                    self._cached_files[fi['id']] = fi
     
     async def content_worker(self) -> str:
         """Возвращает текст сообщения"""
