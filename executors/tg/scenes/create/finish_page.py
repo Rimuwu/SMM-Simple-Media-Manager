@@ -218,8 +218,6 @@ class FinishPage(Page):
                 files = data.get('files', [])
                 uploaded_count = 0
 
-                print('==========')
-                print(files)
                 if files:
                     upload_res = await brain_client.upload_files_to_card(
                         card_id=str(card_id),

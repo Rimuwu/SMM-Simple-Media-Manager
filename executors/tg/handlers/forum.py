@@ -105,7 +105,7 @@ async def edit_task(callback: CallbackQuery):
         return
 
     # Проверяем что пользователь - редактор или админ
-    user_role = await get_user_role(callback.from_user.id)
+    user_role = user.get('role')
     if user_role not in ['editor', 'admin']:
         await callback.answer(
             "Только редакторы и админы могут взять задание на проверку.", show_alert=True)
@@ -128,13 +128,13 @@ async def edit_task(callback: CallbackQuery):
         await callback.answer(
             "Задание не найдено.", show_alert=True)
         return 
-    
+
     # Проверяем что задание на проверке и редактор не назначен
     if card['status'] != CardStatus.review.value:
         await callback.answer(
             "Задание не на проверке.", show_alert=True)
         return
-    
+
     if card['editor_id'] is not None:
         await callback.answer(
             "Задание уже взято другим редактором.", show_alert=True)

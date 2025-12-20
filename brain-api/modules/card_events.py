@@ -91,7 +91,8 @@ async def on_name(
 
     # Обновляем форум
     if await card.get_forum_message():
-        await update_forum_message(str(card.card_id))
+        message_id, error = await update_forum_message(
+            str(card.card_id))
 
     if card.calendar_id:
         await update_calendar_event(

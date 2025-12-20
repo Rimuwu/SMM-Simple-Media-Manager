@@ -8,7 +8,6 @@ from global_modules.logs import Logger
 from global_modules.middlewares.logs_mid import RequestLoggingMiddleware
 
 # Настройка логирования
-logging.basicConfig(level=logging.DEBUG)
 logger = Logger().get_logger("storage")
 
 # Создание приложения
@@ -23,7 +22,7 @@ logger.info(f"Storage path: {STORAGE_PATH}")
 logger.info(f"Storage path exists: {STORAGE_PATH.exists()}")
 
 
-@app.get("/health")
+@app.get("/")
 async def health_check():
     """Проверка здоровья сервиса"""
     return {

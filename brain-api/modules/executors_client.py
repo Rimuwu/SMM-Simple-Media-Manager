@@ -3,6 +3,8 @@ from modules.constants import ApiEndpoints, SceneNames
 from modules.logs import brain_logger as logger
 from uuid import UUID as _UUID
 from models.User import User
+from models.Card import Card
+from models.CardMessage import CardMessage
 
 # ==================== Форум ====================
 
@@ -53,7 +55,25 @@ async def update_forum_message(
                 f"Ошибка обновления сообщения форума: {forum_res.get('error')}")
             return None, forum_res.get('error')
 
-        return forum_res.get("message_id"), forum_res.get("error")
+        message_id, error = forum_res.get("message_id"), forum_res.get("error")
+
+        card = await Card.get_by_id(
+            _UUID(card_id)
+        )
+        if card:
+            card_message = await card.get_forum_message()
+            if not card_message and message_id:
+                await CardMessage(
+                    card_id=card.card_id,
+                    message_type='forum',
+                    message_id=message_id
+                )
+            elif card_message and card_message.message_id != message_id and message_id:
+                await card_message.update(
+                    message_id=message_id
+                )
+        return message_id, error
+
     except Exception as e:
         logger.error(f"Ошибка обновления сообщения форума: {e}")
         return None, str(e)
@@ -145,6 +165,7 @@ async def update_complete_preview(
                 "post_id": post_id
             }
         )
+
         return {
             "success": update_res.get("success", True),  # Считаем успехом если нет ошибки
             "post_id": update_res.get("post_id"),

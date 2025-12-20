@@ -46,9 +46,13 @@ class FilesPage(Page):
             await self.scene.update_key(self.__page_name__, 'files', files or [])
 
             # Normalize selected -> ids
-            id_by_name = {f.get('original_filename') or f.get('name'): str(f.get('id')) for f in files}
+            id_by_name = {
+                f.get('original_filename') or f.get('name'): str(f.get('id')) for f in files
+                }
             cur = self.scene.get_key(self.__page_name__, 'selected_files') or []
-            normalized = [str(it) if any(str(f.get('id')) == str(it) for f in files) else id_by_name.get(it) for it in cur]
+            normalized = [
+                str(it) if any(str(f.get('id')) == str(it) for f in files) else id_by_name.get(it) for it in cur
+                ]
             normalized = [i for i in normalized if i]
             if normalized and normalized != cur:
                 await self._set_selected(normalized)
@@ -132,7 +136,8 @@ class FilesPage(Page):
             return await callback.answer('❌ Ошибка: неверный индекс')
         await self.show_file_preview(callback, idx)
 
-    async def show_file_preview(self, callback: CallbackQuery, idx: int):
+    async def show_file_preview(self, 
+                    callback: CallbackQuery, idx: int):
         from tg.oms.utils import callback_generator
         card = await self._card()
         if not card:
@@ -401,5 +406,6 @@ class FilesPage(Page):
 
         if not file_id:
             return
-        await self._upload_common(message, file_id, filename, mime)
+        await self._upload_common(message, file_id, 
+                                  filename, mime)
 

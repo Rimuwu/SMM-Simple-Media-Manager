@@ -261,25 +261,18 @@ async def to_edited(
         card_id=str(card.card_id),
         scene_name=SceneNames.VIEW_TASK
     )
-    
-    if await card.get_forum_message():
-        card_type = 'public'
-    else:
-        card_type = 'private'
+
+    print(await card.get_forum_message())
 
     # Обновление сообщения на форуме для public задач
-    if card_type == 'public' and await card.get_forum_message():
+    if await card.get_forum_message():
+        print('upd')
         await update_forum_message(
             str(card.card_id)
         )
-        # await delete_forum_message(str(card.card_id))
-        # message_id, _ = await send_forum_message(str(card.card_id))
-
-        # if message_id:
-        #     await card.update(forum_message_id=message_id)
 
     # Уведомление заказчику для private задач при взятии в работу
-    if card_type == 'private' and previous_status == CardStatus.pass_:
+    elif previous_status == CardStatus.pass_:
         customer = await User.get_by_key('user_id', card.customer_id)
         if customer and customer.role != UserRole.admin:
             await notify_user(

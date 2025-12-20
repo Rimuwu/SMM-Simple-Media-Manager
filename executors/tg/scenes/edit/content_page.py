@@ -126,7 +126,6 @@ class ContentSetterPage(TextTypeScene):
     async def content_worker(self) -> str:
         # Получаем карточку для доступа к content dict
         card = await self.scene.get_card_data()
-        print(card)
         content_dict = card.get('content', {}) if card else {}
 
         tags_length = await self._calculate_tags_length()

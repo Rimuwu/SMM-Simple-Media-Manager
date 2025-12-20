@@ -6,7 +6,7 @@ class PublishDateSetterPage(DateInputPage):
 
     __page_name__ = 'publish-date-setter'
     __scene_key__ = 'publish_date'
-    __next_page__ = 'main'
+    __next_page__ = 'main-page'
     check_busy_slots = True
     update_to_db = True
 

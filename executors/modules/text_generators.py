@@ -1,7 +1,6 @@
 
 from datetime import datetime
 from pprint import pprint
-from global_modules import brain_client
 from tg.main import TelegramExecutor
 from modules.executors_manager import manager
 from modules.constants import SETTINGS, CLIENTS

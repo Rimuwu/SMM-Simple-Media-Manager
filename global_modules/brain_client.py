@@ -462,7 +462,7 @@ class BrainAPIClient:
                 content_type = 'image/png'
             
             # Нормализуем имя файла (убираем проблемные символы)
-            file_name = self._sanitize_filename(file_name)
+            file_name = self._sanitize_filename(file_name, content_type=content_type)
             
             # Определяем content_type если не указан
             if not content_type:
@@ -500,6 +500,9 @@ class BrainAPIClient:
         Возвращает ответ сервера или None при ошибке."""
         import aiohttp
         try:
+            # Сохраняем читаемую кириллическую строку: декодируем percent-encoding и очищаем
+            filename = self._sanitize_filename(filename, content_type=content_type)
+
             async with aiohttp.ClientSession() as session:
                 data = aiohttp.FormData()
                 data.add_field('file', file_data, filename=filename, content_type=content_type)
@@ -508,7 +511,8 @@ class BrainAPIClient:
                     if status != 200:
                         return None
                     return await resp.json()
-        except Exception:
+        except Exception as e:
+            print(f"Ошибка upload_file: {e}")
             return None
 
     async def list_files(self, card_id: str) -> dict | None:
@@ -575,38 +579,64 @@ class BrainAPIClient:
         res, status = await self.api.post("/card/update-entity", data={"card_id": card_id, "client_id": client_id, "entity_id": entity_id, "data": data, "name": name})
         return res, status
 
-    def _sanitize_filename(self, filename: str) -> str:
+    def _sanitize_filename(self, filename: str, content_type: Optional[str] = None) -> str:
         """
-        Нормализует имя файла для безопасной передачи.
-        Если имя содержит не-ASCII символы - заменяет на стандартное.
+        Всегда возвращает форматированное имя: <type>_<YYYYMMDD_HHMMSS><ext>
+        Сохраняем расширение, если его можно корректно определить из исходного имени,
+        иначе пытаемся вывести по Content-Type.
         """
         import re
-        import time
-        
-        if not filename:
-            return f'file_{int(time.time())}'
-        
-        # Получаем расширение
-        if '.' in filename:
-            name_part, ext = filename.rsplit('.', 1)
-            ext = '.' + ext.lower()
-        else:
-            name_part = filename
-            ext = ''
-        
-        # Проверяем, содержит ли имя не-ASCII символы
-        if not name_part.isascii():
-            # Определяем тип файла по расширению
+        import urllib.parse
+        from datetime import datetime
+
+        def _ext_from_content_type(ct: Optional[str]) -> str:
+            if not ct:
+                return ''
+            mapping = {
+                'image/png': '.png',
+                'image/jpeg': '.jpg',
+                'image/jpg': '.jpg',
+                'image/gif': '.gif',
+                'image/webp': '.webp',
+                'video/mp4': '.mp4',
+                'application/pdf': '.pdf'
+            }
+            return mapping.get(ct.split(';', 1)[0].strip().lower(), '')
+
+        def _type_label_from_content_type(ct: Optional[str], ext: str) -> str:
+            if ct:
+                if ct.startswith('image/'):
+                    return 'image'
+                if ct.startswith('video/'):
+                    return 'video'
+                if ct == 'application/pdf':
+                    return 'document'
+                return 'file'
             image_exts = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}
             video_exts = {'.mp4', '.mov', '.avi', '.mkv', '.webm'}
-            
-            timestamp = int(time.time())
             if ext in image_exts:
-                return f'photo_{timestamp}{ext}'
-            elif ext in video_exts:
-                return f'video_{timestamp}{ext}'
-            else:
-                return f'file_{timestamp}{ext}'
+                return 'image'
+            if ext in video_exts:
+                return 'video'
+            return 'file'
+
+        # Попытка получить расширение из исходного имени
+        ext = ''
+        if filename:
+            decoded = urllib.parse.unquote(filename)
+            if '%' in decoded:
+                decoded = urllib.parse.unquote(decoded)
+            if '.' in decoded:
+                maybe = decoded.rsplit('.', 1)[1].lower()
+                if re.match(r'^[a-z0-9]{1,5}$', maybe):
+                    ext = '.' + maybe
+
+        if not ext:
+            ext = _ext_from_content_type(content_type)
+
+        label = _type_label_from_content_type(content_type, ext)
+        ts = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        return f"{label}_{ts}{ext}"
     
     def _is_image_file(self, file_data: bytes, file_name: str) -> bool:
         """Проверяет, является ли файл изображением"""
