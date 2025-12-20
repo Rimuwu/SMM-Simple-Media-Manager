@@ -165,12 +165,26 @@ async def send_post_preview(
         # Одиночный файл
         elif len(media_files) == 1:
             file_info = media_files[0]
-            file_data = file_info['data']
-            file_name = file_info.get('name', 'file')
-            file_type = file_info.get('type', 'photo')
-            
+
+            # Нормализуем вход — поддерживаем dict {'data','name','type'} и raw bytes
+            if isinstance(file_info, (bytes, bytearray)):
+                file_data = bytes(file_info)
+                file_name = getattr(file_info, 'name', 'file')
+                file_type = detect_media_type(file_data, file_name)
+            elif isinstance(file_info, dict):
+                file_data = file_info.get('data')
+                file_name = file_info.get('name', 'file')
+                file_type = file_info.get('type') or detect_media_type(file_data or b'', file_name)
+            else:
+                logger.warning(f"Unsupported file_info type for single file: {type(file_info)}")
+                raise ValueError("Unsupported media file format")
+
+            if not isinstance(file_data, (bytes, bytearray)):
+                logger.error("File data is not bytes for single file")
+                raise ValueError("File data is not bytes")
+
             input_file = BufferedInputFile(file_data, filename=file_name)
-            
+
             if file_type == 'video':
                 msg = await bot.send_video(
                     chat_id=chat_id,
@@ -185,22 +199,35 @@ async def send_post_preview(
                     caption=text,
                     parse_mode=parse_mode
                 )
-            
+
             message_ids.append(msg.message_id)
         else:
             # Media group (несколько файлов)
             media_group = []
             for idx, file_info in enumerate(media_files):
-                file_data = file_info['data']
-                file_name = file_info.get('name', f'file_{idx}')
-                file_type = file_info.get('type', 'photo')
-                
+                # Нормализация формата
+                if isinstance(file_info, (bytes, bytearray)):
+                    file_data = bytes(file_info)
+                    file_name = getattr(file_info, 'name', f'file_{idx}')
+                    file_type = detect_media_type(file_data, file_name)
+                elif isinstance(file_info, dict):
+                    file_data = file_info.get('data')
+                    file_name = file_info.get('name', f'file_{idx}')
+                    file_type = file_info.get('type') or detect_media_type(file_data or b'', file_name)
+                else:
+                    logger.warning(f"Unsupported file_info type in media group: {type(file_info)}")
+                    continue
+
+                if not isinstance(file_data, (bytes, bytearray)):
+                    logger.warning(f"Skipping file {file_name or idx}: data is not bytes")
+                    continue
+
                 input_file = BufferedInputFile(file_data, filename=file_name)
-                
+
                 # Caption только для первого элемента
                 caption = text if idx == 0 else None
                 pm = parse_mode if idx == 0 else None
-                
+
                 if file_type == 'video':
                     media_group.append(InputMediaVideo(
                         media=input_file,
@@ -213,13 +240,17 @@ async def send_post_preview(
                         caption=caption,
                         parse_mode=pm
                     ))
-            
+
             # Отправляем media group
-            messages = await bot.send_media_group(
-                chat_id=chat_id,
-                media=media_group
-            )
-            message_ids = [m.message_id for m in messages]
+            if media_group:
+                messages = await bot.send_media_group(
+                    chat_id=chat_id,
+                    media=media_group
+                )
+                message_ids = [m.message_id for m in messages]
+            else:
+                logger.warning("No valid media to send in media group")
+
         
         
         for entity in entities or []:
@@ -263,14 +294,13 @@ async def prepare_and_send_preview(
     content: str,
     tags: Optional[list[str]] = None,
     client_key: Optional[str] = None,
-    task_id: Optional[Union[int, str]] = None,
     post_images: Optional[list[str]] = None,
     cached_files: Optional[dict] = None,
     card_id: Optional[str] = None,
 ) -> dict:
     """
     Высокоуровневая функция для подготовки и отправки превью.
-    Скачивает файлы из Kaiten и отправляет пост.
+    Скачивает файлы и отправляет пост.
     
     Args:
         bot: Telegram Bot instance
@@ -278,8 +308,7 @@ async def prepare_and_send_preview(
         content: Сырой контент поста
         tags: Список тегов
         client_key: Ключ клиента для генерации поста
-        task_id: ID задачи в Kaiten
-        post_images: Список имён файлов из Kaiten
+        post_images: Список имён файлов для скачивания
         cached_files: Кэш скачанных файлов (опционально)
     
     Returns:
@@ -288,17 +317,32 @@ async def prepare_and_send_preview(
     # Генерируем текст поста
     post_text = generate_post(content, tags, client_key=client_key)
 
-    # Скачиваем файлы из Kaiten или берём из кэша
     media_files = []
-    if post_images and task_id:
-        cache_key = f"{task_id}:{','.join(post_images)}"
+    if post_images:
+        # Скачиваем файлы
+        files_to_download = [
+            f for f in post_images if not cached_files or f not in cached_files
+        ]
+        for file_id in files_to_download:
+            try:
+                file_data, status = await brain_client.download_file(file_id)
+                if status == 200 and isinstance(file_data, (bytes, bytearray)):
+                    file_info = await brain_client.get_file_info(file_id)
+                    file_name = None
+                    if isinstance(file_info, dict):
+                        file_name = file_info.get('original_filename') or file_info.get('name')
+                    file_name = file_name or str(file_id)
+                    media_type = detect_media_type(file_data, file_name)
+                    media_files.append({'data': file_data, 'name': file_name, 'type': media_type})
+                else:
+                    logger.error(f"Failed to download file {file_id}: status={status}")
+            except Exception as e:
+                logger.error(f"Error downloading file {file_id}: {e}", exc_info=True)
 
-        if cached_files and cache_key in cached_files:
-            media_files = cached_files[cache_key]
-        else:
-            media_files = await download_kaiten_files(task_id, post_images)
-            if cached_files is not None:
-                cached_files[cache_key] = media_files
+        # Собираем все файлы в media_files (cached)
+        for f in post_images:
+            if cached_files and f in cached_files:
+                media_files.append(cached_files[f])
 
     entities = None
     if card_id and client_key:

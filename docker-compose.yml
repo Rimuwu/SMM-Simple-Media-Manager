@@ -161,7 +161,7 @@ services:
     networks:
       - smm_network
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
       interval: 10s
       timeout: 3s
       retries: 5

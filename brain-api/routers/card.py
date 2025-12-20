@@ -268,7 +268,10 @@ async def get(task_id: Optional[str] = None,
     async with session_factory() as session:
         stmt = select(Card).options(selectinload(Card.executor),
                                     selectinload(Card.customer),
-                                    selectinload(Card.editor)
+                                    selectinload(Card.editor),
+                                    selectinload(Card.editor_notes_entries),
+                                    selectinload(Card.clients_settings_entries),
+                                    selectinload(Card.entities_entries)
                                     )
     
         # Применяем фильтры
@@ -510,7 +513,9 @@ async def change_status(request: ChangeStatusRequest):
 
     # Загружаем карточку с eager loading для editor_notes_entries
     async with session_factory() as session:
-        stmt = select(Card).options(selectinload(Card.editor_notes_entries)).where(Card.card_id == request.card_id)
+        stmt = select(Card).options(
+            selectinload(Card.editor_notes_entries)
+            ).where(Card.card_id == request.card_id)
         result = await session.execute(stmt)
         card = result.scalar_one_or_none()
 
@@ -575,15 +580,10 @@ async def delete_card(card_id: str):
 
     # Удаляем все файлы карточки из storage_api
     try:
-        from modules.api_client import storage_api
         from models.CardFile import CardFile
         files = await CardFile.filter_by(card_id=card_id)
         for card_file in files:
-            try:
-                await storage_api.delete(f'/delete/{card_file.filename}')
-                logger.info(f"File {card_file.filename} deleted from storage")
-            except Exception as e:
-                logger.warning(f"Failed to delete file {card_file.filename} from storage: {e}")
+           await card_file.delete()
     except Exception as e:
         logger.error(f"Error deleting files for card {card_id}: {e}")
 
@@ -645,33 +645,27 @@ class CommentAdd(BaseModel):
 
 @router.post("/add-comment")
 async def add_comment(note_data: CommentAdd):
-    """Добавить комментарий к карточке (обычный или от редактора)"""
-    logger.info(f"Добавление комментария к карточке {note_data.card_id} от {note_data.author} (редактор: {note_data.is_editor_note})")
+    """Добавить комментарий к карточке"""
+    logger.info(
+        f"Добавление комментария к карточке {note_data.card_id} от {note_data.author} (редактор: {note_data.is_editor_note})")
+
     card = await Card.get_by_key('card_id', note_data.card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
-    
-    # Получаем текущий список комментариев
-    editor_notes = card.editor_notes or []
-    
+
     # Создаём новый комментарий
     new_note = {
         "content": note_data.content,
         "author": note_data.author,
-        "created_at": datetime.now().isoformat()
     }
-    
-    # Для обычных комментариев добавляем флаг is_customer
-    if not note_data.is_editor_note:
-        new_note["is_customer"] = True
 
-    editor_notes.append(new_note)
-    await card_events.on_editor_notes(editor_notes, card=card)
+    await card_events.on_editor_notes(
+        note_data.content, note_data.author,
+        card=card
+    )
 
     return {
-        "detail": "Comment added successfully",
-        "note": new_note,
-        "total_notes": len(editor_notes)
+        "note": new_note
     }
 
 
@@ -764,11 +758,11 @@ async def get_messages(card_id: Optional[str] = None,
 
         return [msg.to_dict() for msg in messages]
 
-@router.get("/get-card-by-message_id")
-async def get_card_by_message_id(message_id: str):
+@router.get("/get-card-by-message_id/{message_id}")
+async def get_card_by_message_id(message_id: int):
     """Получить карточку по ID сообщения"""
     async with session_factory() as session:
-        stmt = select(CardMessage).options().where(CardMessage.message_id == int(message_id))
+        stmt = select(CardMessage).where(CardMessage.message_id == message_id)
 
         result_db = await session.execute(stmt)
         message = result_db.scalars().first()

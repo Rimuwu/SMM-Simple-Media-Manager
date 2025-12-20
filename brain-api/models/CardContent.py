@@ -15,7 +15,7 @@ class CardContent(Base, AsyncCRUDMixin):
     __tablename__ = "card_contents"
 
     id: Mapped[uuidPK]
-    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id"), nullable=False)
+    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id", ondelete="CASCADE"), nullable=False)
     client_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     meta: Mapped[dict] = mapped_column(JSON, nullable=False, default={})

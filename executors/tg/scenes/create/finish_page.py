@@ -215,22 +215,21 @@ class FinishPage(Page):
 
             if status and status == 200 and 'card_id' in res:
                 card_id = res['card_id']
-
-                # Загружаем файлы если они есть
                 files = data.get('files', [])
                 uploaded_count = 0
+
+                print('==========')
+                print(files)
                 if files:
-                    for file_info in files:
-                        file_data = file_info.get('data')
-                        file_name = file_info.get('name', 'file')
-                        if file_data:
-                            upload_res = await brain_client.upload_file(
-                                card_id=str(card_id),
-                                file_data=file_data,
-                                filename=file_name
-                            )
-                            if upload_res:
-                                uploaded_count += 1
+                    upload_res = await brain_client.upload_files_to_card(
+                        card_id=str(card_id),
+                        files=files,
+                        bot=self.scene.__bot__
+                    )
+                    if upload_res:
+                        uploaded_count += 1
+                    else:
+                        print(f"Ошибка загрузки файлов к карточке {card_id}: {upload_res}")
 
                 await self.scene.end()
 
@@ -242,7 +241,6 @@ class FinishPage(Page):
                 return
 
             # Если мы здесь — произошла ошибка
-            # Восстанавливаем страницу (убираем режим создания и очищаем временный контент)
             self.creating = False
             self.clear_content()
             await self.scene.update_message()

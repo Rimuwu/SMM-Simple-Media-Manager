@@ -8,7 +8,7 @@ from global_modules.logs import Logger
 from global_modules.middlewares.logs_mid import RequestLoggingMiddleware
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = Logger().get_logger("storage")
 
 # Создание приложения

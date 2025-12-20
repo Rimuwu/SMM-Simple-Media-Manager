@@ -1,13 +1,15 @@
-from sqlalchemy import String, DateTime
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, DateTime, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from datetime import datetime
 from database.connection import Base
 from database.crud_mixins import AsyncCRUDMixin
 from database.annotated_types import uuidPK
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from uuid import UUID as PyUUID
 
+if TYPE_CHECKING:
+    from models.Card import Card
 
 class ScheduledTask(Base, AsyncCRUDMixin):
     """
@@ -21,8 +23,11 @@ class ScheduledTask(Base, AsyncCRUDMixin):
     task_id: Mapped[uuidPK]
     
     # ID карточки (для удобного поиска и удаления задач по карточке)
-    card_id: Mapped[Optional[PyUUID]] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    card_id: Mapped[Optional[PyUUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id", ondelete="CASCADE"), nullable=True, index=True)
     
+    # Relationship
+    card: Mapped[Optional["Card"]] = relationship("Card", back_populates="scheduled_tasks", foreign_keys=[card_id])
+
     # Путь к функции для импорта (например: "modules.notifications.send_card_reminder")
     function_path: Mapped[str] = mapped_column(String(500), nullable=False)
     

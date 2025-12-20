@@ -14,7 +14,7 @@ class Entity(Base, AsyncCRUDMixin):
     __tablename__ = "entities"
 
     id: Mapped[uuidPK]
-    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id"), nullable=False)
+    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id", ondelete="CASCADE"), nullable=False)
     client_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     data: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
     type: Mapped[Optional[str]] = mapped_column(String, nullable=True)

@@ -35,7 +35,7 @@ class CardMessage(Base, AsyncCRUDMixin):
     updated_at: Mapped[updateAT]
 
     # Relationship
-    card: Mapped["Card"] = relationship("Card", foreign_keys=[card_id], viewonly=True)
+    card: Mapped["Card"] = relationship("Card", back_populates="messages", foreign_keys=[card_id])
 
     def to_dict(self) -> dict:
         return {

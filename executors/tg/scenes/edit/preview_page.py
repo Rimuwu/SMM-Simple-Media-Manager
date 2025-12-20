@@ -155,7 +155,6 @@ class PreviewPage(Page):
                 content=content,
                 tags=tags,
                 client_key=client,
-                task_id=task_id,
                 post_images=post_images,
                 cached_files=self._cached_files,
                 card_id=card_id

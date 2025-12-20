@@ -15,7 +15,7 @@ class CardEditorNote(Base, AsyncCRUDMixin):
     __tablename__ = "card_editor_notes"
 
     id: Mapped[uuidPK]
-    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id"), nullable=False)
+    card_id: Mapped[_UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id", ondelete="CASCADE"), nullable=False)
     author: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=False)
 

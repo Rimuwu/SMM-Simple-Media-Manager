@@ -114,12 +114,15 @@ class EditorNotesPage(Page):
     async def return_to_work(self, callback, args):
         """Возвращает задачу в работу"""
         task_id = self.scene.data['scene'].get('task_id')
-        
+
         if task_id:
-            # Обновляем статус в базе
-            await brain_client.update_card(
+            user_role = await brain_client.get_user_role(self.scene.user_id)
+
+            who_changed = 'executor' if user_role == 'copywriter' else 'admin'
+            await brain_client.change_card_status(
                 card_id=task_id,
-                status=CardStatus.edited
+                status=CardStatus.edited,
+                who_changed=who_changed
             )
             
             # Обновляем отображение статуса

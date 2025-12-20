@@ -9,6 +9,7 @@ from database.annotated_types import uuidPK, createAT, updateAT
 
 if TYPE_CHECKING:
     from models.Card import Card
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class CardFile(Base, AsyncCRUDMixin):
@@ -36,8 +37,19 @@ class CardFile(Base, AsyncCRUDMixin):
     created_at: Mapped[createAT]
     updated_at: Mapped[updateAT]
 
-    # Relationship - используем только ForeignKey, без back_populates
-    card: Mapped["Card"] = relationship("Card", foreign_keys=[card_id], viewonly=True)
+    # Relationship
+    card: Mapped["Card"] = relationship("Card", back_populates="files", foreign_keys=[card_id])
+
+    async def delete(self, session: Optional["AsyncSession"] = None) -> None:
+        """При удалении из БД — пытаемся удалить файл в storage-api, затем удаляем запись в БД."""
+        try:
+            from modules.api_client import storage_api
+            await storage_api.delete(f'/delete/{self.filename}')
+        except Exception as e:
+            from global_modules.logs import Logger
+            Logger().get_logger("storage").warning(f"Failed to delete file {self.filename} from storage: {e}")
+        finally:
+            await super().delete(session=session)
 
     def to_dict(self) -> dict:
         return {

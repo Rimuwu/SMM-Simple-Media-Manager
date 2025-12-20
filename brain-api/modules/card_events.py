@@ -20,6 +20,7 @@ from modules.scheduler import reschedule_post_tasks, reschedule_card_notificatio
 from modules.calendar import update_calendar_event
 from modules.status_changers import to_edited
 from models.CardMessage import CardMessage
+from models.CardEditorNote import CardEditorNote
 
 
 def get_content_for_client(card: Card, client_key: str) -> str:
@@ -764,7 +765,8 @@ async def on_prompt_message(
     await card.update(prompt_message=message_id)
 
 async def on_editor_notes(
-    editor_notes: list[dict],
+    content: str,
+    author: str,
     card: Optional[Card] = None, 
     card_id: Optional[_UUID] = None
 ):
@@ -779,16 +781,17 @@ async def on_editor_notes(
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
     
     # Обновляем карточку
-    await card.update(editor_notes=editor_notes)
-    
+    await CardEditorNote.create(
+        card_id=card.card_id,
+        author=author,
+        content=content
+    )
+
     # Уведомляем исполнителя о новой заметке
-    if card.executor_id and editor_notes:
-        last_note = editor_notes[-1] if editor_notes else None
-        if last_note:
-            note_text = last_note.get('content', '')
-            await notify_users([card.executor_id],
-                             f"📋 Новая заметка редактора:\n{note_text[:256]}",
-                             'editor-notes')
+    if card.executor_id and card.executor_id != author:
+        await notify_users([card.executor_id],
+                            f"📋 Новая заметка редактора:\n{content[:256]}",
+                            'editor-notes')
 
     # Обновляем сцены
     await asyncio.create_task(

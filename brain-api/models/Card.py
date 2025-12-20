@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from models.ClientSetting import ClientSetting
     from models.Entity import Entity
     from models.CardMessage import CardMessage
+    from models.CardFile import CardFile
+    from models.ScheduledTask import ScheduledTask
     from sqlalchemy.ext.asyncio import AsyncSession
 
 class Card(Base, AsyncCRUDMixin):
@@ -78,6 +80,18 @@ class Card(Base, AsyncCRUDMixin):
     # Ентити для по клиентам. Перенесены в `entities`
     entities_entries: Mapped[list["Entity"]] = relationship(
         "Entity", back_populates="card", cascade="all, delete-orphan")
+
+    # Файлы карточки
+    files: Mapped[list["CardFile"]] = relationship(
+        "CardFile", back_populates="card", cascade="all, delete-orphan")
+
+    # Сообщения (forum, complete_preview и т.д.)
+    messages: Mapped[list["CardMessage"]] = relationship(
+        "CardMessage", back_populates="card", cascade="all, delete-orphan")
+
+    # Запланированные задачи, связанные с карточкой
+    scheduled_tasks: Mapped[list["ScheduledTask"]] = relationship(
+        "ScheduledTask", back_populates="card", cascade="all, delete-orphan")
 
     # Порядок отправки файлов (список имён файлов)
     files_order: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])

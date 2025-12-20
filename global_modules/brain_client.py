@@ -107,16 +107,19 @@ class BrainAPIClient:
         self, 
         card_id: str, 
         content: str, 
-        author_user_id: str
+        author_user_id: str,
+        is_editor_note: bool = True
     ) -> dict | None:
         """Добавить комментарий редактора к карточке"""
         data = {
             "card_id": card_id,
             "content": content,
-            "author": author_user_id
+            "author": author_user_id,
+            "is_editor_note": is_editor_note
         }
         
-        result, status = await self.api.post("/card/add-editor-note", data=data)
+        result, status = await self.api.post(
+            "/card/add-comment", data=data)
         
         if status == 200:
             return result
@@ -395,34 +398,30 @@ class BrainAPIClient:
                     # Нужно скачать из Telegram
                     from modules.file_utils import download_telegram_file
                     file_content = await download_telegram_file(bot, file_info['file_id'])
+
                     if not file_content:
                         print(f"Не удалось скачать файл {file_name}")
                         continue
                 else:
                     print(f"Нет данных для файла {file_name}")
                     continue
-                
-                # Определяем нужно ли конвертировать в PNG
-                from modules.file_utils import is_image_by_mime_or_extension
-                is_image = file_type == 'photo' or is_image_by_mime_or_extension(mime_type, file_name)
-                
-                # Загружаем файл
-                success = await self.upload_file_to_kaiten(
+
+                success = await self.upload_file(
                     card_id=card_id,
                     file_data=file_content,
-                    file_name=file_name,
-                    convert_to_png=is_image
+                    filename=file_name,
+                    content_type=mime_type
                 )
-                
+
                 if success:
                     uploaded_count += 1
                     print(f"Файл {file_name} успешно загружен")
                 else:
                     print(f"Ошибка загрузки файла {file_name}")
-                    
+
             except Exception as e:
                 print(f"Ошибка загрузки файла {file_info.get('name')}: {e}")
-        
+
         return uploaded_count
 
     async def upload_file_to_kaiten(
