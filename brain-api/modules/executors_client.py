@@ -148,27 +148,38 @@ async def send_complete_preview(
 async def update_complete_preview(
     card_id: str, 
     client_key: str, 
-    post_id: int
+    post_id: int,
+    post_ids: list[int] | None = None,
+    info_id: int | None = None
     ) -> dict:
     """
     Обновить превью готового поста в complete_topic.
     
     Returns:
-        dict: {"success": bool, "post_id": int, "post_ids": list, "info_id": int, "error": str}
+        dict: {"success": bool, "post_id": int, "post_ids": list, "info_id": int, "entities": list, "error": str}
     """
     try:
+        data = {
+            "card_id": card_id,
+            "client_key": client_key,
+            "post_id": post_id
+        }
+        if post_ids is not None:
+            data["post_ids"] = post_ids
+        if info_id is not None:
+            data["info_id"] = info_id
+
         update_res, _ = await executors_api.post(
             ApiEndpoints.COMPLETE_UPDATE_PREVIEW,
-            data={
-                "card_id": card_id,
-                "client_key": client_key,
-                "post_id": post_id
-            }
+            data=data
         )
 
         return {
             "success": update_res.get("success", True),  # Считаем успехом если нет ошибки
             "post_id": update_res.get("post_id"),
+            "post_ids": update_res.get("post_ids"),
+            "info_id": update_res.get("info_id"),
+            "entities": update_res.get("entities", []),
             "error": update_res.get("error")
         }
     except Exception as e:
@@ -177,7 +188,9 @@ async def update_complete_preview(
 
 
 async def delete_complete_preview(
-    post_id: int | None = None
+    post_id: int | None = None,
+    post_ids: list[int] | None = None,
+    info_id: int | None = None
     ) -> bool:
     """
     Удалить превью готового поста из complete_topic.
@@ -186,11 +199,17 @@ async def delete_complete_preview(
         True если успешно
     """
     try:
+        data = {}
+        if post_ids is not None:
+            data["post_ids"] = post_ids
+        elif post_id is not None:
+            data["post_id"] = post_id
+        if info_id is not None:
+            data["info_id"] = info_id
+
         await executors_api.post(
             ApiEndpoints.COMPLETE_DELETE_PREVIEW,
-            data={
-                "post_id": post_id
-            }
+            data=data
         )
         return True
     except Exception as e:
@@ -203,23 +222,46 @@ async def delete_all_complete_previews(
     ) -> bool:
     """
     Удалить все превью для карточки.
-    
+
     Args:
-        complete_messages: Список объектов CardMessage типа 'complete_preview'
-        
+        complete_messages: Список объектов CardMessage (mix of complete_post/complete_info/complete_entity)
+
     Returns:
         True если все удалены успешно
     """
     success = True
+
+    # Группируем по client_key (data_info) чтобы удалить посты и info в одной операции
+    groups: dict[str, list] = {}
     for msg in complete_messages:
+        key = msg.data_info or '__none__'
+        groups.setdefault(key, []).append(msg)
+
+    for key, msgs in groups.items():
         try:
-            await delete_complete_preview(
-                post_id=msg.message_id
-            )
-            await msg.delete()
+            post_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_post']
+            info_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_info']
+            entity_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_entity']
+
+            # Удаляем посты + info одной операцией, если есть
+            if post_ids or info_ids:
+                await delete_complete_preview(post_ids=post_ids or None, info_id=(info_ids[0] if info_ids else None))
+
+            # Удаляем entity-сообщения по отдельности
+            for eid in entity_ids:
+                try:
+                    await delete_complete_preview(post_id=eid)
+                except Exception:
+                    logger.exception(f"Failed deleting entity message {eid}")
+
+            # Удаляем записи в БД
+            for m in msgs:
+                await m.delete()
+
         except Exception as e:
             logger.error(f"Ошибка удаления complete preview: {e}")
             success = False
+
     return success
 
 

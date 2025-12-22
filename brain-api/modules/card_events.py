@@ -489,20 +489,76 @@ async def on_content(
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
-            complete_messages = await card.get_complete_preview_messages()
-            clients = card.clients or []
-            
-            for client_key in clients:
-                # Найти сообщение для этого клиента
-                msg = next((m for m in complete_messages if m.data_info == client_key), None)
-                if msg:
+            # Если client_key указан — обновляем только его, иначе все клиенты
+            clients_to_update = [client_key] if client_key else (card.clients or [])
+
+            async with session_factory() as s:
+                for ckey in clients_to_update:
+                    msgs = await card.get_complete_messages_by_client(client_key=ckey, session=s)
+                    existing_posts = [m for m in msgs if m.message_type == 'complete_post']
+                    existing_info = next((m for m in msgs if m.message_type == 'complete_info'), None)
+
+                    if not existing_posts:
+                        # Нечего обновлять
+                        continue
+
+                    post_ids = [int(m.message_id) for m in existing_posts]
+                    info_id = int(existing_info.message_id) if existing_info else None
+
                     update_res = await update_complete_preview(
-                        str(card.card_id), client_key,
-                        int(msg.message_id)
+                        str(card.card_id), ckey,
+                        int(existing_posts[0].message_id),
+                        post_ids=post_ids,
+                        info_id=info_id
                     )
-                    # Обновляем message_id если он изменился
-                    if update_res.get("post_id") and update_res.get("post_id") != int(msg.message_id):
-                        await msg.update(message_id=update_res.get("post_id"))
+
+                    if not update_res.get('success'):
+                        # Пересоздаём превью
+                        try:
+                            await delete_complete_preview(post_ids=post_ids or None, info_id=info_id)
+                        except Exception:
+                            pass
+
+                        for m in msgs:
+                            await m.delete(session=s)
+
+                        new_res = await send_complete_preview(str(card.card_id), ckey)
+                        if new_res.get('success'):
+                            new_post_ids = new_res.get('post_ids') or ([new_res.get('post_id')] if new_res.get('post_id') else [])
+                        new_post_ids = [int(pid) for pid in new_post_ids if pid is not None]
+                        for pid in new_post_ids:
+                            await card.add_complete_post_message(message_id=pid, data_info=ckey, session=s)
+                        info_val = new_res.get('info_id')
+                        if info_val is not None:
+                            await card.add_complete_info_message(message_id=int(info_val), data_info=ckey, session=s)
+                        for eid in new_res.get('entities', []) or []:
+                            if eid is not None:
+                                await card.add_complete_entity_message(message_id=int(eid), data_info=ckey, session=s)
+                    else:
+                        # Sync post ids
+                        returned_post_ids = update_res.get('post_ids') or ([update_res.get('post_id')] if update_res.get('post_id') else [])
+                        returned_post_ids = [int(pid) for pid in returned_post_ids if pid is not None]
+                        if returned_post_ids:
+                            if len(returned_post_ids) == len(existing_posts):
+                                for m, pid in zip(existing_posts, returned_post_ids):
+                                    if int(m.message_id) != pid:
+                                        await m.update(session=s, message_id=pid)
+                            else:
+                                for m in existing_posts:
+                                    await m.delete(session=s)
+                                for pid in returned_post_ids:
+                                    await card.add_complete_post_message(message_id=pid, data_info=ckey, session=s)
+
+                        # Entities — пересоздаём при необходимости
+                        returned_entities = update_res.get('entities', []) or []
+                        if returned_entities:
+                            for m in [m for m in msgs if m.message_type == 'complete_entity']:
+                                await m.delete(session=s)
+                            for eid in returned_entities:
+                                if eid is not None:
+                                    await card.add_complete_entity_message(message_id=int(eid), data_info=ckey, session=s)
+
+                await s.commit()
         except Exception as e:
             print(f"Error updating complete previews: {e}")
 
@@ -700,17 +756,7 @@ async def on_tags(
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
-            complete_messages = await card.get_complete_preview_messages()
-            clients = card.clients or []
-            
-            for client_key in clients:
-                # Найти сообщение для этого клиента
-                msg = next((m for m in complete_messages if m.data_info == client_key), None)
-                if msg:
-                    await update_complete_preview(
-                        str(card.card_id), client_key,
-                        int(msg.message_id)
-                    )
+            await reconcile_complete_previews_for_clients(card)
         except Exception as e:
             print(f"Error updating complete previews: {e}")
     
@@ -822,17 +868,7 @@ async def on_clients_settings(
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
-            complete_messages = await card.get_complete_preview_messages()
-            clients = card.clients or []
-            
-            for client_key in clients:
-                # Найти сообщение для этого клиента
-                msg = next((m for m in complete_messages if m.data_info == client_key), None)
-                if msg:
-                    await update_complete_preview(
-                        str(card.card_id), client_key,
-                        int(msg.message_id)
-                    )
+            await reconcile_complete_previews_for_clients(card)
         except Exception as e:
             print(f"Error updating complete previews: {e}")
     
@@ -870,13 +906,8 @@ async def on_entities(
             clients = card.clients or []
 
             for client_key in clients:
-                # Найти сообщение для этого клиента
-                msg = next((m for m in complete_messages if m.data_info == client_key), None)
-                if msg and (client_key == client_key_edited or client_key_edited == 'all'):
-                    await update_complete_preview(
-                        str(card.card_id), client_key,
-                        int(msg.message_id)
-                    )
+                if client_key == client_key_edited or client_key_edited == 'all':
+                    await recreate_entities_for_client(card, client_key)
         except Exception as e:
             print(f"Error updating complete previews: {e}")
 
@@ -890,3 +921,119 @@ async def on_entities(
     #     update_scenes(SceneNames.VIEW_TASK, 'task-detail',
     #                  "selected_task", str(card.card_id))
     # )
+
+
+async def reconcile_complete_previews_for_clients(card: Card, clients: list[str] | None = None):
+    """Helper: синхронизировать/пересоздать превью для списка клиентов (или всех клиентов карточки)."""
+    clients_to_process = clients or (card.clients or [])
+    async with session_factory() as s:
+        complete_messages = await card.get_complete_preview_messages(session=s)
+
+        for client_key in clients_to_process:
+            msgs_for_client = [m for m in complete_messages if m.data_info == client_key]
+            existing_posts = [m for m in msgs_for_client if m.message_type == 'complete_post']
+            existing_info = next((m for m in msgs_for_client if m.message_type == 'complete_info'), None)
+            existing_entities = [m for m in msgs_for_client if m.message_type == 'complete_entity']
+
+            if existing_posts:
+                post_ids = [int(m.message_id) for m in existing_posts]
+                info_id = int(existing_info.message_id) if existing_info else None
+
+                update_res = await update_complete_preview(
+                    str(card.card_id), client_key,
+                    int(existing_posts[0].message_id),
+                    post_ids=post_ids,
+                    info_id=info_id
+                )
+
+                if not update_res.get('success'):
+                    try:
+                        await delete_complete_preview(post_ids=post_ids or None, info_id=info_id)
+                    except Exception:
+                        pass
+
+                    for m in msgs_for_client:
+                        await m.delete(session=s)
+
+                    new_res = await send_complete_preview(str(card.card_id), client_key)
+                    if new_res.get('success'):
+                        new_post_ids = new_res.get('post_ids') or ([new_res.get('post_id')] if new_res.get('post_id') else [])
+                        new_post_ids = [int(pid) for pid in new_post_ids if pid is not None]
+                        for pid in new_post_ids:
+                            await card.add_complete_post_message(message_id=pid, data_info=client_key, session=s)
+                        info_val = new_res.get('info_id')
+                        if info_val is not None:
+                            await card.add_complete_info_message(message_id=int(info_val), data_info=client_key, session=s)
+                        for eid in new_res.get('entities', []) or []:
+                            if eid is not None:
+                                await card.add_complete_entity_message(message_id=int(eid), data_info=client_key, session=s)
+
+                else:
+                    returned_post_ids = update_res.get('post_ids') or ([update_res.get('post_id')] if update_res.get('post_id') else [])
+                    returned_post_ids = [int(pid) for pid in returned_post_ids if pid is not None]
+                    if returned_post_ids:
+                        if len(returned_post_ids) == len(existing_posts):
+                            for m, pid in zip(existing_posts, returned_post_ids):
+                                if int(m.message_id) != pid:
+                                    await m.update(session=s, message_id=pid)
+                        else:
+                            for m in existing_posts:
+                                await m.delete(session=s)
+                            for pid in returned_post_ids:
+                                await card.add_complete_post_message(message_id=pid, data_info=client_key, session=s)
+
+                    # Entities — пересоздаём всегда при обновлении
+                    returned_entities = update_res.get('entities', []) or []
+                    if returned_entities:
+                        for m in existing_entities:
+                            await m.delete(session=s)
+                        for eid in returned_entities:
+                            await card.add_complete_entity_message(message_id=int(eid), data_info=client_key, session=s)
+
+        await s.commit()
+
+
+async def recreate_entities_for_client(card: Card, client_key: str):
+    """Helper: пересоздать только entity-сообщения для клиента (delete + create).
+
+    Используется когда entities были изменены — по требованию всегда пересоздаём сущности.
+    """
+    async with session_factory() as s:
+        msgs = await card.get_complete_messages_by_client(client_key=client_key, session=s)
+        existing_entities = [m for m in msgs if m.message_type == 'complete_entity']
+        existing_posts = [m for m in msgs if m.message_type == 'complete_post']
+        existing_info = next((m for m in msgs if m.message_type == 'complete_info'), None)
+
+        # Удаляем remote entity messages и ряды в БД
+        try:
+            if existing_entities:
+                await delete_complete_preview(post_ids=[int(m.message_id) for m in existing_entities])
+        except Exception:
+            pass
+
+        for m in existing_entities:
+            await m.delete(session=s)
+
+        # Стараемся пересоздать entities через update (если есть посты), иначе через send
+        if existing_posts:
+            post_ids = [int(m.message_id) for m in existing_posts]
+            info_id = int(existing_info.message_id) if existing_info else None
+            update_res = await update_complete_preview(str(card.card_id), client_key, int(existing_posts[0].message_id), post_ids=post_ids, info_id=info_id)
+            if update_res.get('success') and update_res.get('entities'):
+                for eid in update_res.get('entities') or []:
+                    if eid is not None:
+                        await card.add_complete_entity_message(message_id=int(eid), data_info=client_key, session=s)
+            else:
+                new_res = await send_complete_preview(str(card.card_id), client_key)
+                if new_res.get('success'):
+                    for eid in new_res.get('entities', []) or []:
+                        if eid is not None:
+                            await card.add_complete_entity_message(message_id=int(eid), data_info=client_key, session=s)
+        else:
+            # Нет постов — просто вызываем send для клиента
+            new_res = await send_complete_preview(str(card.card_id), client_key)
+            if new_res.get('success'):
+                for eid in new_res.get('entities', []) or []:
+                    await card.add_complete_entity_message(message_id=int(eid), data_info=client_key, session=s)
+
+        await s.commit()

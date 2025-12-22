@@ -220,12 +220,37 @@ class Card(Base, AsyncCRUDMixin):
                                         card_id=self.card_id, message_type=message_type, message_id=message_id, data_info=data_info)
 
     async def get_complete_preview_messages(self, session: Optional["AsyncSession"] = None):
-        """Получить complete_preview сообщение карточки"""
-        messages = await self.get_messages(session=session, message_type='complete_preview')
-        return messages
+        """Получить все сообщения превью карточки (включая посты, инфо и ентити)."""
+        # Поддержка старого типа 'complete_preview' и новых типов 'complete_post', 'complete_info', 'complete_entity'
+        valid_types = {"complete_preview", "complete_post", "complete_info", "complete_entity"}
+        messages = await self.get_messages(session=session)
+        return [m for m in messages if m.message_type in valid_types]
 
-    async def add_complete_preview_message(self, message_id: int,
-                                          data_info: Optional[str] = None, session: Optional["AsyncSession"] = None):
-        """Добавить complete_preview сообщение к карточке"""
-        return await self.add_message(message_type='complete_preview', message_id=message_id,
+    async def get_complete_messages_by_client(self, client_key: Optional[str] = None, session: Optional["AsyncSession"] = None):
+        """Вернуть все сообщения превью для конкретного клиента (или все, если client_key=None)."""
+        messages = await self.get_complete_preview_messages(session=session)
+        if client_key is None:
+            return messages
+        return [m for m in messages if (m.data_info == client_key)]
+
+    async def delete_complete_messages_by_client(self, client_key: str, session: Optional["AsyncSession"] = None):
+        """Удалить все сообщения превью для клиента (DB only)."""
+        messages = await self.get_complete_messages_by_client(client_key=client_key, session=session)
+        for m in messages:
+            await m.delete(session=session)
+        return True
+
+    async def add_complete_post_message(self, message_id: int,
+                                        data_info: Optional[str] = None, session: Optional["AsyncSession"] = None):
+        return await self.add_message(message_type='complete_post', message_id=message_id,
+                                      data_info=data_info, session=session)
+
+    async def add_complete_info_message(self, message_id: int,
+                                        data_info: Optional[str] = None, session: Optional["AsyncSession"] = None):
+        return await self.add_message(message_type='complete_info', message_id=message_id,
+                                      data_info=data_info, session=session)
+
+    async def add_complete_entity_message(self, message_id: int,
+                                        data_info: Optional[str] = None, session: Optional["AsyncSession"] = None):
+        return await self.add_message(message_type='complete_entity', message_id=message_id,
                                       data_info=data_info, session=session)
