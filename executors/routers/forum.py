@@ -86,8 +86,8 @@ async def send_complete_preview_endpoint(request: CompletePreviewRequest):
     
     return {
         "success": data.get("success", False),
-        "post_id": data.get("post_id", None),
-        "post_ids": data.get("post_ids", []),  # Список всех ID для медиа-групп
+        "post_ids": data.get("post_ids", None),
+        "entities": data.get("entities", []),  # Список всех ID для медиа-групп
         "info_id": data.get("info_id", None),
         "error": data.get("error", None)
     }

@@ -8,6 +8,7 @@ from modules.kaiten import add_kaiten_comment
 from modules.entities import avaibale_entities
 from modules.logs import brain_logger as logger
 from models.Entity import Entity
+from modules.card_events import on_entities
 
 router = APIRouter()
 
@@ -41,9 +42,12 @@ async def add_entity_endpoint(req: AddEntityRequest):
     data = normalized if isinstance(normalized, dict) else {'value': normalized}
     if req.name:
         data['name'] = req.name
-    data['created_at'] = datetime.now().isoformat()
 
-    ent = await Entity.create(card_id=card.card_id, client_key=req.client_id, data=data, type=req.entity_type)
+    ent = await Entity.create(card_id=card.card_id, 
+                              client_key=req.client_id, 
+                              data=data, type=req.entity_type)
+
+    await on_entities(req.client_id, card=card)
 
     if card.task_id and card.task_id != 0:
         comment = f"🧩 Добавлен entity: {req.entity_type} для клиента {req.client_id}"
@@ -92,6 +96,7 @@ async def delete_entity(req: DeleteEntityRequest):
         raise HTTPException(status_code=404, detail="Entity not found")
 
     await ent.delete()
+    await on_entities(req.client_id, card=card)
 
     # Kaiten comment
     if card.task_id and card.task_id != 0:
@@ -139,10 +144,11 @@ async def update_entity(req: UpdateEntityRequest):
     data['updated_at'] = datetime.now().isoformat()
 
     await ent.update(data=data)
+    await on_entities(req.client_id, card=card)
 
     if card.task_id and card.task_id != 0:
         comment = f"✏️ Обновлён entity {req.entity_id} ({req.client_id})"
         await add_kaiten_comment(card.task_id, comment)
 
     ent = await Entity.get_by_key('id', req.entity_id)
-    return {"entity": ent.to_dict()}
+    return {"entity": ent.to_dict() if ent else None}

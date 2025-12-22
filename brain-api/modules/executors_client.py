@@ -123,7 +123,7 @@ async def send_complete_preview(
     Отправить превью готового поста в complete_topic.
     
     Returns:
-        dict: {"success": bool, "post_id": int, "post_ids": list, "info_id": int, "error": str}
+        dict: {"success": bool, "post_id": int, "entities": list, "info_id": int, "error": str}
     """
     try:
         preview_res, _ = await executors_api.post(
@@ -134,10 +134,10 @@ async def send_complete_preview(
             }
         )
         return {
-            "success": preview_res.get("success", False),
-            "post_id": preview_res.get("post_id"),
-            "post_ids": preview_res.get("post_ids", []),
-            "info_id": preview_res.get("info_id"),
+            "success": preview_res.get("success", False), # Выполнено ли
+            "post_ids": preview_res.get("post_ids"), # Посты с медиа-группами
+            "entities": preview_res.get("entities", []), # Список id сущностей
+            "info_id": preview_res.get("info_id"), # Инфа сообщение
             "error": preview_res.get("error")
         }
     except Exception as e:

@@ -347,8 +347,8 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     if post_images:
         downloaded_images = await download_files_raw(post_images)
     
-    post_id = None
     post_ids = []  # Список всех ID сообщений для медиа-групп
+    entities_ids = []  # Список ID сущностей
     
     try:
         # Отправляем пост с изображениями или без
@@ -387,7 +387,9 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                 post_ids = [post_id]
         
         if not post_id:
-            return {"error": f"Failed to send preview: {result.get('error', 'Unknown error')}", "success": False}
+            return {"error": 
+                f"Failed to send preview: {result.get('error', 'Unknown error')}", 
+                "success": False}
         
         # Получаем и отправляем entities (опросы и др.)
         entities_result = await get_entities_for_client(card_id, client_key)
@@ -407,7 +409,7 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                     if poll_result.get('success'):
                         entity_msg_id = poll_result.get('message_id')
                         if entity_msg_id:
-                            post_ids.append(entity_msg_id)
+                            entities_ids.append(entity_msg_id)
         
         # Формируем дату отправки
         send_time = card.get("send_time")
@@ -466,11 +468,11 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
         info_id = info_result.get("message_id") if info_result.get("success") else None
         
         return {"success": True, 
-                "post_id": post_id, 
-                "post_ids": post_ids, 
+                "post_ids": post_ids,
+                "entities": entities_ids,
                 "info_id": info_id
                 }
-    
+
     except Exception as e:
         return {"error": str(e), "success": False}
 

@@ -848,7 +848,7 @@ async def on_clients_settings(
     )
 
 async def on_entities(
-    entities: dict,
+    client_key_edited: str,
     card: Optional[Card] = None, 
     card_id: Optional[_UUID] = None
 ):
@@ -861,35 +861,32 @@ async def on_entities(
         card = await Card.get_by_key('card_id', str(card_id))
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
-    
-    # Обновляем карточку
-    await card.update(entities=entities)
-    
+
     # Обновляем превью если карточка готова
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
             complete_messages = await card.get_complete_preview_messages()
             clients = card.clients or []
-            
+
             for client_key in clients:
                 # Найти сообщение для этого клиента
                 msg = next((m for m in complete_messages if m.data_info == client_key), None)
-                if msg:
+                if msg and (client_key == client_key_edited or client_key_edited == 'all'):
                     await update_complete_preview(
                         str(card.card_id), client_key,
                         int(msg.message_id)
                     )
         except Exception as e:
             print(f"Error updating complete previews: {e}")
+
+    # # Обновляем сцены
+    # await asyncio.create_task(
+    #     update_scenes(SceneNames.USER_TASK, 'main-page',
+    #                  "task_id", str(card.card_id))
+    # )
     
-    # Обновляем сцены
-    await asyncio.create_task(
-        update_scenes(SceneNames.USER_TASK, 'main-page',
-                     "task_id", str(card.card_id))
-    )
-    
-    await asyncio.create_task(
-        update_scenes(SceneNames.VIEW_TASK, 'task-detail',
-                     "selected_task", str(card.card_id))
-    )
+    # await asyncio.create_task(
+    #     update_scenes(SceneNames.VIEW_TASK, 'task-detail',
+    #                  "selected_task", str(card.card_id))
+    # )
