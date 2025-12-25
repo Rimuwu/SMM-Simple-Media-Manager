@@ -28,6 +28,8 @@ def validate_poll(data: dict) -> dict:
     norm_opts = [str(o).strip() for o in options if str(o).strip()]
     if len(norm_opts) < 2:
         raise HTTPException(status_code=413, detail="Poll options must contain at least two non-empty strings")
+    elif len(norm_opts) > 10:
+        raise HTTPException(status_code=417, detail="Poll options cannot exceed 10 items")
 
     p_type = data.get('type', 'regular') if data.get('type') in ('regular', 'quiz') else 'regular'
 
@@ -35,7 +37,8 @@ def validate_poll(data: dict) -> dict:
         'question': question.strip(),
         'options': norm_opts,
         'is_anonymous': True,
-        'type': p_type
+        'type': p_type,
+        'name': question.strip()[:25]
     }
 
 

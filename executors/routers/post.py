@@ -3,6 +3,8 @@
 Вся логика работы с исполнителями и генерацией контента находится здесь.
 """
 from typing import Optional
+import time
+import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from modules.executors_manager import manager
@@ -51,180 +53,246 @@ async def send_post(request: PostSendRequest):
     """
     Немедленно отправить пост.
     Используется для telegram_executor и vk_executor.
-    
+
     Генерация контента происходит здесь, на стороне executors.
     Поддерживает отправку нескольких фото (media group).
     """
-    logger.info(f"Sending post for card {request.card_id}, client {request.client_key}")
-    
+
+    # Инициализация лога действий и таймера
+    overall_start = time.perf_counter()
+    action_log: list[dict] = []
+
+    def add_log(action: str, message: str = "", level: str = "info", duration_ms: float | None = None, **extra):
+        entry = {
+            "time": datetime.datetime.utcnow().isoformat() + "Z",
+            "action": action,
+            "level": level,
+            "message": message
+        }
+        if duration_ms is not None:
+            try:
+                entry["duration_ms"] = str(int(duration_ms))
+            except Exception:
+                entry["duration_ms"] = str(duration_ms)
+        if extra:
+            entry.update(extra)
+        action_log.append(entry)
+        logger_method = getattr(logger, level, logger.info)
+        logger_method(f"{action}: {message} | " + " | ".join(f"{k}={v}" for k, v in extra.items()))
+
+    add_log("start", f"Начало отправки поста {request.card_id} для клиента {request.client_key}")
+
     # Получаем конфигурацию клиента
     client_config, executor_name, client_id = get_client_config(request.client_key)
-    
+
     # Получаем исполнителя
     executor = manager.get(executor_name)
     if not executor:
-        logger.error(f"Executor {executor_name} not found or not available")
-        return {"success": False, "error": f"Executor {executor_name} not found"}
-    
+        add_log("executor_missing", f"Исполнитель {executor_name} не найден", level="error")
+        return {"success": False, "error": f"Исполнитель {executor_name} не найден", "logs": action_log}
+
     try:
-        # Генерируем текст поста
+        # Генерируем текст поста с замером времени
+        gen_start = time.perf_counter()
         post_text = generate_post(
             content=request.content,
             tags=request.tags,
             client_key=request.client_key
         )
+        gen_end = time.perf_counter()
+        add_log("generate_post", "Сгенерирован текст поста", duration_ms=(gen_end - gen_start) * 1000, length=len(post_text))
 
         # Преобразуем client_id
         try:
             chat_id = int(client_id)
         except ValueError:
             chat_id = client_id
+        add_log("client_id_parsed", f"Преобразован client_id -> {chat_id}")
 
         result = None
 
         # Получаем имена файлов для отправки
         post_image_names = request.post_images or []
 
-        # Скачиваем файлы по ID из БД если есть
+        # Скачиваем файлы по ID из БД если есть (замер времени)
         downloaded_files = []
         if post_image_names:
+            dl_start = time.perf_counter()
             downloaded_files = await download_files(post_image_names)
-            logger.info(f"Downloaded {len(downloaded_files)} files from DB for card {request.card_id}")
+            dl_end = time.perf_counter()
+            add_log("download_files", 
+                    f"Скачано {len(downloaded_files)} файлов из БД", duration_ms=(dl_end - dl_start) * 1000, files_count=len(downloaded_files))
 
+        # Обработка для VK
         if isinstance(executor, VKExecutor):
-
-            # Для VK - загружаем фото/видео и создаём пост
             attachments = []
             if downloaded_files:
-                logger.info(f"VK: Начинаю загрузку {len(downloaded_files)} файлов для поста")
+                add_log("vk_upload_start", f"Начало загрузки {len(downloaded_files)} файлов в VK")
 
                 import tempfile
                 import os as os_module
 
                 for idx, file_info in enumerate(downloaded_files):
-                    file_data = file_info['data']
-                    file_type = file_info['type']
-                    file_name = file_info['name']
-                    
-                    logger.info(
-                        f"VK: Обработка файла {idx + 1}/{len(downloaded_files)}, "
-                        f"тип: {file_type}, размер: {len(file_data)} bytes")
+                    file_type = file_info.get('type')
+                    file_name = file_info.get('name')
+                    file_size = len(file_info.get('data', b""))
+
+                    add_log("vk_file_process", 
+                            f"Обработка файла {idx + 1}/{len(downloaded_files)}", file_name=file_name, file_type=file_type, size=file_size)
 
                     # Сохраняем во временный файл для загрузки
                     with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file_name}") as tmp_file:
-                        tmp_file.write(file_data)
+                        tmp_file.write(file_info['data'])
                         tmp_path = tmp_file.name
-
-                    logger.info(f"VK: Сохранено во временный файл: {tmp_path}")
+                    add_log("tmp_file_saved", f"Временный файл сохранён", tmp_path=tmp_path)
 
                     try:
+                        upload_start = time.perf_counter()
                         if file_type == 'photo':
                             upload_result = await executor.upload_photo_to_wall(tmp_path)
-                            logger.info(f"VK: Результат загрузки фото: {upload_result}")
                         elif file_type == 'video':
                             upload_result = await executor.upload_video_to_wall(tmp_path)
-                            logger.info(f"VK: Результат загрузки видео: {upload_result}")
                         else:
-                            logger.warning(f"VK: Неподдерживаемый тип файла: {file_type}, пропускаю")
+                            add_log("vk_unsupported_type", f"Неподдерживаемый тип файла: {file_type}", level="warning")
                             continue
+                        upload_end = time.perf_counter()
+
+                        add_log("vk_upload_result", 
+                                f"Результат загрузки для {file_name}", 
+                                duration_ms=(upload_end - upload_start) * 1000, result=upload_result)
 
                         if upload_result.get('success') and upload_result.get('attachment'):
                             attachments.append(upload_result['attachment'])
-                            logger.info(f"VK: Attachment добавлен: {upload_result['attachment']}")
+                            add_log("vk_attachment_added", 
+                                    f"Вложение добавлено", attachment=upload_result.get('attachment'))
                         else:
-                            logger.error(f"VK: Ошибка загрузки {file_type}: {upload_result.get('error')}")
+                            add_log("vk_upload_error", f"Ошибка загрузки {file_name}", level="error", error=upload_result.get('error'))
 
                     finally:
-                        os_module.unlink(tmp_path)
-                        logger.info(f"VK: Временный файл удалён: {tmp_path}")
+                        try:
+                            os_module.unlink(tmp_path)
+                            add_log("tmp_file_removed", f"Временный файл удалён", tmp_path=tmp_path)
+                        except Exception as ex_rm:
+                            add_log("tmp_remove_error", f"Не удалось удалить временный файл: {ex_rm}", level="warning")
 
-                logger.info(f"VK: Всего attachments для поста: {attachments}")
+                add_log("vk_attachments_count", f"Подготовлено вложений: {len(attachments)}", count=len(attachments))
 
-            image_view_setting = request.settings.get(
-                'image_view', 'grid')
+            image_view_setting = request.settings.get('image_view', 'grid')
+            post_start = time.perf_counter()
             result = await executor.create_wall_post(
                 text=post_text,
                 attachments=attachments if attachments else None,
                 primary_attachments_mode=image_view_setting
             )
+            post_end = time.perf_counter()
 
+            add_log("vk_create_post", "Создание поста в VK", duration_ms=(post_end - post_start) * 1000, result=result)
+
+        # Обработка для Telegram
         elif isinstance(executor, TelegramExecutor):
-
-            # Для Telegram - проверяем наличие медиа файлов
             if downloaded_files:
-                # Разделяем на фото и видео
-                # photos = [f for f in downloaded_files if f['type'] == 'photo']
-                # videos = [f for f in downloaded_files if f['type'] == 'video']
-                
                 if len(downloaded_files) == 1:
-                    # Одиночный файл
                     file_info = downloaded_files[0]
-                    if file_info['type'] == 'photo':
-                        result = await executor.send_photo(
-                            chat_id=chat_id,
-                            photo=file_info['data'],
-                            caption=post_text
-                        )
-                    elif file_info['type'] == 'video':
-                        result = await executor.send_video(
-                            chat_id=chat_id,
-                            video=file_info['data'],
-                            caption=post_text
-                        )
-                    else:
-                        # Неизвестный тип - отправляем как документ
-                        result = await executor.send_document(
-                            chat_id=chat_id,
-                            document=file_info['data'],
-                            caption=post_text
-                        )
-                else:
-                    # Несколько файлов - media group
-                    result = await executor.send_media_group(
-                        chat_id=chat_id,
-                        media=downloaded_files,  # list[dict] с type и data
-                        caption=post_text
-                    )
-            else:
-                # Без медиа - просто текст
-                result = await executor.send_message(
-                    chat_id=chat_id,
-                    text=post_text
-                )
+                    ftype = file_info.get('type')
 
+                    if ftype == 'photo':
+                        send_start = time.perf_counter()
+                        result = await executor.send_photo(chat_id=str(chat_id), 
+                                                           photo=file_info['data'], caption=post_text)
+                        send_end = time.perf_counter()
+
+                        add_log('tg_send_photo', 'Отправлено фото', duration_ms=(send_end - send_start) * 1000, file_name=file_info.get('name'))
+
+                    elif ftype == 'video':
+                        send_start = time.perf_counter()
+                        result = await executor.send_video(chat_id=str(chat_id), video=file_info['data'], caption=post_text)
+                        send_end = time.perf_counter()
+
+                        add_log('tg_send_video', 
+                                'Отправлено видео', duration_ms=(send_end - send_start) * 1000, file_name=file_info.get('name'))
+
+                    else:
+                        send_start = time.perf_counter()
+                        result = await executor.send_document(
+                            chat_id=str(chat_id), document=file_info['data'], caption=post_text)
+                        send_end = time.perf_counter()
+
+                        add_log('tg_send_document', 
+                                'Отправлен документ', duration_ms=(send_end - send_start) * 1000, file_name=file_info.get('name'))
+                else:
+                    send_start = time.perf_counter()
+                    result = await executor.send_media_group(
+                        chat_id=str(chat_id), 
+                        media=downloaded_files, 
+                        caption=post_text)
+                    send_end = time.perf_counter()
+    
+                    add_log('tg_send_media_group', 'Отправлена медиагруппа', 
+                            duration_ms=(send_end - send_start) * 1000, files_count=len(downloaded_files))
+            else:
+                send_start = time.perf_counter()
+                result = await executor.send_message(chat_id=str(chat_id), text=post_text)
+                send_end = time.perf_counter()
+                add_log('tg_send_message', 
+                        'Отправлено текстовое сообщение', duration_ms=(send_end - send_start) * 1000)
+
+        # Результат отправки
         if result and result.get('success'):
-            logger.info(
-                f"Post sent successfully for card {request.card_id}, client {request.client_key}, files: {len(downloaded_files)}")
-            
-            # Отправляем entities если они есть
+            add_log('sent', f"Пост успешно отправлен для карточки {request.card_id}, клиента {request.client_key}, файлов: {len(downloaded_files)}", files_sent=len(downloaded_files))
+
+            # Отправляем entities если они есть (polls и т.д.)
             if request.entities and isinstance(executor, TelegramExecutor):
                 for entity in request.entities:
                     try:
                         entity_type = entity.get('type')
                         if entity_type == 'poll':
                             entity_data = entity.get('data', {})
+
+                            ent_start = time.perf_counter()
                             poll_result = await send_poll_preview(
-                                bot=executor.bot,
-                                chat_id=chat_id,
-                                entity_data=entity_data,
+                                bot=executor.bot, chat_id=chat_id, entity_data=entity_data, 
                                 reply_markup=None
-                            )
-                            if poll_result['success']:
-                                logger.info(f"Entity {entity.get('id')} sent for card {request.card_id}")
+                                )
+                            ent_end = time.perf_counter()
+
+                            if poll_result.get('success'):
+                                add_log('entity_send', 
+                                        f"Сущность {entity.get('id')} отправлена", 
+                                        duration_ms=(ent_end - ent_start) * 1000, 
+                                        entity_type='poll', result=poll_result
+                                        )
+ 
                             else:
-                                logger.error(f"Failed to send entity {entity.get('id')}: {poll_result.get('error')}")
+                                add_log('entity_send_failed', 
+                                        f"Не удалось отправить сущность {entity.get('id')}: {poll_result.get('error')}", 
+                                        level='error',
+                                        entity_type='poll'
+                                        )
+                        else:
+                            add_log('entity_skip', f"Неподдерживаемый тип сущности: {entity_type}", level='warning')
                     except Exception as e:
-                        logger.error(f"Error sending entity: {e}")
-            
-            return {
-                "success": True, 
-                "message_id": result.get('message_id') or result.get('post_id')
-            }
+                        add_log('entity_error', f"Ошибка при отправке сущности: {e}", level='error')
+
+            overall_end = time.perf_counter()
+            total_ms = int((overall_end - overall_start) * 1000)
+            add_log('complete', f"Время выполнения {total_ms} ms", duration_ms=total_ms)
+
+            return {"success": True, 
+                    "message_id": result.get('message_id') or result.get('post_id'), 
+                    "logs": action_log}
         else:
             error_msg = result.get('error') if result else 'Unknown error'
-            logger.error(f"Failed to send post: {error_msg}")
-            return {"success": False, "error": error_msg}
+            add_log('send_failed', f"Не удалось отправить пост: {error_msg}", level='error')
+            overall_end = time.perf_counter()
+            total_ms = int((overall_end - overall_start) * 1000)
+            add_log('complete', f"Время выполнения {total_ms} ms", duration_ms=total_ms)
+
+            return {"success": False, "error": error_msg, "logs": action_log}
 
     except Exception as e:
-        logger.error(f"Error sending post: {e}", exc_info=True)
-        return {"success": False, "error": str(e)}
+        add_log('exception', f"Исключение: {e}", level='error')
+        overall_end = time.perf_counter()
+        total_ms = int((overall_end - overall_start) * 1000)
+        add_log('complete', f"Время выполнения {total_ms} ms", duration_ms=total_ms)
+
+        return {"success": False, "error": str(e), "logs": action_log}

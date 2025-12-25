@@ -8,7 +8,6 @@ from global_modules.classes.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
 from modules.constants import SETTINGS
-from tg.utils.viewers import viewers_manager
 from modules.logs import executors_logger as logger
 from datetime import datetime
 
@@ -29,18 +28,6 @@ class TaskDetailPage(Page):
                 self.user = user
 
             await self.scene.update_key('scene', 'user_role', user_role or None)
-
-        # Регистрируем просмотр
-        task_id = self.scene.data['scene'].get('selected_task')
-        if task_id:
-            user_name = self.scene.data['scene'].get('user_name', f"User {self.scene.user_id}")
-            # Пытаемся получить имя пользователя из сцены или API, если его нет
-            if 'user_name' not in self.scene.data['scene']:
-                 # Можно добавить логику получения имени, если критично
-                 pass
-
-            user_name = self.scene.data['scene'].get('user_name', f"User {self.scene.user_id}")
-            viewers_manager.update_viewer(str(task_id), self.scene.user_id, user_name)
 
         await self.load_task_details()
 
@@ -193,12 +180,6 @@ class TaskDetailPage(Page):
 
         # Сохраняем данные задачи в сцену для использования в других методах
         await self.scene.update_key('scene', 'current_task_data', task)
-
-        # Получаем список просматривающих
-        viewers = viewers_manager.get_viewers(str(task_id), exclude_user_id=self.scene.user_id)
-        viewers_str = ', '.join(viewers) if viewers else 'Никого'
-
-        add_vars['viewers'] = viewers_str
 
         self.content = self.append_variables(**add_vars)
         self.content = self.content.replace('None', '➖')

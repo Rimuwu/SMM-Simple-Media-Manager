@@ -41,7 +41,11 @@ class EntitiesMainPage(Page):
             return '❌ Задача не найдена'
         
         resp, status = await brain_api.get(f'/card/entities?card_id={task_id}&client_id={self.selected_client}')
-        
+
+        types = {
+            'poll': 'Опрос',
+        }
+
         if status != 200 or not resp:
             entities_list = '_Ошибка загрузки_'
         else:
@@ -51,8 +55,8 @@ class EntitiesMainPage(Page):
             else:
                 lines = []
                 for e in entities:
-                    title = e.get('name') or e.get('type')
-                    lines.append(f"• {e.get('type')} - {title}")
+                    title = e.get('data', {}).get('name') or e.get('type')
+                    lines.append(f"• {types.get(e.get('type'), e.get('type'))} - {title}")
                 entities_list = "\n".join(lines)
         
         return self.append_variables(
@@ -83,8 +87,7 @@ class EntitiesMainPage(Page):
             'callback_data': callback_generator(self.scene.__scene_name__, 'switch_client'),
             'ignore_row': True
         })
-        
-        # Create entity button for Telegram
+
         executor = client_info.get('executor_name') or client_info.get('executor')
         if executor == 'telegram_executor':
             buttons.append({
@@ -93,7 +96,6 @@ class EntitiesMainPage(Page):
                 'ignore_row': True
             })
         
-        # List existing entities with view/delete buttons
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
             resp, status = await brain_api.get(f'/card/entities?card_id={task_id}&client_id={self.selected_client}')

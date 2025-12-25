@@ -252,7 +252,7 @@ async def send_post_preview(
         return {'success': True, 'message_ids': message_ids}
     
     except Exception as e:
-        logger.error(f"Error sending post preview: {e}", exc_info=True)
+        logger.error(f"Ошибка при отправке превью поста: {e}", exc_info=True)
         return {'success': False, 'message_ids': [], 'error': str(e)}
 
 

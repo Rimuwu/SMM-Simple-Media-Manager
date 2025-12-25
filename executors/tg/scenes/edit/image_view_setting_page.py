@@ -1,3 +1,4 @@
+from global_modules import brain_client
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
@@ -13,10 +14,7 @@ class ImageViewSettingPage(Page):
         """Подготовка данных страницы"""
         # Получаем выбранный клиент из данных сцены
         selected_client = self.get_data('selected_client')
-        print(
-            f"ImageViewSettingPage: selected_client = {selected_client}"
-        )
-        
+
         if not selected_client:
             print("No selected client found, trying to set a default one.")
             # Если клиент не выбран, берем первого из списка
@@ -76,8 +74,9 @@ class ImageViewSettingPage(Page):
         card = await self.scene.get_card_data()
         if not card:
             return buttons
-        
+
         clients_settings = card.get('clients_settings', {})
+        print(clients_settings)
         current_setting = clients_settings.get(selected_client, {}).get('image_view', 'grid')
         
         # Кнопки выбора типа отображения

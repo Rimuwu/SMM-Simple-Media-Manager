@@ -163,9 +163,9 @@ async def create_card(card_data: CardCreate):
         logger.error(f"Ошибка при создании карточки в Kaiten: {e}")
         card_id = 0
 
-    clients_settings = {
-        key: {} for key in card_data.channels or []
-    }
+    # clients_settings = {
+    #     key: {} for key in card_data.channels or []
+    # }
 
     card = await Card.create(
         name=card_data.title,
@@ -344,9 +344,9 @@ async def get(task_id: Optional[str] = None,
                 key = e.client_key or 'all'
                 entities_map.setdefault(key, []).append(e.to_dict())
             card_dict['entities'] = entities_map
-            
+
             result.append(card_dict)
-        
+
         return result
 
 class S(enum.Enum):

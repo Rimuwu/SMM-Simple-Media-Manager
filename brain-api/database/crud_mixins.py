@@ -191,27 +191,6 @@ class AsyncCRUDMixin:
             return list(result.scalars().all())
 
     @classmethod
-    async def first_or_create(cls, defaults: Optional[Dict] = None, session: Optional[AsyncSession] = None, **kwargs):
-        """Получает объект или создает новый если не найден"""
-        async with cls._get_session_static(session) as sess:
-            query = select(cls)
-            for key, value in kwargs.items():
-                if hasattr(cls, key):
-                    query = query.where(getattr(cls, key) == value)
-            
-            result = await sess.execute(query)
-            obj = result.scalar_one_or_none()
-            
-            if obj:
-                return obj, False
-            else:
-                create_kwargs = kwargs.copy()
-                if defaults:
-                    create_kwargs.update(defaults)
-                obj = await cls.create(session=sess, **create_kwargs)
-                return obj, True
-
-    @classmethod
     async def all(cls, session: Optional[AsyncSession] = None):
         """Получает все объекты (алиас для get_all)"""
         return await cls.get_all(session=session)

@@ -2,6 +2,7 @@
 Страница для отправки ТЗ дизайнерам
 """
 from datetime import datetime
+from html import escape
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
@@ -165,16 +166,16 @@ class ImagePromptPage(Page):
                     customer_users[0].get('tasker_id')
                 )
 
-        # Формируем сообщение
+        # Формируем сообщение (HTML)
         message_text = (
-            f"🤖 _Это сообщение создано автоматически._\n\n"
-            "#Задача\n"
-            f"⏰ *Дедлайн:* {deadline_str}\n"
-            f"👤 *Исполнитель:* {executor_name}\n"
-            f"👤 *Заказчик:* {customer_name}\n"
-            f"🖼 *ТЗ для картинки:* {image_prompt}\n\n"
-            f"📸 *Ответьте на это сообщение фотографией*, "
-            f"чтобы прикрепить её к задаче."
+            "🤖 <i>Это сообщение создано автоматически.</i>\n\n"
+            "<b>#Задача</b>\n"
+            f"⏰ <b>Дедлайн:</b> {escape(deadline_str)}\n"
+            f"👤 <b>Исполнитель:</b> {escape(executor_name)}\n"
+            f"👤 <b>Заказчик:</b> {escape(customer_name)}\n"
+            f"🖼 <b>ТЗ для картинки:</b> {escape(image_prompt)}\n\n"
+            "📸 <b>Ответьте на это сообщение фотографией</b>, "
+            "чтобы прикрепить её к задаче."
         )
         
         try:
@@ -193,13 +194,13 @@ class ImagePromptPage(Page):
             sent_message = await self.scene.__bot__.send_message(
                 chat_id=design_group,
                 text=message_text,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             
             # Сохраняем ID сообщения
             task_id = self.scene.data['scene'].get('task_id')
             await brain_client.update_card(task_id, prompt_message=sent_message.message_id)
-            
+
             await self.scene.update_key('scene', 'prompt_sent', True)
             await callback.answer("✅ Сообщение отправлено дизайнерам", show_alert=True)
             await self.scene.update_message()

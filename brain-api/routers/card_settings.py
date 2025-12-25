@@ -25,9 +25,6 @@ async def set_client_settings_endpoint(data: CardSettings):
     if data.client_id not in (card.clients or []):
         raise HTTPException(status_code=400, detail="Client ID not found in card settings")
 
-    # Создаём или обновляем настройку клиента в отдельной таблице
-    await card.set_client_setting(client_key=data.client_id, data=data.data, type=data.setting_type)
-
     clients = open_clients() or {}
     executor_type = clients.get(
         data.client_id, {}).get('executor_name') or clients.get(

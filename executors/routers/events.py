@@ -89,6 +89,7 @@ class NotifyUserEvent(BaseModel):
     message: str
     skip_if_page: Optional[str | list[str]] = None
     reply_to: Optional[int] = None
+    parse_mode: Optional[str] = None
 
 @router.post("/notify_user")
 async def notify_user(event: NotifyUserEvent):
@@ -128,7 +129,8 @@ async def notify_user(event: NotifyUserEvent):
             chat_id=event.user_id,
             text=event.message,
             reply_markup=keyboard,
-            reply_to_message_id=event.reply_to
+            reply_to_message_id=event.reply_to,
+            parse_mode=event.parse_mode
         )
 
         return {"status": "ok", "sent": True}

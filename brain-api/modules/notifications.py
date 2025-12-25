@@ -4,6 +4,7 @@ from global_modules.classes.enums import UserRole
 from modules.api_client import executors_api
 from modules.constants import ApiEndpoints
 from datetime import datetime
+import html
 from global_modules.json_get import open_settings
 from modules.logs import brain_logger as logger
 
@@ -234,17 +235,66 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
         
         if status == 200 and response.get('success'):
             logger.info(f"Пост для карточки {card.card_id} отправлен, клиент: {client_key}")
+            # Добавляем логи в задачу финализации (если есть)
+            try:
+                logs = response.get('logs', [])
+                await append_logs_to_finalize_task(str(card.card_id), logs)
+            except Exception as e:
+                logger.error(f"Ошибка при добавлении логов в задачу финализации: {e}")
+
+            
         else:
             logger.error(f"Ошибка отправки поста: {response}")
-            await notify_admins_about_post_failure(card, client_key, response.get('error', 'Unknown error'))
-            
+            logs = response.get('logs', [])
+            # Сохраняем логи в задаче финализации для последующего анализа
+            try:
+                await append_logs_to_finalize_task(str(card.card_id), logs)
+            except Exception as e:
+                logger.error(f"Ошибка при добавлении логов в задачу финализации: {e}")
+            await notify_admins_about_post_failure(card, client_key, response.get('error', 'Unknown error'),
+                                                   logs)
+
     except Exception as e:
         logger.error(f"Ошибка при отправке поста для карточки {card.card_id}: {e}", exc_info=True)
         await notify_admins_about_post_failure(card, client_key, str(e))
 
+def normalize_logs(logs: list[dict]) -> str:
+    """
+    Преобразовать список логов в читабельную многострочную строку.
+    Ограничивает количество записей и длину итоговой строки, всегда возвращает str.
+    """
+    if not logs:
+        return "Нет логов."
+
+    lines = []
+    # Ограничение по количеству записей, чтобы сообщение не было огромным
+    max_entries = 20
+    for i, entry in enumerate(logs[:max_entries]):
+        if isinstance(entry, dict):
+            ts = entry.get('time') or entry.get('timestamp') or entry.get('date') or ''
+            level = entry.get('level') or entry.get('lvl') or ''
+            msg = entry.get('message') or entry.get('msg') or ''
+            msg_str = str(msg).replace('\n', ' ').strip()
+            part = f"{i + 1}. {ts} [{level}] {msg_str}".strip()
+        else:
+            part = f"{i + 1}. {str(entry)}"
+        lines.append(part)
+
+    if len(logs) > max_entries:
+        lines.append(f"... и ещё {len(logs) - max_entries} записей")
+
+    result = "\n".join(lines)
+
+    # Ограничение общей длины (например, чтобы помещалось в уведомление)
+    max_len = 3000
+    if len(result) > max_len:
+        result = result[: max_len - 3] + "..."
+
+    return result
 
 async def notify_admins_about_post_failure(
-    card: Card, client_key: str, error: str):
+    card: Card, client_key: str, error: str, logs: list[dict] | None = None
+    ):
     """
     Уведомить админов об ошибке публикации поста.
     
@@ -259,21 +309,32 @@ async def notify_admins_about_post_failure(
             logger.warning("Админы не найдены в системе")
             return
         
+        logs_text = normalize_logs(logs) if logs else "Нет логов."
+        escaped_logs = html.escape(logs_text)
+
+        if logs:
+            # Скрываем длинные логи в спойлере внутри блока цитаты
+            logs_block = f"\n<blockquote><pre>{escaped_logs}</pre></blockquote>\n"
+        else:
+            logs_block = ""
+
         message_text = (
-            f"❌ Ошибка публикации поста\n\n"
-            f"📝 Задача: {card.name}\n"
-            f"📢 Канал: {client_key}\n"
-            f"⚠️ Ошибка: {error}\n\n"
-            f"Требуется ручная публикация!"
+            f"❌ <b>Ошибка публикации поста</b>\n\n"
+            f"📝 Задача: {html.escape(str(card.name))}\n"
+            f"📢 Канал: {html.escape(str(client_key))}\n"
+            f"⚠️ Ошибка: {html.escape(str(error))}\n"
+            f"{logs_block}"
+            f"❗ Требуется ручная публикация!"
         )
-        
+
         for admin in admins:
             try:
                 await executors_api.post(
                     ApiEndpoints.NOTIFY_USER,
                     data={
                         "user_id": admin.telegram_id,
-                        "message": message_text
+                        "message": message_text,
+                        "parse_mode": "HTML"
                     }
                 )
             except Exception as e:
@@ -281,6 +342,58 @@ async def notify_admins_about_post_failure(
                 
     except Exception as e:
         logger.error(f"Ошибка уведомления админов об ошибке публикации: {e}", exc_info=True)
+
+
+async def append_logs_to_finalize_task(card_id: str, logs: list[dict] | None):
+    """Добавить логи в аргументы задачи финализации публикации карточки.
+
+    Если задача финализации найдена, её поле `arguments` получает ключ `logs` со списком записей.
+    Если ключ уже есть - новые записи добавляются в конец.
+    """
+    if not logs:
+        return
+
+    try:
+        from models.ScheduledTask import ScheduledTask
+        from database.connection import session_factory
+        from sqlalchemy import select, update
+        from uuid import UUID as PyUUID
+
+        try:
+            card_uuid = PyUUID(card_id) if isinstance(card_id, str) else card_id
+        except Exception:
+            logger.error(f"Невалидный card_id для добавления логов: {card_id}")
+            return
+
+        async with session_factory() as session:
+            stmt = select(ScheduledTask).where(
+                ScheduledTask.card_id == card_uuid,
+                ScheduledTask.function_path == "modules.notifications.finalize_card_publication"
+            )
+            res = await session.execute(stmt)
+            task = res.scalars().first()
+            if not task:
+                logger.warning(f"Задача финализации для карточки {card_id} не найдена, логи не добавлены")
+                return
+
+            args = task.arguments or {}
+            existing_logs = args.get('logs') or []
+            if not isinstance(existing_logs, list):
+                existing_logs = [existing_logs]
+
+            combined = existing_logs + logs
+
+            # Сохраняем (можно добавить ограничение размера при необходимости)
+            args['logs'] = combined
+
+            upd = update(ScheduledTask).where(ScheduledTask.task_id == task.task_id).values(arguments=args)
+            await session.execute(upd)
+            await session.commit()
+
+            logger.info(f"Добавлено {len(logs)} записей логов в задачу финализации карточки {card_id}")
+
+    except Exception as e:
+        logger.error(f"Ошибка добавления логов в задачу финализации для карточки {card_id}: {e}", exc_info=True)
 
 
 async def finalize_card_publication(card: Card, **kwargs):
@@ -370,6 +483,8 @@ async def finalize_card_publication(card: Card, **kwargs):
         # Получаем список каналов для отчёта
         clients_str = ", ".join(card.clients) if card.clients else "Не указаны"
         
+        logs = normalize_logs(kwargs.get('logs', []))
+        
         # Отправляем отчёт админам
         admins = await User.filter_by(role=UserRole.admin)
         if admins:
@@ -377,7 +492,8 @@ async def finalize_card_publication(card: Card, **kwargs):
                 f"✅ Публикация завершена\n\n"
                 f"📝 Задача: {card.name}\n"
                 f"📢 Каналы: {clients_str}\n"
-                f"⏰ Время: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
+                f"⏰ Время: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+                f"📄 Логи публикации:\n<pre>{html.escape(logs)}</pre>"
             )
             
             for admin in admins:
@@ -386,7 +502,8 @@ async def finalize_card_publication(card: Card, **kwargs):
                         ApiEndpoints.NOTIFY_USER,
                         data={
                             "user_id": admin.telegram_id,
-                            "message": message_text
+                            "message": message_text,
+                            "parse_mode": "HTML"
                         }
                     )
                 except Exception as e:

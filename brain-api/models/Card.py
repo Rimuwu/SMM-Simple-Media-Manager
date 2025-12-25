@@ -168,11 +168,23 @@ class Card(Base, AsyncCRUDMixin):
             filters["client_key"] = client_key
         return await ClientSetting.filter_by(session=session, **filters)
 
-    async def set_client_setting(self, client_key: str, data: dict, type: Optional[str] = None, session: Optional["AsyncSession"] = None):
+    async def set_client_setting(self, client_key: str, 
+                                 data: dict, 
+                                 type: Optional[str] = None, 
+                                 session: Optional["AsyncSession"] = None):
         from models.ClientSetting import ClientSetting
-        obj, created = await ClientSetting.first_or_create(session=session, card_id=self.card_id, client_key=client_key, defaults={"data": data, "type": type})
-        if not created:
-            await obj.update(session=session, data=data, type=type)
+
+        result = await ClientSetting.filter_by(
+            session=session, card_id=self.card_id, client_key=client_key, type=type, 
+        )
+        if result:
+            obj = result[0]
+            await obj.update(session=session, data=data)
+            return obj
+        else:
+            obj = await ClientSetting.create(
+                session=session, card_id=self.card_id, client_key=client_key, data=data, type=type
+            )
         return obj
 
     async def get_entities(self, session: Optional["AsyncSession"] = None, client_key: Optional[str] = None):
@@ -181,13 +193,6 @@ class Card(Base, AsyncCRUDMixin):
         if client_key is not None:
             filters["client_key"] = client_key
         return await Entity.filter_by(session=session, **filters)
-
-    async def set_entity(self, client_key: str, data: dict, type: Optional[str] = None, session: Optional["AsyncSession"] = None):
-        from models.Entity import Entity
-        obj, created = await Entity.first_or_create(session=session, card_id=self.card_id, client_key=client_key, defaults={"data": data, "type": type})
-        if not created:
-            await obj.update(session=session, data=data, type=type)
-        return obj
 
     async def get_messages(self, session: Optional["AsyncSession"] = None, message_type: Optional[str] = None):
         """Получить сообщения карточки"""
