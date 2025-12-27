@@ -123,7 +123,7 @@ async def update_complete_preview_endpoint(request: UpdateCompletePreviewRequest
 
 
 class DeleteCompletePreviewRequest(BaseModel):
-    info_id: Optional[int] = None
+    info_ids: Optional[list[int]] = None
     post_ids: Optional[list[int]] = None
     entities: Optional[list[int]] = None
 
@@ -134,7 +134,7 @@ async def delete_complete_preview_endpoint(request: DeleteCompletePreviewRequest
     Удаляет все сообщения: с постом (включая медиа-группы) и с информацией.
     """
     data = await delete_complete_preview(
-        info_id=request.info_id,
+        info_ids=request.info_ids,
         post_ids=request.post_ids,
         entities=request.entities
     )

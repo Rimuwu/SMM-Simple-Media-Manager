@@ -660,7 +660,7 @@ async def update_complete_preview(card_id: str, client_key: str,
         return {"error": str(e), "success": False}
 
 
-async def delete_complete_preview(info_id: int | None = None, 
+async def delete_complete_preview(info_ids: list[int] | None = None,
                                   post_ids: list[int] | None = None,
                                   entities: list[int] | None = None
                                   ) -> dict:
@@ -680,7 +680,7 @@ async def delete_complete_preview(info_id: int | None = None,
     if not client_executor:
         return {"error": "Executor not found", "success": False}
 
-    print(entities, info_id, post_ids)
+    print(entities, info_ids, post_ids)
 
     try:
         ids_to_delete = []
@@ -690,8 +690,8 @@ async def delete_complete_preview(info_id: int | None = None,
         elif entities:
             ids_to_delete.extend(entities)
 
-        if info_id:
-            ids_to_delete.append(info_id)
+        if info_ids:
+            ids_to_delete.extend(info_ids)
 
         # Удаляем все сообщения
         for msg_id in ids_to_delete:

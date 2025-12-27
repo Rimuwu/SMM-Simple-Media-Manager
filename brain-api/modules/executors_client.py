@@ -264,7 +264,7 @@ async def update_complete_preview(
 async def delete_complete_preview(
     post_ids: list[int] | None = None,
     entities: list[int] | None = None,
-    info_id: int | None = None,
+    info_ids: list[int] | None = None,
     card_id: str | None = None,
     session: Optional[AsyncSession] = None
     ) -> bool:
@@ -280,8 +280,8 @@ async def delete_complete_preview(
             data["post_ids"] = post_ids
         elif entities is not None:
             data["entities"] = entities
-        if info_id is not None:
-            data["info_id"] = info_id
+        if info_ids is not None:
+            data["info_ids"] = info_ids
 
         await executors_api.post(
             ApiEndpoints.COMPLETE_DELETE_PREVIEW,
@@ -293,16 +293,16 @@ async def delete_complete_preview(
         if session:
             if post_ids:
                 for pid in post_ids:
-                    msgs = await CardMessage.filter_by(session=session, message_type='complete_post', message_id=str(pid))
+                    msgs = await CardMessage.filter_by(session=session, message_type='complete_post', message_id=pid)
                     for m in msgs:
                         await m.delete(session=session)
             if entities:
                 for eid in entities:
-                    msgs = await CardMessage.filter_by(session=session, message_type='complete_entity', message_id=str(eid))
+                    msgs = await CardMessage.filter_by(session=session, message_type='complete_entity', message_id=eid)
                     for m in msgs:
                         await m.delete(session=session)
             if info_id is not None:
-                msgs = await CardMessage.filter_by(session=session, message_type='complete_info', message_id=str(info_id))
+                msgs = await CardMessage.filter_by(session=session, message_type='complete_info', message_id=info_id)
                 for m in msgs:
                     await m.delete(session=session)
 
@@ -357,12 +357,12 @@ async def delete_all_complete_previews(
             # Используем сессию для атомарности: удаляем remote и БД внутри сессии
             async with session_factory() as s:
                 if post_ids or info_ids:
-                    await delete_complete_preview(post_ids=post_ids or None, info_id=(info_ids[0] if info_ids else None), session=s)
+                    await delete_complete_preview(post_ids=post_ids or None, 
+                                                  entities=entity_ids or None,
+                                                  info_ids=info_ids or None, 
+                                                  session=s
+                                                  )
 
-                if entity_ids:
-                    await delete_complete_preview(entities=entity_ids or None, session=s)
-
-                # На этом этапе delete_complete_preview уже удалил записи из БД (сессия передана)
                 await s.commit()
 
         except Exception as e:

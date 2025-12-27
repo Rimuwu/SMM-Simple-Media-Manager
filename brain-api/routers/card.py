@@ -762,16 +762,15 @@ async def get_messages(card_id: Optional[str] = None,
 async def get_card_by_message_id(message_id: int):
     """Получить карточку по ID сообщения"""
     async with session_factory() as session:
-        stmt = select(CardMessage).where(CardMessage.message_id == message_id)
-
-        result_db = await session.execute(stmt)
-        message = result_db.scalars().first()
+        
+        message = await CardMessage.filter_by(message_id=message_id)
+        message = message[0] if message else None
 
         if not message:
             raise HTTPException(status_code=404, detail="Message not found")
 
         card = await Card.get_by_key('card_id', message.card_id)
         if not card:
-            raise HTTPException(status_code=404, detail="Card not found")
+            raise HTTPException(status_code=414, detail="Card not found")
 
         return card.to_dict()

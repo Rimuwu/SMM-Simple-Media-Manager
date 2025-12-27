@@ -234,9 +234,9 @@ async def to_edited(
                 card=card
             )
 
-        complete_messages = await card.get_complete_preview_messages()
-        if complete_messages:
-            await delete_all_complete_previews(complete_messages)
+    complete_messages = await card.get_complete_preview_messages()
+    if complete_messages:
+        await delete_all_complete_previews(complete_messages)
 
     # Обновление карточки в базе
     await card.update(status=CardStatus.edited)
@@ -261,11 +261,8 @@ async def to_edited(
         scene_name=SceneNames.VIEW_TASK
     )
 
-    print(await card.get_forum_message())
-
     # Обновление сообщения на форуме для public задач
     if await card.get_forum_message():
-        print('upd')
         await update_forum_message(
             str(card.card_id)
         )
@@ -329,10 +326,10 @@ async def to_review(
                 card_id=str(card.card_id)
             )
 
-        async with session_factory() as delete_session:
-            complete_messages = await card.get_complete_preview_messages(session=delete_session)
-            if complete_messages:
-                await delete_all_complete_previews(complete_messages)
+    async with session_factory() as delete_session:
+        complete_messages = await card.get_complete_preview_messages(session=delete_session)
+        if complete_messages:
+            await delete_all_complete_previews(complete_messages)
 
     # Обновление карточки в базе
     await card.update(status=CardStatus.review)
@@ -370,11 +367,18 @@ async def to_review(
     message_id, _ = await send_forum_message(
         str(card.card_id)
     )
+
     if message_id:
         forum_mes = await card.get_messages(message_type='forum')
         if forum_mes:
-            for mes in forum_mes:
-                await mes.update(message_id=message_id)
+            mes = forum_mes[0]
+            await mes.update(message_id=message_id)
+        else:
+            mes = await CardMessage.create(
+                card_id=card.card_id,
+                message_id=message_id,
+                message_type='forum'
+            )
 
     # Уведомления редакторам и админам
     recipients = []
@@ -499,44 +503,24 @@ async def to_ready(
             for mes in forum_mes:
                 await mes.update(message_id=message_id)
 
-    # Отправка превью постов для каждого клиента (полный цикл: create, update, reconcile, delete)
+    # Отправка превью постов для каждого клиента: удаляем старые и создаём новые
     await card.refresh()
     async with session_factory() as preview_session:
-        # Получаем все связанные сообщения (включая новые типы)
+        # Получаем и удаляем все связанные сообщения превью (включая новые типы)
         complete_messages = await card.get_complete_preview_messages(session=preview_session)
+        if complete_messages:
+            try:
+                await delete_all_complete_previews(complete_messages)
+            except Exception as e:
+                logger.error(f"Ошибка при удалении старых превью для карточки {card.card_id}: {e}")
 
         clients = card.clients or []
         for client_key in clients:
-            # Сгруппировать существующие сообщения для клиента
-            msgs_for_client = [m for m in complete_messages if m.data_info == client_key]
-            existing_posts = [m for m in msgs_for_client if m.message_type == 'complete_post']
-            existing_info = next((m for m in msgs_for_client if m.message_type == 'complete_info'), None)
-            existing_entities = [m for m in msgs_for_client if m.message_type == 'complete_entity']
-
-            # Удобные списки id
-            existing_post_ids = [int(m.message_id) for m in existing_posts]
-            existing_info_id = int(existing_info.message_id) if existing_info else None
-
-            if existing_posts:
-                # Пытаемся обновить существующее превью (передаём все known post_ids и info_id если есть)
-                await delete_complete_preview(post_ids=existing_post_ids or None, info_id=existing_info_id, session=preview_session)
-                preview_res = await send_complete_preview(str(card.card_id), client_key, session=preview_session)
-
-                # Если обновление не удалось — пересоздаём превью
-                if not preview_res.get('success'):
-                    try:
-                        # Удаляем удалённые/старые сообщения на executor стороне (если есть)
-                        if existing_post_ids or existing_info_id:
-                            await delete_complete_preview(post_ids=existing_post_ids or None, info_id=existing_info_id, session=preview_session)
-                    except Exception:
-                        pass
-
-                    # Отправляем заново
-                    await send_complete_preview(str(card.card_id), client_key, session=preview_session)
-
-            else:
-                # Нет существующих превью — отправляем и создаём записи
+            try:
+                # Всегда создаём новые превью (после удаления старых)
                 await send_complete_preview(str(card.card_id), client_key, session=preview_session)
+            except Exception as e:
+                logger.error(f"Ошибка отправки превью для карточки {card.card_id}, клиент {client_key}: {e}")
 
         # Сохраняем изменения
         await preview_session.commit()

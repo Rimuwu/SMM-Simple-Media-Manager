@@ -12,7 +12,7 @@ from modules.kaiten import update_kaiten_card_field, kaiten, add_kaiten_comment
 from modules.executors_client import (
     notify_users, update_scenes, update_forum_message,
     send_complete_preview, update_complete_preview, 
-    delete_complete_preview
+    delete_complete_preview, delete_all_complete_previews
 )
 from modules.constants import SceneNames, PropertyNames
 from modules.properties import multi_properties
@@ -277,23 +277,13 @@ async def on_send_time(
     except Exception as e:
         print(f"Error rescheduling post tasks: {e}")
 
-    # Обновляем превью если карточка готова
+    # Обновляем превью если карточка готова — удаляем все и создаём новые
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
-            complete_messages = await card.get_complete_preview_messages()
-            clients = card.clients or []
-
-            for client_key in clients:
-                # Найти сообщение для этого клиента
-                msg = next((m for m in complete_messages if m.data_info == client_key), None)
-                if msg:
-                    await update_complete_preview(
-                        str(card.card_id), client_key,
-                        post_ids=[int(msg.message_id)]
-                    )
+            await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error updating complete previews: {e}")
+            print(f"Error recreating complete previews: {e}")
 
     if card.calendar_id and new_send_time:
         await update_calendar_event(
@@ -485,45 +475,13 @@ async def on_content(
             text=new_content
         )
 
-    # Обновляем превью если карточка готова
+    # Обновляем превью если карточка готова — удаляем все и создаём новые
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
-            # Если client_key указан — обновляем только его, иначе все клиенты
-            clients_to_update = [client_key] if client_key else (card.clients or [])
-
-            async with session_factory() as s:
-                for ckey in clients_to_update:
-                    msgs = await card.get_complete_messages_by_client(client_key=ckey, session=s)
-                    existing_posts = [m for m in msgs if m.message_type == 'complete_post']
-                    existing_info = next((m for m in msgs if m.message_type == 'complete_info'), None)
-
-                    if not existing_posts:
-                        # Нечего обновлять
-                        continue
-
-                    post_ids = [int(m.message_id) for m in existing_posts]
-                    info_id = int(existing_info.message_id) if existing_info else None
-
-                    update_res = await update_complete_preview(
-                        str(card.card_id), ckey,
-
-                        session=s
-                    )
-
-                    if not update_res.get('success'):
-                        # Пересоздаём превью
-                        try:
-                            await delete_complete_preview(post_ids=post_ids or None, info_id=info_id, session=s)
-                        except Exception:
-                            pass
-
-                        # Отправляем заново — send_complete_preview создаст записи в БД (сессия передана)
-                        await send_complete_preview(str(card.card_id), ckey, session=s)
-
-                await s.commit()
+            await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error updating complete previews: {e}")
+            print(f"Error recreating complete previews: {e}")
 
 async def on_clients(
     new_clients: list[str],
@@ -592,33 +550,13 @@ async def on_clients(
     except Exception as e:
         print(f"Error rescheduling post tasks: {e}")
     
-    # Обновляем превью если карточка готова
+    # Обновляем превью если карточка готова — удаляем все и создаём новые
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
-            async with session_factory() as s:
-                complete_messages = await card.get_complete_preview_messages(session=s)
-                existing_clients = {msg.data_info for msg in complete_messages if msg.data_info}
-
-                # Удаляем превью для клиентов, которых больше нет
-                for msg in complete_messages:
-                    if msg.data_info and msg.data_info not in new_clients:
-                        if msg.message_type == 'complete_post':
-                            await delete_complete_preview(post_ids=[int(msg.message_id)], session=s)
-                        elif msg.message_type == 'complete_info':
-                            await delete_complete_preview(info_id=int(msg.message_id), session=s)
-                        elif msg.message_type == 'complete_entity':
-                            await delete_complete_preview(entities=[int(msg.message_id)], session=s)
-
-                # Добавляем превью для новых клиентов
-                for client_key in new_clients:
-                    if client_key not in existing_clients:
-                        await send_complete_preview(str(card.card_id), client_key, session=s)
-
-                await s.commit()
-
+            await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error updating complete previews: {e}")
+            print(f"Error recreating complete previews: {e}")
 
     # Обновляем сцены
     await asyncio.create_task(
@@ -714,13 +652,13 @@ async def on_tags(
     # Обновляем карточку
     await card.update(tags=new_tags)
     
-    # Обновляем превью если карточка готова
+    # Обновляем превью если карточка готова — удаляем все и создаём новые
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
-            await reconcile_complete_previews_for_clients(card)
+            await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error updating complete previews: {e}")
+            print(f"Error recreating complete previews: {e}")
     
     # Обновляем сцены
     await asyncio.create_task(
@@ -754,6 +692,14 @@ async def on_image_prompt(
 
     # Обновляем карточку
     await card.update(image_prompt=new_prompt)
+
+    # При изменении промпта на изображение — пересоздаём превью если карточка готова
+    from models.Card import CardStatus
+    if card.status == CardStatus.ready:
+        try:
+            await delete_and_recreate_all_completes(card)
+        except Exception as e:
+            print(f"Error recreating complete previews: {e}")
 
 async def on_prompt_message(
     message_id: int,
@@ -826,13 +772,13 @@ async def on_clients_settings(
     # Обновляем карточку
     await card.update(clients_settings=clients_settings)
     
-    # Обновляем превью если карточка готова
+    # Обновляем превью если карточка готова — удаляем все и создаём новые
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
-            await reconcile_complete_previews_for_clients(card)
+            await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error updating complete previews: {e}")
+            print(f"Error recreating complete previews: {e}")
     
     # Обновляем сцены
     await asyncio.create_task(
@@ -860,68 +806,37 @@ async def on_entities(
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
 
-    # Обновляем превью если карточка готова
+    # Обновляем превью если карточка готова — удаляем все и создаём новые
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
-            complete_messages = await card.get_complete_preview_messages()
-            clients = card.clients or []
-
-            for client_key in clients:
-                if client_key == client_key_edited or client_key_edited == 'all':
-                    await recreate_entities_for_client(card, client_key)
+            await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error updating complete previews: {e}")
-
-    # # Обновляем сцены
-    # await asyncio.create_task(
-    #     update_scenes(SceneNames.USER_TASK, 'main-page',
-    #                  "task_id", str(card.card_id))
-    # )
-    
-    # await asyncio.create_task(
-    #     update_scenes(SceneNames.VIEW_TASK, 'task-detail',
-    #                  "selected_task", str(card.card_id))
-    # )
+            print(f"Error recreating complete previews: {e}")
 
 
-async def reconcile_complete_previews_for_clients(card: Card, clients: list[str] | None = None):
-    """Helper: синхронизировать/пересоздать превью для списка клиентов (или всех клиентов карточки)."""
-    clients_to_process = clients or (card.clients or [])
-    async with session_factory() as s:
-        complete_messages = await card.get_complete_preview_messages(session=s)
+async def delete_and_recreate_all_completes(card: Card):
+    """Helper: удалить все существующие превью для карточки и создать новые для всех клиентов."""
+    try:
+        async with session_factory() as s:
+            # получаем все связанные сообщения и удаляем их
+            complete_messages = await card.get_complete_preview_messages(session=s)
+            if complete_messages:
+                try:
+                    await delete_all_complete_previews(complete_messages)
+                except Exception as e:
+                    print(f"Error deleting old complete previews for card {card.card_id}: {e}")
 
-        for client_key in clients_to_process:
-            msgs_for_client = [m for m in complete_messages if m.data_info == client_key]
-            existing_posts = [m for m in msgs_for_client if m.message_type == 'complete_post']
-            existing_info = next((m for m in msgs_for_client if m.message_type == 'complete_info'), None)
-            existing_entities = [m for m in msgs_for_client if m.message_type == 'complete_entity']
-
-            if existing_posts:
-                post_ids = [int(m.message_id) for m in existing_posts]
-                info_id = int(existing_info.message_id) if existing_info else None
-
-                update_res = await update_complete_preview(
-                    str(card.card_id), client_key,
-                    post_ids=post_ids,
-                    info_id=info_id,
-                    session=s
-                )
-
-                if not update_res.get('success'):
-                    try:
-                        await delete_complete_preview(post_ids=post_ids or None, info_id=info_id, session=s)
-                    except Exception:
-                        pass
-
-                    # send_complete_preview создаст записи в БД (сессия передана)
+            clients = card.clients or []
+            for client_key in clients:
+                try:
                     await send_complete_preview(str(card.card_id), client_key, session=s)
+                except Exception as e:
+                    print(f"Error sending complete preview for card {card.card_id}, client {client_key}: {e}")
 
-                else:
-                    returned_post_ids = update_res.get('post_ids') or ([update_res.get('post_id')] if update_res.get('post_id') else [])
-                    returned_post_ids = [int(pid) for pid in returned_post_ids if pid is not None]
-
-        await s.commit()
+            await s.commit()
+    except Exception as e:
+        print(f"Error recreating complete previews for card {card.card_id}: {e}")
 
 
 async def recreate_entities_for_client(card: Card, client_key: str):
