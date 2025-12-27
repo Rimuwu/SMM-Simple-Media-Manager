@@ -207,17 +207,42 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
     logger.info(f"Немедленная отправка поста для карточки {card.card_id}, клиент: {client_key}")
     
     try:
-        # Получаем контент для клиента (сначала специфичный, потом общий)
-        content_dict = card.content if isinstance(card.content, dict) else {}
-        content = content_dict.get(client_key) or content_dict.get('all') or 'nothing'
-
-        clients_settings: dict = card.clients_settings.get('all', {})
-        clients_settings.update(card.clients_settings.get(client_key, {}))
-
-        # Получаем entities для этого клиента
+        # Загружаем связанные данные через явную сессию, чтобы избежать lazy-loading вне greenlet
+        from database.connection import session_factory
+        content = 'nothing'
+        clients_settings = {}
         entities_for_client = []
-        if card.entities:
-            entities_for_client = card.entities.get(client_key, [])
+
+        async with session_factory() as s:
+            # Contents: выбираем последний (по created_at) для каждого client_key
+            contents = await card.get_content(session=s)
+            content_map: dict[str, tuple[str, object]] = {}
+            for c in contents:
+                key = c.client_key or 'all'
+                created = getattr(c, 'created_at', None)
+                prev = content_map.get(key)
+                if not prev or (created and prev[1] and created > prev[1]):
+                    content_map[key] = (c.text, created)
+            content_dict = {k: v[0] for k, v in content_map.items()}
+            content = content_dict.get(client_key) or content_dict.get('all') or 'nothing'
+
+            # Clients settings
+            settings_entries = await card.get_clients_settings(session=s)
+            clients_settings = {}
+            for s_entry in settings_entries:
+                key = s_entry.client_key or 'all'
+                clients_settings.setdefault(key, {}).update(s_entry.data or {})
+            # merge global and specific
+            merged_settings = clients_settings.get('all', {}).copy()
+            merged_settings.update(clients_settings.get(client_key, {}))
+            clients_settings = merged_settings
+
+            # Entities
+            entities_entries = await card.get_entities(session=s)
+            entities_for_client = []
+            for ent in entities_entries:
+                if ent.client_key == client_key or ent.client_key is None:
+                    entities_for_client.append(ent.to_dict())
 
         # Отправляем запрос на немедленную публикацию - всю логику выполняет executors API
         response, status = await executors_api.post(
@@ -462,15 +487,20 @@ async def finalize_card_publication(card: Card, **kwargs):
             except Exception as e:
                 logger.error(f"Ошибка увеличения счётчиков задач: {e}")
         
-        # Увеличиваем tasks_checked для редакторов из editor_notes
-        if card.editor_notes:
+        # Увеличиваем tasks_checked для редакторов из editor_notes (без ленивой загрузки)
+        try:
+            from database.connection import session_factory
             reviewer_ids = set()
-            for note in card.editor_notes:
-                if not note.get('is_customer', False):
-                    author_id = note.get('author')
-                    if author_id:
-                        reviewer_ids.add(str(author_id))
-            
+            async with session_factory() as s:
+                notes = await card.get_editor_notes(session=s)
+                for note in notes:
+                    # note may be a model instance; convert to dict if possible
+                    n = note.to_dict() if hasattr(note, 'to_dict') else note.__dict__
+                    if not n.get('is_customer', False):
+                        author_id = n.get('author')
+                        if author_id:
+                            reviewer_ids.add(str(author_id))
+
             for reviewer_id in reviewer_ids:
                 try:
                     reviewer = await User.get_by_key('user_id', reviewer_id)
@@ -479,6 +509,8 @@ async def finalize_card_publication(card: Card, **kwargs):
                         logger.info(f"Увеличен счётчик проверенных задач для редактора {reviewer.user_id}")
                 except Exception as e:
                     logger.error(f"Ошибка увеличения счётчика проверенных задач для {reviewer_id}: {e}")
+        except Exception as e:
+            logger.error(f"Ошибка загрузки заметок редактора для карточки {card.card_id}: {e}")
         
         # Получаем список каналов для отчёта
         clients_str = ", ".join(card.clients) if card.clients else "Не указаны"
