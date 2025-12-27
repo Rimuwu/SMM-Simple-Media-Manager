@@ -195,30 +195,20 @@ class TaskDetailPage(Page):
         task_status = current_task.get('status')
 
         role = self.scene.data['scene'].get('user_role')
-        is_admin = role == UserRole.admin
         editor_id = current_task.get('editor_id')
+        user_id = self.user.get('user_id', 0)
 
-        is_editor = False
-        if role == UserRole.copywriter:
-             # Проверяем, является ли текущий пользователь исполнителем этой задачи
-             editor_data = current_task.get('editor_id')
-             if editor_data and self.user.get('user_id', 0) == editor_data:
-                 is_editor = True
+        is_editor = current_task.get('editor_id', 0) == user_id
+        is_executor = current_task.get('executor_id', 0) == user_id
+        is_admin = role == UserRole.admin
 
-        is_executor = False
-        if role == UserRole.copywriter:
-             # Проверяем, является ли текущий пользователь исполнителем этой задачи
-             executor_data = current_task.get('executor_id')
-             if executor_data and self.user.get('user_id', 0) == executor_data:
-                 is_executor = True
-
-        if role == UserRole.admin or is_admin:
+        if is_admin:
             action_buttons.extend([
                 ('assign_executor', '👷 Исполнитель'),
                 ('delete', '🗑️ Удалить задачу')
             ])
 
-        if role == UserRole.copywriter or is_admin or is_editor:
+        if is_executor or is_admin or is_editor:
             action_buttons.extend([
                 ('open_task', '📂 Открыть задачу')
             ])
@@ -230,7 +220,6 @@ class TaskDetailPage(Page):
             ])
 
         # Если задача отправлена (sent), то для всех кроме админа кнопок нет (или только выход)
-        # Для админа - только удаление
         if task_status == CardStatus.sent:
             if is_admin:
                 return [{
@@ -239,7 +228,12 @@ class TaskDetailPage(Page):
                         self.scene.__scene_name__, 
                         'task_action',
                         'delete'
-                    )
+                    ),
+                    'text': '↩️ Вернуть в работу',
+                    'callback_data': callback_generator(
+                        self.scene.__scene_name__, 
+                        'return_to_work',
+                    ),
                 }]
             else:
                 return [] # Пустой список кнопок (только "Назад" от сцены если есть)
