@@ -94,6 +94,7 @@ class Card(Base, AsyncCRUDMixin):
         "ScheduledTask", back_populates="card", cascade="all, delete-orphan")
 
     # Порядок отправки файлов (список имён файлов)
+    # УДАЛИТЬ
     files_order: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     # Временные метки

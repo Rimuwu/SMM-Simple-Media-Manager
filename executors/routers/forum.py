@@ -96,9 +96,9 @@ async def send_complete_preview_endpoint(request: CompletePreviewRequest):
 class UpdateCompletePreviewRequest(BaseModel):
     card_id: str
     client_key: str
-    post_id: int
     info_id: Optional[int] = None
-    post_ids: Optional[list[int]] = None  # Список всех ID для медиа-групп
+    post_ids: Optional[list[int]] = None
+    entities: Optional[list[int]] = None
 
 @router.post("/update-complete-preview")
 async def update_complete_preview_endpoint(request: UpdateCompletePreviewRequest):
@@ -108,24 +108,24 @@ async def update_complete_preview_endpoint(request: UpdateCompletePreviewRequest
     data = await update_complete_preview(
         request.card_id,
         request.client_key,
-        request.post_id,
-        request.info_id,
-        request.post_ids
+        post_ids=request.post_ids,
+        info_id=request.info_id,
+        entities=request.entities
     )
     
     return {
         "success": data.get("success", False),
-        "post_id": data.get("post_id", None),
-        "post_ids": data.get("post_ids", []),  # Список всех ID для медиа-групп
+        "post_ids": data.get("post_ids", []),
+        "entities": data.get("entities", []),
         "info_id": data.get("info_id", None),
         "error": data.get("error", None)
     }
 
 
 class DeleteCompletePreviewRequest(BaseModel):
-    post_id: Optional[int] = None  # Старый формат
     info_id: Optional[int] = None
-    post_ids: Optional[list[int]] = None  # Новый формат - список ID
+    post_ids: Optional[list[int]] = None
+    entities: Optional[list[int]] = None
 
 @router.post("/delete-complete-preview")
 async def delete_complete_preview_endpoint(request: DeleteCompletePreviewRequest):
@@ -134,9 +134,9 @@ async def delete_complete_preview_endpoint(request: DeleteCompletePreviewRequest
     Удаляет все сообщения: с постом (включая медиа-группы) и с информацией.
     """
     data = await delete_complete_preview(
-        post_id=request.post_id, 
         info_id=request.info_id,
-        post_ids=request.post_ids
+        post_ids=request.post_ids,
+        entities=request.entities
     )
     
     return {

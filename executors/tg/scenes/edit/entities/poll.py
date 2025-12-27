@@ -340,7 +340,7 @@ class PollCreatePage(TextTypeScene):
 
         if poll_type == 'regular':
             settings_text += f"• *Несколько ответов:* {'✅ Да' if allows_multi else '❌ Нет'}"
-            keyboard.insert(2, [{
+            keyboard.insert(1, [{
                 'text': '☑️ Несколько ответов',
                 'callback_data':
                     callback_generator(self.scene.__scene_name__, 'toggle_multiple')}]
@@ -499,4 +499,6 @@ class PollCreatePage(TextTypeScene):
             await self.scene.update_page('entities-main')
             await callback.answer('✅ Опрос создан')
         else:
+            if status == 414:
+                await callback.answer('❌ Не указан правильный ответ для викторины')
             await callback.answer('❌ Ошибка создания опроса')

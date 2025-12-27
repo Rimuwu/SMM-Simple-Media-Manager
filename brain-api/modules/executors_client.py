@@ -5,6 +5,8 @@ from uuid import UUID as _UUID
 from models.User import User
 from models.Card import Card
 from models.CardMessage import CardMessage
+from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # ==================== Форум ====================
 
@@ -117,13 +119,16 @@ async def delete_forum_message_by_id(message_id: int) -> bool:
 
 async def send_complete_preview(
     card_id: str, 
-    client_key: str
+    client_key: str,
+    session: Optional[AsyncSession] = None
     ) -> dict:
     """
-    Отправить превью готового поста в complete_topic.
-    
+    Отправить превью готового поста в complete_topic и создать записи в БД.
+
+    Если передана `session`, операции с БД выполняются в ней.
+
     Returns:
-        dict: {"success": bool, "post_id": int, "entities": list, "info_id": int, "error": str}
+        dict: {"success": bool, "post_ids": list, "entities": list, "info_id": int, "error": str}
     """
     try:
         preview_res, _ = await executors_api.post(
@@ -133,6 +138,36 @@ async def send_complete_preview(
                 "client_key": client_key
             }
         )
+
+        if preview_res.get('success') is True:
+            card = await Card.get_by_id(_UUID(card_id))
+            if card:
+                post_ids = preview_res.get("post_ids") or []  # Посты с медиа-группами
+                entities = preview_res.get("entities", [])  # Список id сущностей
+                info_id = preview_res.get("info_id")  # Инфа сообщение
+
+                # Создаём записи в БД: используем переданную сессию если есть
+                if session:
+                    for pid in post_ids:
+                        await card.add_complete_post_message(message_id=pid, data_info=client_key, session=session)
+
+                    if info_id is not None:
+                        await card.add_complete_info_message(message_id=int(info_id), data_info=client_key, session=session)
+
+                    for eid in entities:
+                        if eid is not None:
+                            await card.add_complete_entity_message(message_id=int(eid), data_info=client_key, session=session)
+                else:
+                    for pid in post_ids:
+                        await card.add_complete_post_message(message_id=pid, data_info=client_key)
+
+                    if info_id is not None:
+                        await card.add_complete_info_message(message_id=int(info_id), data_info=client_key)
+
+                    for eid in entities:
+                        if eid is not None:
+                            await card.add_complete_entity_message(message_id=int(eid), data_info=client_key)
+
         return {
             "success": preview_res.get("success", False), # Выполнено ли
             "post_ids": preview_res.get("post_ids"), # Посты с медиа-группами
@@ -148,38 +183,77 @@ async def send_complete_preview(
 async def update_complete_preview(
     card_id: str, 
     client_key: str, 
-    post_id: int,
     post_ids: list[int] | None = None,
-    info_id: int | None = None
+    entities: list[int] | None = None,
+    info_id: int | None = None,
+    session: Optional[AsyncSession] = None
     ) -> dict:
     """
-    Обновить превью готового поста в complete_topic.
-    
+    Обновить превью готового поста в complete_topic и синхронизировать записи в БД если передана сессия.
+
     Returns:
-        dict: {"success": bool, "post_id": int, "post_ids": list, "info_id": int, "entities": list, "error": str}
+        dict: {"success": bool, "post_ids": list, "info_id": int, "entities": list, "error": str}
     """
     try:
         data = {
             "card_id": card_id,
             "client_key": client_key,
-            "post_id": post_id
+            "post_ids": post_ids,
+            "entities": entities,
+            "info_id": info_id
         }
-        if post_ids is not None:
-            data["post_ids"] = post_ids
-        if info_id is not None:
-            data["info_id"] = info_id
-
         update_res, _ = await executors_api.post(
             ApiEndpoints.COMPLETE_UPDATE_PREVIEW,
             data=data
         )
 
+        # При необходимости синхронизируем БД (если передана сессия)
+        if session and update_res.get('success'):
+            card = await Card.get_by_id(_UUID(card_id))
+            if card:
+                # Получаем существующие сообщения для клиента
+                msgs = await card.get_complete_messages_by_client(client_key=client_key, session=session)
+                existing_posts = [m for m in msgs if m.message_type == 'complete_post']
+                existing_info = next((m for m in msgs if m.message_type == 'complete_info'), None)
+
+                returned_post_ids = update_res.get('post_ids') or []
+                returned_post_ids = [int(pid) for pid in returned_post_ids if pid is not None]
+
+                # Синхронизация post ids
+                if returned_post_ids:
+                    if len(returned_post_ids) == len(existing_posts):
+                        for m, pid in zip(existing_posts, returned_post_ids):
+                            if int(m.message_id) != pid:
+                                await m.update(session=session, message_id=pid)
+                    else:
+                        for m in existing_posts:
+                            await m.delete(session=session)
+                        for pid in returned_post_ids:
+                            await card.add_complete_post_message(message_id=pid, data_info=client_key, session=session)
+
+                # Info
+                returned_info_id = update_res.get('info_id')
+                if returned_info_id is not None:
+                    if existing_info:
+                        await existing_info.update(session=session, message_id=int(returned_info_id))
+                    else:
+                        await card.add_complete_info_message(message_id=int(returned_info_id), data_info=client_key, session=session)
+
+                # Entities — пересоздаём
+                returned_entities = update_res.get('entities', []) or []
+                if returned_entities:
+                    # удаляем старые entity
+                    for m in [m for m in msgs if m.message_type == 'complete_entity']:
+                        await m.delete(session=session)
+                    for eid in returned_entities:
+                        if eid is not None:
+                            await card.add_complete_entity_message(message_id=int(eid), data_info=client_key, session=session)
+
         return {
             "success": update_res.get("success", True),  # Считаем успехом если нет ошибки
-            "post_id": update_res.get("post_id"),
             "post_ids": update_res.get("post_ids"),
-            "info_id": update_res.get("info_id"),
             "entities": update_res.get("entities", []),
+            "info_id": update_res.get("info_id"),
             "error": update_res.get("error")
         }
     except Exception as e:
@@ -188,12 +262,14 @@ async def update_complete_preview(
 
 
 async def delete_complete_preview(
-    post_id: int | None = None,
     post_ids: list[int] | None = None,
-    info_id: int | None = None
+    entities: list[int] | None = None,
+    info_id: int | None = None,
+    card_id: str | None = None,
+    session: Optional[AsyncSession] = None
     ) -> bool:
     """
-    Удалить превью готового поста из complete_topic.
+    Удалить превью готового поста из complete_topic и удалить записи из БД (если передана сессия или card_id).
     
     Returns:
         True если успешно
@@ -202,8 +278,8 @@ async def delete_complete_preview(
         data = {}
         if post_ids is not None:
             data["post_ids"] = post_ids
-        elif post_id is not None:
-            data["post_id"] = post_id
+        elif entities is not None:
+            data["entities"] = entities
         if info_id is not None:
             data["info_id"] = info_id
 
@@ -211,6 +287,40 @@ async def delete_complete_preview(
             ApiEndpoints.COMPLETE_DELETE_PREVIEW,
             data=data
         )
+
+        # Удаляем записи из БД если передано card_id или session
+        from models.CardMessage import CardMessage
+        if session:
+            if post_ids:
+                for pid in post_ids:
+                    msgs = await CardMessage.filter_by(session=session, message_type='complete_post', message_id=str(pid))
+                    for m in msgs:
+                        await m.delete(session=session)
+            if entities:
+                for eid in entities:
+                    msgs = await CardMessage.filter_by(session=session, message_type='complete_entity', message_id=str(eid))
+                    for m in msgs:
+                        await m.delete(session=session)
+            if info_id is not None:
+                msgs = await CardMessage.filter_by(session=session, message_type='complete_info', message_id=str(info_id))
+                for m in msgs:
+                    await m.delete(session=session)
+
+        elif card_id:
+            # если передан card_id, удаляем записи, ограничивая карточкой
+            card = await Card.get_by_id(_UUID(card_id))
+            if card:
+                msgs = await card.get_complete_preview_messages()
+                if post_ids:
+                    for m in [m for m in msgs if m.message_type == 'complete_post' and int(m.message_id) in post_ids]:
+                        await m.delete()
+                if entities:
+                    for m in [m for m in msgs if m.message_type == 'complete_entity' and int(m.message_id) in entities]:
+                        await m.delete()
+                if info_id is not None:
+                    for m in [m for m in msgs if m.message_type == 'complete_info' and int(m.message_id) == info_id]:
+                        await m.delete()
+
         return True
     except Exception as e:
         logger.error(f"Ошибка удаления complete preview: {e}")
@@ -237,26 +347,23 @@ async def delete_all_complete_previews(
         key = msg.data_info or '__none__'
         groups.setdefault(key, []).append(msg)
 
+    from database.connection import session_factory
     for key, msgs in groups.items():
         try:
             post_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_post']
             info_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_info']
             entity_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_entity']
 
-            # Удаляем посты + info одной операцией, если есть
-            if post_ids or info_ids:
-                await delete_complete_preview(post_ids=post_ids or None, info_id=(info_ids[0] if info_ids else None))
+            # Используем сессию для атомарности: удаляем remote и БД внутри сессии
+            async with session_factory() as s:
+                if post_ids or info_ids:
+                    await delete_complete_preview(post_ids=post_ids or None, info_id=(info_ids[0] if info_ids else None), session=s)
 
-            # Удаляем entity-сообщения по отдельности
-            for eid in entity_ids:
-                try:
-                    await delete_complete_preview(post_id=eid)
-                except Exception:
-                    logger.exception(f"Failed deleting entity message {eid}")
+                if entity_ids:
+                    await delete_complete_preview(entities=entity_ids or None, session=s)
 
-            # Удаляем записи в БД
-            for m in msgs:
-                await m.delete()
+                # На этом этапе delete_complete_preview уже удалил записи из БД (сессия передана)
+                await s.commit()
 
         except Exception as e:
             logger.error(f"Ошибка удаления complete preview: {e}")
