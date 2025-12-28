@@ -218,7 +218,7 @@ async def create_card(card_data: CardCreate):
             card_data.title,
             calendar_description,
             cal_date,
-            cal_date,
+            cal_date + timedelta(minutes=60) if cal_date else None,
             all_day=False,
             color_id='7'
         )

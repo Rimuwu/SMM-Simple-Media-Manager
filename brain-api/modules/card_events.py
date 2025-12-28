@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal, Optional
 from uuid import UUID as _UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -210,7 +210,7 @@ async def on_deadline(
             await update_calendar_event(
                 event_id=card.calendar_id,
                 start_time=new_deadline,
-                end_time=new_deadline
+                end_time=new_deadline + timedelta(minutes=60)
             )
         except Exception as e:
             print(f"Error updating calendar event: {e}")
@@ -289,7 +289,7 @@ async def on_send_time(
         await update_calendar_event(
             card.calendar_id,
             start_time=new_send_time,
-            end_time=new_send_time
+            end_time=new_send_time + timedelta(minutes=60)
         )
 
     # Обновляем сцены
