@@ -340,34 +340,33 @@ async def delete_all_complete_previews(
         True если все удалены успешно
     """
     success = True
-
-    # Группируем по client_key (data_info) чтобы удалить посты и info в одной операции
-    groups: dict[str, list] = {}
-    for msg in complete_messages:
-        key = msg.data_info or '__none__'
-        groups.setdefault(key, []).append(msg)
+    msgs = complete_messages
 
     from database.connection import session_factory
-    for key, msgs in groups.items():
-        try:
-            post_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_post']
-            info_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_info']
-            entity_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_entity']
+    try:
+        post_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_post']
+        info_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_info']
+        entity_ids = [int(m.message_id) for m in msgs if m.message_type == 'complete_entity']
 
-            # Используем сессию для атомарности: удаляем remote и БД внутри сессии
-            async with session_factory() as s:
-                if post_ids or info_ids:
-                    await delete_complete_preview(post_ids=post_ids or None, 
-                                                  entities=entity_ids or None,
-                                                  info_ids=info_ids or None, 
-                                                  session=s
-                                                  )
+        print(
+            'Отправка удаления complete preview:',
+            f'post_ids={post_ids}, info_ids={info_ids}, entity_ids={entity_ids}'
+        )
 
-                await s.commit()
+        # Используем сессию для атомарности: удаляем remote и БД внутри сессии
+        async with session_factory() as s:
+            if post_ids or info_ids:
+                await delete_complete_preview(post_ids=post_ids or None, 
+                                              entities=entity_ids or None,
+                                              info_ids=info_ids or None, 
+                                              session=s
+                )
 
-        except Exception as e:
-            logger.error(f"Ошибка удаления complete preview: {e}")
-            success = False
+            await s.commit()
+
+    except Exception as e:
+        logger.error(f"Ошибка удаления complete preview: {e}")
+        success = False
 
     return success
 

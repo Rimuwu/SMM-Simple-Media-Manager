@@ -93,10 +93,6 @@ class Card(Base, AsyncCRUDMixin):
     scheduled_tasks: Mapped[list["ScheduledTask"]] = relationship(
         "ScheduledTask", back_populates="card", cascade="all, delete-orphan")
 
-    # Порядок отправки файлов (список имён файлов)
-    # УДАЛИТЬ
-    files_order: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
-
     # Временные метки
     created_at: Mapped[createAT]
     updated_at: Mapped[updateAT]

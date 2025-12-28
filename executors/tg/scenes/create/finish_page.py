@@ -4,7 +4,7 @@ from tg.oms.utils import callback_generator
 from tg.oms import Page
 from modules.api_client import brain_api
 from modules.constants import SETTINGS
-from tg.oms.common_pages import UserSelectorPage
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 class FinishPage(Page):
 
@@ -231,10 +231,20 @@ class FinishPage(Page):
 
                 await self.scene.end()
 
+                bot_username = (await self.scene.__bot__.get_me()).username
+                view_link = f'https://t.me/{bot_username}?start=type-open-view_id-{card_id}'
+                
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="Просмотреть задачу", url=view_link)
+                    ]
+                ])
+
                 await self.scene.__bot__.send_message(
                     self.scene.user_id,
-                    f'Задача: "{data["name"]}" успешно создана c ID: {card_id}\n'
-                    f'📎 Загружено файлов: {uploaded_count}'
+                    f'Задача: "{data["name"]}" успешно создана\nID: {card_id}\n'
+                    f'📎 Загружено файлов: {uploaded_count}',
+                    reply_markup=markup
                 )
                 return
 

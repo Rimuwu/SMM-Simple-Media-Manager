@@ -173,12 +173,15 @@ async def forum_message(card_id: str):
     markup = []
 
     status = card['status']
+    bot_username = (await client_executor.bot.get_me()).username
+    view_link = f'https://t.me/{bot_username}?start=type-open-view_id-{card["card_id"]}'
 
     if status == CardStatus.pass_.value:
         markup = [
             {
-                "text": "Забрать задание",
-                "callback_data": "take_task"
+                "text": "🤍 Забрать задание",
+                "callback_data": "take_task",
+                "ignore_row": True
             }
         ]
 
@@ -187,8 +190,14 @@ async def forum_message(card_id: str):
 
         markup = [
             {
-                "text": "Задание взято",
-                "callback_data": " "
+                "text": "💚 Задание взято",
+                "callback_data": " ",
+                "ignore_row": True
+            },
+            {
+                "text": "👀 Просмотр задачи",
+                "url": view_link,
+                "ignore_row": True
             }
         ]
     
@@ -197,8 +206,14 @@ async def forum_message(card_id: str):
 
         markup = [
             {
-                "text": "Взять на проверку",
-                "callback_data": "edit_task"
+                "text": "💙 Взять на проверку",
+                "callback_data": "edit_task",
+                "ignore_row": True
+            },
+            {
+                "text": "👀 Просмотр задачи",
+                "url": view_link,
+                "ignore_row": True
             }
         ]
 
@@ -207,8 +222,14 @@ async def forum_message(card_id: str):
 
         markup = [
             {
-                "text": "Задание на проверке",
-                "callback_data": " "
+                "text": "💜 Задание на проверке",
+                "callback_data": " ",
+                "ignore_row": True
+            },
+            {
+                "text": "👀 Просмотр задачи",
+                "url": view_link,
+                "ignore_row": True
             }
         ]
 
@@ -217,8 +238,14 @@ async def forum_message(card_id: str):
 
         markup = [
             {
-                "text": "Задание выполнено",
-                "callback_data": " "
+                "text": "❤ Задание выполнено",
+                "callback_data": " ",
+                "ignore_row": True
+            },
+            {
+                "text": "👀 Просмотр задачи",
+                "url": view_link,
+                "ignore_row": True
             }
         ]
 

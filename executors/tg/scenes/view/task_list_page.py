@@ -2,7 +2,9 @@ from datetime import datetime, timedelta
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from global_modules.brain_client import brain_client
-from global_modules.classes.enums import UserRole, CardStatus
+from global_modules.classes.enums import UserRole, CardStatus, Department
+from modules.utils import get_display_name
+from .select_department_filter_page import DEPARTMENT_NAMES
 
 filter_names = {
     'my-tasks': 'Мои задачи',
@@ -60,8 +62,32 @@ class TaskListPage(Page):
         start_index = current_page * tasks_per_page
         end_index = min(start_index + tasks_per_page, total_tasks)
 
+        # Формируем текст фильтра с дополнительной информацией
+        selected_filter_text = filter_names.get(selected_filter, selected_filter)
+
+        if selected_filter == 'by-user':
+            filter_user_id = self.scene.data['scene'].get('filter_user_id')
+            if filter_user_id:
+                user = await brain_client.get_user(user_id=filter_user_id)
+                if user:
+                    kaiten_users = await brain_client.get_kaiten_users_dict()
+                    display_name = await get_display_name(
+                        user.get('telegram_id'), kaiten_users, self.scene.__bot__, user.get('tasker_id')
+                    )
+                    selected_filter_text = f"{filter_names.get(selected_filter)}: {display_name}"
+                else:
+                    selected_filter_text = f"{filter_names.get(selected_filter)}: ID {filter_user_id}"
+            else:
+                selected_filter_text = f"{filter_names.get(selected_filter)}: —"
+
+        elif selected_filter == 'by-department':
+            filter_department = self.scene.data['scene'].get('filter_department')
+            if filter_department:
+                department_name = DEPARTMENT_NAMES.get(filter_department, filter_department)
+                selected_filter_text = f"{filter_names.get(selected_filter)}: {department_name}"
+
         add_vars = {
-            'selected_filter': filter_names.get(selected_filter, selected_filter),
+            'selected_filter': selected_filter_text,
             'current_range': f"{start_index + 1}-{end_index}",
             'total_tasks': str(total_tasks)
         }

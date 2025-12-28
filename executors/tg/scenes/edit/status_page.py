@@ -4,6 +4,7 @@ from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus
 from tg.oms.utils import callback_generator
 from modules.logs import executors_logger as logger
+from datetime import datetime, timedelta
 
 class StatusSetterPage(Page):
     
@@ -16,7 +17,7 @@ class StatusSetterPage(Page):
         clients = self.scene.data['scene'].get('clients_list', [])
 
         if publish_date == 'Не указана' and status in ['review']: return False
-        if content is None: return False
+        if not content: return False
         if len(clients) == 0: return False
 
         return True
@@ -33,6 +34,44 @@ class StatusSetterPage(Page):
                 )
             else:
                 self.content += "\n\n❌ Нельзя отправить на проверку пост без контента или каналов."
+
+        # Дополнительные предупреждения: время отправки, фото, теги
+        task_id = self.scene.data['scene'].get('task_id')
+        warnings = []
+        if task_id:
+            cards = await brain_client.get_cards(card_id=task_id)
+            if cards:
+                card = cards[0]
+                # Проверка времени отправки
+                send_time = card.get('send_time')
+                if send_time:
+                    try:
+                        st = datetime.fromisoformat(send_time)
+                        now = datetime.now()
+                        if st < now:
+                            warnings.append('⏰ Время отправки уже прошло.')
+                        elif (st - now) < timedelta(minutes=5):
+                            warnings.append('⏳ Время отправки менее чем через 5 минут.')
+                    except Exception:
+                        # невалидный формат — игнорируем
+                        pass
+
+                # Проверка наличия фото (post_images)
+                post_images = card.get('post_images') or []
+                if not post_images:
+                    warnings.append('🖼 Нет установленных изображений для поста.')
+
+                # Проверка наличия тегов
+                tags = card.get('tags') or []
+                if not tags:
+                    warnings.append('🏷 Нет установленных хештегов.')
+
+        if warnings:
+            self.content += '\n\n⚠️ *Предупреждения при завершении:*\n'
+            for w in warnings:
+                self.content += f'- {w}\n'
+
+            self.content += '\nПри выборе "🚫 Завершить без отправки" задача будет помечена как завершённая и НЕ будет отправляться в каналы; после этого её нельзя будет автоматически опубликовать.'
 
         return self.content
 
@@ -282,6 +321,12 @@ class StatusSetterPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
         
         if task_id:
+            # Предупреждение пользователю (информируем перед действием)
+            await callback.answer(
+                '⚠️ Вы собираетесь завершить задачу без отправки — задача будет помечена как завершённая и НЕ будет отправлена в каналы.\n\nПродолжить?',
+                show_alert=True
+            )
+
             logger.info(f"Пользователь {self.scene.user_id} завершил задачу {task_id} без отправки")
             
             # Получаем роль пользователя
@@ -295,7 +340,7 @@ class StatusSetterPage(Page):
                 send_time='reset'  # Сбрасываем время отправки
             )
             
-            # Меняем статус на ready
+            # Меняем статус на ready (закрытая без отправки)
             await brain_client.change_card_status(
                 card_id=task_id,
                 status=CardStatus.ready,
@@ -306,7 +351,7 @@ class StatusSetterPage(Page):
             await callback.answer('✅ Задача завершена без отправки!')
             await self.scene.__bot__.send_message(
                 chat_id=self.scene.user_id,
-                text="Задача завершена без отправки."
+                text="Задача завершена без отправки. Она больше не будет отправляться и не будет доступна для публикации."
             )
             # await self.scene.update_page('main-page')
         else:

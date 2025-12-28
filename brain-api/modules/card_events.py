@@ -841,35 +841,3 @@ async def delete_and_recreate_all_completes(card: Card):
             await s.commit()
     except Exception as e:
         print(f"Error recreating complete previews for card {card.card_id}: {e}")
-
-
-async def recreate_entities_for_client(card: Card, client_key: str):
-    """Helper: пересоздать только entity-сообщения для клиента (delete + create).
-
-    Используется когда entities были изменены — по требованию всегда пересоздаём сущности.
-    """
-    async with session_factory() as s:
-        msgs = await card.get_complete_messages_by_client(client_key=client_key, session=s)
-        existing_entities = [m for m in msgs if m.message_type == 'complete_entity']
-        existing_posts = [m for m in msgs if m.message_type == 'complete_post']
-        existing_info = next((m for m in msgs if m.message_type == 'complete_info'), None)
-
-        # Удаляем remote entity messages и записи в БД через delete_complete_preview (сессия передана)
-        try:
-            if existing_entities:
-                await delete_complete_preview(entities=[int(m.message_id) for m in existing_entities], session=s)
-        except Exception:
-            pass
-
-        # Стараемся пересоздать entities через update (если есть посты), иначе через send
-        if existing_posts:
-            post_ids = [int(m.message_id) for m in existing_posts]
-            info_id = int(existing_info.message_id) if existing_info else None
-            update_res = await update_complete_preview(str(card.card_id), client_key, post_ids=post_ids, info_id=info_id, session=s)
-            if not update_res.get('success'):
-                await send_complete_preview(str(card.card_id), client_key, session=s)
-        else:
-            # Нет постов — просто вызываем send для клиента
-            await send_complete_preview(str(card.card_id), client_key, session=s)
-
-        await s.commit()

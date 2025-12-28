@@ -13,11 +13,11 @@ class PreviewPage(Page):
     
     # Кэш скачанных файлов (для одной сессии страницы)
     _cached_files: dict = {}
-    
+
     async def data_preparate(self):
         """Подготовка данных перед отображением"""
         card = await self.scene.get_card_data()
-        
+
         if not card:
             await self.scene.update_key(self.__page_name__, 'clients', [])
             return
@@ -41,7 +41,7 @@ class PreviewPage(Page):
         card = await self.scene.get_card_data()
         clients = self.scene.get_key(self.__page_name__, 'clients') or []
         content_dict = card.get('content') if card else None
-        
+
         if not clients:
             return (
                 "👁 Предпросмотр поста\n\n"

@@ -38,7 +38,8 @@ def validate_poll(data: dict) -> dict:
         'options': norm_opts,
         'is_anonymous': True,
         'type': p_type,
-        'name': question.strip()[:25]
+        'name': question.strip()[:25],
+        'allows_multiple_answers': data.get('allows_multiple_answers', False)
     }
 
 
