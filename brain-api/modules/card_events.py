@@ -549,7 +549,7 @@ async def on_clients(
             await reschedule_post_tasks(session, card)
     except Exception as e:
         print(f"Error rescheduling post tasks: {e}")
-    
+
     # Обновляем превью если карточка готова — удаляем все и создаём новые
     from models.Card import CardStatus
     if card.status == CardStatus.ready:
@@ -557,6 +557,10 @@ async def on_clients(
             await delete_and_recreate_all_completes(card)
         except Exception as e:
             print(f"Error recreating complete previews: {e}")
+
+    # Обновляем форум
+    if await card.get_forum_message():
+        await update_forum_message(str(card.card_id))
 
     # Обновляем сцены
     await asyncio.create_task(

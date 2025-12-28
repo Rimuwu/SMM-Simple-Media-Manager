@@ -16,6 +16,10 @@ class MainPage(Page):
         add_vars = {}
         data = self.scene.data['scene']
 
+        # Режим отображения (simple | advanced)
+        mode = data.get('mode', 'simple')
+        add_vars['mode'] = 'Простой' if mode == 'simple' else 'Продвинутый'
+
         if data['type'] == 'public':
             add_vars['type'] = 'Общее задание'
         else:
@@ -167,14 +171,42 @@ class MainPage(Page):
                 buttons_lst[ind][
                     'next_line'] = False
 
+        # Добавляем кнопку переключения режима как отдельный callback
+        mode = self.scene.data['scene'].get('mode', 'advanced')
+        mode_text = f"🧭 Режим: {'Простой' if mode == 'simple' else 'Продвинутый'}"
+        buttons_lst.append({
+            'text': mode_text,
+            'callback_data': callback_generator(self.scene.__scene_name__, 'mode_toggle')
+        })
+
         return buttons_lst
     
     async def to_page_preworker(self, to_page_buttons: dict) -> dict:
-        """Фильтруем кнопки - editor-check только для админов"""
+        """Фильтруем кнопки - editor-check только для админов и показываем нужный набор кнопок в зависимости от режима (simple/advanced)
+        """
         user_role = await brain_client.get_user_role(self.scene.user_id)
-        
+
         # Кнопка настройки проверки редактором доступна только админам
         if user_role != 'admin' and 'editor-check' in to_page_buttons:
             del to_page_buttons['editor-check']
-        
+
+        # Режим отображения
+        mode = self.scene.data['scene'].get('mode', 'advanced')
+
+        if mode == 'simple':
+            allowed = {
+                'ai-parse', 'name', 'description', 'send-date', 'publish-date',
+                'files', 'help', 'cancel', 'finish'
+            }
+            to_page_buttons = {k: v for k, v in to_page_buttons.items() if k in allowed}
+
         return to_page_buttons
+
+    @Page.on_callback('mode_toggle')
+    async def mode_toggle_handler(self, callback, args):
+        """Обработка нажатия на кнопку режима: переключаем и обновляем сообщение"""
+        current = self.scene.data['scene'].get('mode', 'advanced')
+        new_mode = 'simple' if current == 'advanced' else 'advanced'
+        await self.scene.update_key('scene', 'mode', new_mode)
+        await self.scene.update_message()
+        return 'exit'

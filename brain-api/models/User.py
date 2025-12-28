@@ -29,6 +29,8 @@ class User(Base, AsyncCRUDMixin):
     department: Mapped[Department] = mapped_column(nullable=False, default=Department.without_department)
     about: Mapped[str] = mapped_column(String, nullable=True, default=None)
 
+    can_pick: Mapped[bool] = mapped_column(nullable=False, default=False)
+
     # Связи
     cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer", foreign_keys="Card.customer_id")
     executed_cards: Mapped[list["Card"]] = relationship("Card", back_populates="executor", foreign_keys="Card.executor_id")

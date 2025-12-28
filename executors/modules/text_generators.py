@@ -10,6 +10,7 @@ from global_modules.classes.enums import CardStatus
 from modules.utils import get_telegram_user
 from modules.entities_sender import send_poll_preview, get_entities_for_client
 from global_modules.brain_client import brain_client
+from global_modules.json_get import open_clients, open_settings
 
 forum_topic = SETTINGS.get('forum_topic', 0)
 group_forum = SETTINGS.get('group_forum', 0)
@@ -67,15 +68,46 @@ async def text_getter(card: dict, tag: str,
     name = card.get("name", "Без названия")
     description = card.get("description") or "Без описания"
     deadline = card.get("deadline", "Без дедлайна")
-    tags = card.get("tags", []) if card.get("tags", []
+    tags_raw = card.get("tags", []) if card.get("tags", []
                                             ) else ["Без тегов"]
     need_check = "✅" if card.get("need_check", False) else "❌"
-    
+
+    open_clients_dict = open_clients()
+    settings = open_settings() or {}
+
+    tags = []
+    if tags_raw != ["Без тегов"]:
+        for t in tags_raw:
+            tag_info = settings['properties']['tags']['values'].get(t, {})
+            tag_label = '#' + tag_info.get("tag", t)
+            tags.append(tag_label)
+    else:
+        tags = ["Без тегов"]
+
+    clients = []
+    for client in card.get("clients", []):
+        client_info = open_clients_dict.get(client, {})
+        client_label = client_info.get("label", client)
+        clients.append(f'<code>{client_label}</code>')
+    if not clients:
+        clients = ["Каналы не назначены"]
+
     if deadline != "Без дедлайна":
         try:
             dt = datetime.fromisoformat(deadline)
             deadline = dt.strftime('%d.%m.%Y %H:%M')
         except: pass
+
+    days_ost = ''
+    if deadline != "Без дедлайна":
+        try:
+            dt = datetime.fromisoformat(card.get("deadline"))
+            delta = dt - datetime.now()
+            days = delta.days
+            days_ost = f' ({days} дн)'
+
+        except Exception as e:
+            print(f"Error calculating days remaining: {e}")
 
     data_list = []
     for i in ['executor_id', 'customer_id', 'editor_id']:
@@ -98,25 +130,25 @@ async def text_getter(card: dict, tag: str,
             else:
                 username = f"ID: {card.get(i)} (ошибка получения)"
         else:
-            username = "👤 Не назначен"
+            username = "<code>Не назначен</code>"
 
         data_list.append(username)
 
     executor_nick, customer_nick, editor_nick = data_list
 
     text = (f'Статус: {tag}\n'
-        f'Появилось новое задание!'
-        f'\n'
-        f'\nНазвание: `{name}`'
-        f'\nДедлайн: {deadline}'
-        f'\nИсполнитель: `{executor_nick}`'
-        f'\nЗаказчик: `{customer_nick}`'
-        f'\nРедактор: `{editor_nick}`'
+        f'\nНазвание: <code>{name}</code>'
+        f'\nДедлайн: {deadline}{days_ost}'
+        f'\n\n<b>🧪 Участники</b>'
+        f'\nИсполнитель: {executor_nick}'
+        f'\nЗаказчик: {customer_nick}'
+        f'\nРедактор: {editor_nick}'
+        f'\n\n<b>✨ Информация</b>'
         f'\nТеги: {", ".join(tags)}'
+        f'\nКаналы: {", ".join(clients)}'
         f'\nПроверяемый: {need_check}'
-        f'\n\n```Описание'
-        f'\n{description[:750]}'
-        f'```'
+        f'\n\n<b>⚡ Описание</b>'
+        f'\n<blockquote>{description[:1024]}</blockquote>'
     )
 
     return text
@@ -139,7 +171,7 @@ async def forum_message(card_id: str):
 
     tag = pass_tag
     markup = []
-    
+
     status = card['status']
 
     if status == CardStatus.pass_.value:
@@ -205,7 +237,7 @@ async def forum_message(card_id: str):
             chat_id=group_forum,
             text=text,
             list_markup=markup,
-            parse_mode="Markdown"
+            parse_mode="html"
         )
 
     else:
@@ -213,7 +245,7 @@ async def forum_message(card_id: str):
             chat_id=group_forum,
             message_id=first_or_none['message_id'],
             text=text,
-            parse_mode="Markdown",
+            parse_mode="html",
             list_markup=markup
         )
 
@@ -225,7 +257,7 @@ async def forum_message(card_id: str):
                 chat_id=group_forum,
                 text=text,
                 list_markup=markup,
-                parse_mode="Markdown"
+                parse_mode="html"
             )
 
     status = data.get("success", False)

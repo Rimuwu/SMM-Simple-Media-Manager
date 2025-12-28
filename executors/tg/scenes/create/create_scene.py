@@ -13,6 +13,7 @@ from .send_page import SendDatePage
 from tg.oms.common_pages import DatePickerPage
 from .ai_parse_page import AIParserPage
 from .editor_check_page import EditorCheckPage
+from .help import HelpPage
 
 class CreateTaskScene(Scene):
 
@@ -30,8 +31,8 @@ class CreateTaskScene(Scene):
         SendDatePage,
         AIParserPage,
         EditorCheckPage,
-        # date picker
         DatePickerPage,
+        HelpPage,
     ]
 
     # Привязываем функции для работы с БД

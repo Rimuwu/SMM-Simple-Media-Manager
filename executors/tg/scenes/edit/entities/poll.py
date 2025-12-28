@@ -325,8 +325,8 @@ class PollCreatePage(TextTypeScene):
         poll_type = poll_data.get('type', 'regular')
         allows_multi = poll_data.get('allows_multiple_answers', False)
 
-        settings_text = (f"⚙️ *Настройки опроса*\n"
-                         f"• *Тип:* {'Опрос' if poll_type == 'regular' else 'Викторина'}\n"
+        settings_text = (f"⚙️ <b>Настройки опроса</b>\n"
+                         f"• <b>Тип:</b> {'Опрос' if poll_type == 'regular' else 'Викторина'}\n"
                          )
 
         keyboard = [
@@ -339,7 +339,7 @@ class PollCreatePage(TextTypeScene):
         ]
 
         if poll_type == 'regular':
-            settings_text += f"• *Несколько ответов:* {'✅ Да' if allows_multi else '❌ Нет'}"
+            settings_text += f"• <b>Несколько ответов:</b> {'✅ Да' if allows_multi else '❌ Нет'}"
             keyboard.insert(1, [{
                 'text': '☑️ Несколько ответов',
                 'callback_data':
@@ -347,7 +347,7 @@ class PollCreatePage(TextTypeScene):
             )
 
         await callback.message.edit_text(
-            settings_text, reply_markup={'inline_keyboard': keyboard}, parse_mode='Markdown')
+            settings_text, reply_markup={'inline_keyboard': keyboard}, parse_mode='html')
 
     @Page.on_callback('toggle_type')
     async def toggle_type(self, callback, args):
@@ -398,7 +398,7 @@ class PollCreatePage(TextTypeScene):
              }]
         )
 
-        await callback.message.edit_text('🎯 *Выберите правильный ответ:*', reply_markup={'inline_keyboard': keyboard}, parse_mode='Markdown')
+        await callback.message.edit_text('🎯 <b>Выберите правильный ответ:</b>', reply_markup={'inline_keyboard': keyboard}, parse_mode='html')
 
     @Page.on_callback('select_correct')
     async def select_correct(self, callback, args):

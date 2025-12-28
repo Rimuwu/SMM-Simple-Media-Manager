@@ -53,3 +53,27 @@ async def test_postmessage(message: Message):
         )
         logs = res.get('logs', [])
         pprint(logs)
+
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+@dp.message(Command("test_url_button"), 
+            RoleFilter("admin"))
+async def test_url_button(message: Message):
+    
+    buttons = [
+        [InlineKeyboardButton(
+            text="Visit OpenAI",
+            url="https://www.openai.com"
+        )],
+        [InlineKeyboardButton(
+            text="Visit OpenAI",
+            url="https://www.openai.com"
+        )]
+    ]
+    
+    msg = await message.answer(
+        "Click the button below to visit OpenAI:",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=buttons
+        )
+    )

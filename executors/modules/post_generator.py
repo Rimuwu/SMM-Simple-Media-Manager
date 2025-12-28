@@ -78,7 +78,7 @@ def generate_post(
         tag_suffix = ""
         if client_key and client_key in CLIENTS:
             tag_suffix = CLIENTS[client_key].get('tag_suffix', '')
-        
+
         hashtags_list = []
         for tag in tags:
             
@@ -89,11 +89,11 @@ def generate_post(
             if tag_suffix:
                 formatted_tag = f"{formatted_tag}{tag_suffix}"
             hashtags_list.append(formatted_tag)
-        
+
         # Каждый хештег на отдельной строке
         hashtags = "\n".join(hashtags_list)
         post_text = f"{post_text}\n\n{hashtags}"
-    
+
     # Форматирование в зависимости от платформы
     if platform.lower() == "telegram":
         # Telegram поддерживает HTML и Markdown

@@ -105,9 +105,8 @@ class APIClient:
                 return response_data, status_code
 
     async def put(self, endpoint: str, data: dict = None):
-        """Выполняет PUT запрос"""
-        if getenv("DEBUG", False) == 'true': 
-            print(data)
+        # if getenv("DEBUG", False) == 'true': 
+        #     print(data)
 
         # Фильтруем None значения из data
         if data:

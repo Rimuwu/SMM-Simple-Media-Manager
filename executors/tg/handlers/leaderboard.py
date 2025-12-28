@@ -48,7 +48,7 @@ async def get_leaderboard_text(period: str = 'all') -> str:
                               )
 
         # Формируем текст
-        text_lines = [f"{emoji} **Лидерборд за {period_name}**\n"]
+        text_lines = [f"{emoji} <b>Лидерборд за {period_name}</b>\n"]
 
         medals = ['🥇', '🥈', '🥉']
 
@@ -82,10 +82,10 @@ async def get_leaderboard_text(period: str = 'all') -> str:
                 position = f"{idx + 1}."
 
             text_lines.append(
-                f"• {position} `{name}` — *{tasks_count}* задач")
+                f"• {position} <b>{name}</b> — <i>{tasks_count}</i> задач")
 
         if len(text_lines) == 1:
-            text_lines.append("\n_Пока нет данных для отображения._")
+            text_lines.append("\n_<i>Пока нет данных для отображения.</i>_")
         
         return "\n".join(text_lines)
         
@@ -128,7 +128,7 @@ async def leaderboard_command(message: Message):
         ]
     ])
     
-    await message.answer(text, parse_mode="Markdown", reply_markup=keyboard)
+    await message.answer(text, parse_mode="html", reply_markup=keyboard)
 
 
 @dp.callback_query(lambda c: c.data.startswith('leaderboard_'))
@@ -149,7 +149,7 @@ async def leaderboard_callback(callback):
     ])
     
     try:
-        await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=keyboard)
+        await callback.message.edit_text(text, parse_mode="html", reply_markup=keyboard)
     except TelegramBadRequest as e:
         # Игнорируем ошибку если сообщение не изменилось
         if "message is not modified" not in str(e):

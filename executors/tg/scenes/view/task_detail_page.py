@@ -228,13 +228,15 @@ class TaskDetailPage(Page):
                         self.scene.__scene_name__, 
                         'task_action',
                         'delete'
-                    ),
+                    )},
+                    {
                     'text': '↩️ Вернуть в работу',
                     'callback_data': callback_generator(
                         self.scene.__scene_name__, 
+                        'task_action',
                         'return_to_work',
-                    ),
-                }]
+                    )}
+                ]
             else:
                 return [] # Пустой список кнопок (только "Назад" от сцены если есть)
 
