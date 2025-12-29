@@ -70,7 +70,8 @@ async def get_leaderboard_text(period: str = 'all') -> str:
                     telegram_id=int(telegram_id), 
                     kaiten_users=kaiten_users,
                     bot=bot,
-                    tasker_id=user.get('tasker_id')
+                    tasker_id=user.get('tasker_id'),
+                    short=True
                 )
             else:
                 name = "Неизвестный"
@@ -82,10 +83,10 @@ async def get_leaderboard_text(period: str = 'all') -> str:
                 position = f"{idx + 1}."
 
             text_lines.append(
-                f"• {position} <b>{name}</b> — <i>{tasks_count}</i> задач")
+                f"• {position} <b>{name}</b>\n— <i>{tasks_count}</i> задач")
 
         if len(text_lines) == 1:
-            text_lines.append("\n_<i>Пока нет данных для отображения.</i>_")
+            text_lines.append("\n<i>Пока нет данных для отображения.</i>")
         
         return "\n".join(text_lines)
         
