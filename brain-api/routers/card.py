@@ -209,7 +209,7 @@ async def create_card(card_data: CardCreate):
         customer = await User.get_by_key(
             'user_id', card_data.customer_id)
 
-        if customer and customer['department'] != Department.smm:
+        if customer and customer.department != Department.smm:
 
             admins = await User.get_all_by_key('role', UserRole.admin)
             listeners = [admin.telegram_id for admin in admins if admin.telegram_id]
