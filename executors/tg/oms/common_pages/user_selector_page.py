@@ -24,6 +24,8 @@ class UserSelectorPage(RadioTypeScene):
     on_success_callback: Optional[Callable] = None
     filter_department: Optional[str] = None
     filter_roles: Optional[list[str]] = None
+    
+    __max_on_page__: int = 8  # Пользователей на странице
 
     users_data = []
     kaiten_users = {}
@@ -62,22 +64,13 @@ class UserSelectorPage(RadioTypeScene):
 
         self.filtered_users = filtered
 
-        # Инициализируем номер страницы в данных сцены
-        page_key = f"{self.__page_name__}_page"
-        current_page = self.scene.get_key(self.__page_name__, 'page')
-        if current_page is None:
-            # fallback to scene-level key
-            current_page = self.scene.get_key('scene', page_key) or 0
-            await self.scene.update_key(self.__page_name__, 'page', current_page)
-            await self.scene.update_key('scene', page_key, current_page)
+        # Поддержка старого параметра users_per_page: синхронизируем с max_on_page
+        self.max_on_page = getattr(self, 'users_per_page', 0)
 
-        # Формируем options только для текущей страницы
-        page = self.scene.get_key(self.__page_name__, 'page') or 0
-        start = page * self.users_per_page
-        end = min(start + self.users_per_page, len(self.filtered_users))
-
+        # Формируем опции для всех отфильтрованных пользователей.
+        # Пагинацию и навигацию обрабатывает RadioTypeScene при наличии `max_on_page`.
         self.options = {}
-        for user in self.filtered_users[start:end]:
+        for user in self.filtered_users:
             user_id = str(user['user_id'])
             display_name = await get_display_name(
                 user['telegram_id'], 
@@ -104,7 +97,7 @@ class UserSelectorPage(RadioTypeScene):
                     user_data.get('tasker_id')
                 )
 
-        page = self.scene.get_key(self.__page_name__, 'page') or 0
+        page = self.scene.get_key(self.__page_name__, 'current_page') or 0
         total = len(self.filtered_users) if hasattr(self, 'filtered_users') else len(self.users_data)
         start = page * self.users_per_page
 
@@ -122,28 +115,7 @@ class UserSelectorPage(RadioTypeScene):
     async def buttons_worker(self):
         buttons = await super().buttons_worker()
 
-        # Навигация страниц
-        page = self.scene.get_key(self.__page_name__, 'page') or 0
-        total = len(self.filtered_users) if hasattr(self, 'filtered_users') else len(self.users_data)
-        start = page * self.users_per_page
-        end = min(start + self.users_per_page, total)
-
-        nav_buttons = []
-        if page > 0:
-            nav_buttons.append({
-                'text': '⬅️ Назад',
-                'callback_data': callback_generator(self.scene.__scene_name__, 'usr_nav', str(page - 1)),
-                'ignore_row': end >= total
-            })
-
-        if end < total:
-            nav_buttons.append({
-                'text': 'Вперед ➡️',
-                'callback_data': callback_generator(self.scene.__scene_name__, 'usr_nav', str(page + 1)),
-            })
-
-        if nav_buttons:
-            buttons.extend(nav_buttons)
+        # Навигация управляется базовым классом RadioTypeScene (при включённой пагинации).
 
         if self.allow_reset:
             buttons.append({
@@ -175,13 +147,7 @@ class UserSelectorPage(RadioTypeScene):
         
         await self.scene.update_page(self.next_page)
 
-    @RadioTypeScene.on_callback('usr_nav')
-    async def user_page_nav_handler(self, callback, args):
-        new_page = int(args[1])
-        # Обновляем обе записи: и на уровне страницы, и в общей сцене (для совместимости)
-        await self.scene.update_key(self.__page_name__, 'page', new_page)
-        await self.scene.update_key('scene', f"{self.__page_name__}_page", new_page)
-        await self.scene.update_message()
+
 
     async def on_selected(self, callback, selected_value):
         """Обработка выбора пользователя"""

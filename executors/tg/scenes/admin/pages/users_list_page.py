@@ -46,7 +46,9 @@ class UsersListPage(UserSelectorPage):
         # Передаём фильтры в базовый селектор
         self.filter_department = filter_department
         self.filter_roles = [filter_role] if filter_role else None
+        # Кол-во пользователей на странице — используем для совместимости и для RadioTypeScene
         self.users_per_page = 8
+        self.max_on_page = 8
 
         # Используем логику родителя для фильтрации и формирования options
         await super().data_preparate()

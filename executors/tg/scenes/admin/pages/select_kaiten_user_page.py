@@ -7,6 +7,8 @@ class SelectKaitenUserPage(RadioTypeScene):
     __page_name__ = 'select-kaiten-user'
     __scene_key__ = 'selected_kaiten_id'
     
+    __max_on_page__: int = 8
+    
     def __after_init__(self):
         super().__after_init__()
         self.next_page = ''
