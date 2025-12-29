@@ -1,5 +1,6 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
+from global_modules import brain_client
 from modules.executors_manager import manager
 from aiogram import F
 from aiogram.filters import Command
@@ -38,6 +39,28 @@ async def cmd_create(message: Message):
 @dp.message(Command("create"), RoleFilter('customer'))
 async def cmd_create_customer(message: Message):
     await cmd_create(message)
+
+@dp.message(Command("create"), RoleFilter('copywriter'))
+async def cmd_create_copywriter(message: Message):
+    n_s = scene_manager.get_scene(message.from_user.id)
+    if n_s:
+        await n_s.end()
+    
+    user = await brain_client.get_user(telegram_id=message.from_user.id)
+    if not user:
+        await message.answer("❌ Ошибка: пользователь не найден в базе данных.")
+        return
+
+    sc = scene_manager.create_scene(
+        message.from_user.id,
+        CreateTaskScene,
+        bot
+    )
+    sc.data['scene']['copywriter_selfcreate'] = True
+    sc.data['scene']['user'] = user['user_id']
+    sc.data['scene']['type'] = 'private'
+
+    await sc.start()
 
 @dp.message(Command("create"))
 async def not_authorized_create(message: Message):

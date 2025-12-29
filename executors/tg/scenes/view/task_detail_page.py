@@ -23,16 +23,22 @@ class TaskDetailPage(Page):
         if role is None:
             telegram_id = self.scene.user_id
             user = await brain_client.get_user(telegram_id=telegram_id)
+
             if user:
                 user_role = user.get('role')
                 self.user = user
 
-            await self.scene.update_key('scene', 'user_role', user_role or None)
+            await self.scene.update_key('scene', 
+                                        'user_role', 
+                                        user_role or None)
+
+        if not self.user:
+            telegram_id = self.scene.user_id
+            user = await brain_client.get_user(telegram_id=telegram_id)
+            if user:
+                self.user = user
 
         await self.load_task_details()
-
-    async def content_worker(self) -> str:
-        return self.content
 
     async def load_task_details(self):
         """Загружает краткую информацию о выбранной задаче"""
@@ -178,7 +184,6 @@ class TaskDetailPage(Page):
             'send_time': send_time_str
         }
 
-        # Сохраняем данные задачи в сцену для использования в других методах
         await self.scene.update_key('scene', 'current_task_data', task)
 
         self.content = self.append_variables(**add_vars)
@@ -246,7 +251,7 @@ class TaskDetailPage(Page):
                  action_buttons.extend([
                     ('return_to_work', '↩️ Вернуть в работу')
                 ])
-        
+
         if (is_admin or role == UserRole.editor) and task_status == CardStatus.ready:
              if not any(b[0] == 'send_now' for b in action_buttons):
                  action_buttons.extend([
@@ -258,12 +263,18 @@ class TaskDetailPage(Page):
                 # Только админ может изменять название и описание
                 action_buttons.extend([
                     ('change_name', '✏️ Изменить название'),
-                    ('change_description', '📝 Изменить описание'),
+                    ('change_description', '📝 Изменить описание')
                 ])
             action_buttons.extend([
                 ('change_deadline', '⏰ Изменить дедлайн'),
-                ('add_comment', '💬 Добавить комментарий')
+                ('add_comment', '💬 Добавить комментарий'),
+                ('files-view', '📁 Файлы')
             ])
+
+            if task_status in [CardStatus.review, CardStatus.ready]:
+                action_buttons.extend([
+                    ('preview', '👁 Просмотреть пост')
+                ])
 
         # Добавляем кнопки действий
         for action_key, action_name in action_buttons:
@@ -301,7 +312,17 @@ class TaskDetailPage(Page):
             # Переход на страницу изменения дедлайна
             await self.scene.update_page('change-deadline')
             return
-        
+
+        elif action == 'preview':
+            # Переход на страницу предпросмотра поста
+            await self.scene.update_page('post-preview')
+            return
+
+        elif action == 'files-view':
+            # Переход на страницу просмотра файлов
+            await self.scene.update_page('files-view')
+            return
+
         elif action == 'add_comment':
             # Переход на страницу добавления комментария
             await self.scene.update_key('scene', 'comment_text', '')
@@ -418,6 +439,7 @@ class TaskDetailPage(Page):
                 await callback.answer("🚀 Задача отправлена на публикацию!", show_alert=True)
                 await self.load_task_details()
                 await self.scene.update_page('task-detail')
+
             else:
                 error_detail = res.get('detail', 'Неизвестная ошибка') if isinstance(res, dict) else str(res)
                 await callback.answer(f"Ошибка: {error_detail}", show_alert=True)

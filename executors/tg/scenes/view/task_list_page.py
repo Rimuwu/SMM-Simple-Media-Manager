@@ -322,13 +322,13 @@ class TaskListPage(Page):
     @Page.on_callback('view_task')
     async def view_task_handler(self, callback, args):
         task_id = args[1]
-        
+
         # Сохраняем ID выбранной задачи
         await self.scene.update_key('scene', 'selected_task', task_id)
 
         # Переходим к детальному просмотру
         await self.scene.update_page('task-detail')
-        await self.scene.update_message()
+        # await self.scene.update_message()
 
     @Page.on_callback('page_nav')
     async def page_nav_handler(self, callback, args):

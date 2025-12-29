@@ -4,7 +4,7 @@ from uuid import UUID as _UUID
 from database.connection import session_factory
 from global_modules.classes.enums import UserRole
 from modules.kaiten import kaiten
-from global_modules.json_get import open_settings
+from global_modules.json_get import open_clients, open_settings
 from models.Card import Card, CardStatus
 from models.User import User
 from modules.scheduler import schedule_card_notifications, cancel_card_tasks, schedule_post_tasks
@@ -531,13 +531,22 @@ async def to_ready(
     if card.customer_id:
         customer = await User.get_by_key(
             'user_id', card.customer_id)
+
         if customer and customer.telegram_id:
-            deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
+            send_time = card.send_time.strftime('%d.%m.%Y %H:%M') if card.send_time else 'Не установлен'
+            
+            client_settings = open_clients() or {}
+            clients = card.clients or []
+            client_names = [
+                client_settings[client]['label'] for client in clients if client in list(client_settings.keys())
+            ]
+
             message_text = (
                 f"✅ Задача готова!\n\n"
                 f"📝 Название: {card.name}\n"
-                f"⏰ Дедлайн: {deadline_str}\n\n"
-                f"Задача готова к публикации."
+                f"⏰ Время отправки: {send_time}\n"
+                f"🕹 Клиенты: {', '.join(client_names)}\n\n"
+                f"Задача готова к публикации. Вы можете просмотреть итоговый вид поста и дать комментарий копирайтеру."
             )
             await notify_user(customer.telegram_id, message_text)
 

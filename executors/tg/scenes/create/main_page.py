@@ -171,16 +171,21 @@ class MainPage(Page):
                 buttons_lst[ind][
                     'next_line'] = False
 
-        # Добавляем кнопку переключения режима как отдельный callback
-        mode = self.scene.data['scene'].get('mode', 'advanced')
-        mode_text = f"🧭 Режим: {'Простой' if mode == 'simple' else 'Продвинутый'}"
-        buttons_lst.append({
-            'text': mode_text,
-            'callback_data': callback_generator(self.scene.__scene_name__, 'mode_toggle')
-        })
+        if not self.scene.data['scene']['copywriter_selfcreate']:
+            mode = self.scene.data['scene'].get(
+                'mode', 'advanced'
+                )
+            mode_text = f"🧭 Режим: {'Простой' if mode == 'simple' else 'Продвинутый'}"
+
+            buttons_lst.append({
+                'text': mode_text,
+                'callback_data': callback_generator(
+                    self.scene.__scene_name__, 'mode_toggle'
+                    )
+            })
 
         return buttons_lst
-    
+
     async def to_page_preworker(self, to_page_buttons: dict) -> dict:
         """Фильтруем кнопки - editor-check только для админов и показываем нужный набор кнопок в зависимости от режима (simple/advanced)
         """

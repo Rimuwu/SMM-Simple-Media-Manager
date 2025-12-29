@@ -243,7 +243,7 @@ class StatusSetterPage(Page):
             # Получаем роль пользователя
             user_role = await brain_client.get_user_role(self.scene.user_id)
             who_changed = 'executor' if user_role == 'copywriter' else 'admin'
-            
+
             # Получаем user_id текущего пользователя
             users = await brain_client.get_users(telegram_id=self.scene.user_id)
             executor_id = None
@@ -266,7 +266,7 @@ class StatusSetterPage(Page):
             await self.scene.update_key(
                 'scene', 'status', '✏️ В работе')
             await callback.answer('✅ Статус изменен на "В работе"', show_alert=True)
-            await self.scene.update_page('main-page')
+            await self.scene.update_message()
         else:
             await callback.answer('❌ Ошибка: задача не найдена', show_alert=True)
     
@@ -287,7 +287,7 @@ class StatusSetterPage(Page):
                 'scene', 'status', '🔍 На проверке')
             await callback.answer(
                 '✅ Статус изменен на "На проверке"', show_alert=True)
-            await self.scene.update_page('main-page')
+            await self.scene.update_message()
         else:
             await callback.answer('❌ Ошибка: задача не найдена', show_alert=True)
     

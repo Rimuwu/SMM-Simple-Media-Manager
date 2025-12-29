@@ -19,7 +19,6 @@ from modules.properties import multi_properties
 from modules.scheduler import reschedule_post_tasks, reschedule_card_notifications
 from modules.calendar import update_calendar_event
 from modules.status_changers import to_edited
-from models.CardMessage import CardMessage
 from models.CardEditorNote import CardEditorNote
 
 

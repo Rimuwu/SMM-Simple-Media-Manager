@@ -177,7 +177,7 @@ class KaitenClient:
         # Автоматически инициализируем клиент если он не инициализирован
         if not self._is_initialized:
             await self.initialize()
-        
+
         if not self.session:
             raise RuntimeError("Client session not available. Call initialize() first or use 'async with' context manager.")
 

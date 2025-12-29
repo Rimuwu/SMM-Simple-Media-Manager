@@ -10,6 +10,7 @@ from modules.file_utils import download_telegram_file, is_image_by_mime_or_exten
 
 class FilesPage(Page):
     __page_name__ = 'files-view'
+    __can_select__ = True
 
     def __after_init__(self):
         self.max_files = 10
@@ -153,23 +154,32 @@ class FilesPage(Page):
             file_data, status = await brain_client.download_file(fid)
             if status != 200 or not isinstance(file_data, bytes):
                 return await callback.answer('❌ Ошибка при загрузке файла')
+
             toggle_action = 'toggle_remove' if is_selected else 'toggle_add'
             toggle_text = '❌ Убрать из выбранных' if is_selected else '✅ Добавить к выбранным'
+
+            buttons = [
+                [
+                    InlineKeyboardButton(
+                        text='🗑 Удалить сообщение', 
+                        callback_data='delete_message')
+                ]
+            ]
+
+            if self.__can_select__:
+                buttons.append([
+                    InlineKeyboardButton(
+                        text=toggle_text, 
+                        callback_data=callback_generator(
+                            self.scene.__scene_name__, 
+                            toggle_action, str(idx))
+                        )
+                ])
+
             keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text=toggle_text, 
-                            callback_data=callback_generator(
-                                self.scene.__scene_name__, toggle_action, str(idx)))
-                        ],
-                    [
-                        InlineKeyboardButton(
-                            text='🗑 Удалить сообщение', 
-                            callback_data='delete_message')
-                        ]
-                    ]
-                )
+                inline_keyboard=buttons
+            )
+
             await callback.message.answer_photo(
                 photo=BufferedInputFile(file_data, 
                 filename='preview.png'
@@ -178,6 +188,7 @@ class FilesPage(Page):
                 reply_markup=keyboard
                 )
             await callback.answer()
+
         except Exception as e:
             logger.debug('Error showing preview: %s', e)
             await callback.answer('❌ Произошла ошибка')

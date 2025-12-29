@@ -8,7 +8,7 @@ from modules.constants import CLIENTS
 from modules.post_sender import prepare_and_send_preview, download_files
 
 class PreviewPage(Page):
-    
+
     __page_name__ = 'post-preview'
     
     # Кэш скачанных файлов (для одной сессии страницы)
@@ -21,13 +21,13 @@ class PreviewPage(Page):
         if not card:
             await self.scene.update_key(self.__page_name__, 'clients', [])
             return
-        
+
         clients = card.get('clients', [])
         await self.scene.update_key(self.__page_name__, 'clients', clients)
-        
+
         # Предварительно скачиваем файлы если есть
         post_images = card.get('post_images') or []
-        
+
         if post_images:
             # Кэшируем по ID файлов: self._cached_files — словарь id->file_info
             missing = [f for f in post_images if f not in self._cached_files]
@@ -49,14 +49,14 @@ class PreviewPage(Page):
                 "Для предпросмотра поста сначала необходимо выбрать каналы для публикации.\n"
                 "Вернитесь назад и настройте каналы публикации."
             )
-        
+
         # Проверяем наличие контента (общего или специфичного)
         has_content = False
         if isinstance(content_dict, dict):
             has_content = bool(content_dict.get('all') or any(content_dict.get(c) for c in clients))
         elif isinstance(content_dict, str):
             has_content = bool(content_dict)
-        
+
         if not has_content:
             return (
                 "👁 Предпросмотр поста\n\n"
@@ -66,21 +66,21 @@ class PreviewPage(Page):
             )
         
         return self.append_variables()
-    
+
     async def buttons_worker(self) -> list[dict]:
         """Создает кнопки с клиентами"""
         buttons = []
         card = await self.scene.get_card_data()
         clients = self.scene.get_key(self.__page_name__, 'clients') or []
         content_dict = card.get('content') if card else None
-        
+
         # Проверяем наличие контента
         has_content = False
         if isinstance(content_dict, dict):
             has_content = bool(content_dict.get('all') or any(content_dict.get(c) for c in clients))
         elif isinstance(content_dict, str):
             has_content = bool(content_dict)
-        
+
         # Если нет клиентов или контента, не создаем кнопки предпросмотра
         if not clients or not has_content:
             return buttons
@@ -92,14 +92,14 @@ class PreviewPage(Page):
             client_name = client_info.get('label', client)
             
             buttons.append({
-                'text': f"📱 {client_name}",
+                'text': f"{client_name}",
                 'callback_data': callback_generator(
                     self.scene.__scene_name__,
                     'preview_client',
                     str(client)
                 )
             })
-        
+
         # Кнопка "Показать всем"
         if clients:
             buttons.append({
@@ -110,9 +110,9 @@ class PreviewPage(Page):
                 ),
                 'ignore_row': True
             })
-        
+
         return buttons
-    
+
     @Page.on_callback('preview_client')
     async def preview_client_handler(self, callback: CallbackQuery, args: list):
         """Обработчик предпросмотра для клиента"""

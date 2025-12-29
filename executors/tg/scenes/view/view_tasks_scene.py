@@ -11,7 +11,8 @@ from .select_user_filter_page import SelectUserFilterPage
 from .select_department_filter_page import SelectDepartmentFilterPage
 from global_modules.brain_client import brain_client
 from tg.oms.common_pages import DatePickerPage
-
+from tg.scenes.edit.preview_page import PreviewPage
+from .files_page import FilesPage_view
 
 class ViewTasksScene(Scene):
 
@@ -27,7 +28,9 @@ class ViewTasksScene(Scene):
         ChangeDescriptionPage,
         SelectUserFilterPage,
         SelectDepartmentFilterPage,
-        DatePickerPage
+        DatePickerPage,
+        PreviewPage,
+        FilesPage_view
     ]
 
     # Привязываем функции для работы с БД
@@ -35,3 +38,15 @@ class ViewTasksScene(Scene):
     __load_function__ = staticmethod(brain_client.load_scene)
     __update_function__ = staticmethod(brain_client.update_scene)
     __delete_function__ = staticmethod(brain_client.delete_scene)
+
+    async def get_card_data(self):
+        """Получает данные задачи по её ID"""
+        task_id = self.data['scene'].get('selected_task')
+        if not task_id:
+            return None
+
+        tasks = await brain_client.get_cards(card_id=task_id)
+        if not tasks:
+            return None
+
+        return tasks[0]

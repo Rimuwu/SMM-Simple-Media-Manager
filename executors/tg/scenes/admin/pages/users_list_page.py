@@ -25,14 +25,17 @@ class UsersListPage(Page):
     async def data_preparate(self) -> None:
         # Инициализируем фильтры если их нет
         if 'users_filter_role' not in self.scene.data['scene']:
-            await self.scene.update_key('scene', 'users_filter_role', None)
+            await self.scene.update_key('scene', 
+                    'users_filter_role', None)
+
         if 'users_filter_department' not in self.scene.data['scene']:
-            await self.scene.update_key('scene', 'users_filter_department', None)
+            await self.scene.update_key('scene', 
+                    'users_filter_department', None)
 
     async def content_worker(self) -> str:
         filter_role = self.scene.data['scene'].get('users_filter_role')
         filter_department = self.scene.data['scene'].get('users_filter_department')
-        
+
         # Маппинги для отображения
         role_names = {
             'admin': 'Админы',
@@ -40,7 +43,7 @@ class UsersListPage(Page):
             'copywriter': 'Копирайтеры',
             'editor': 'Редакторы'
         }
-        
+
         filter_text = ""
         if filter_role:
             filter_text += f"\n🎭 Роль: *{role_names.get(filter_role, filter_role)}*"
@@ -74,7 +77,7 @@ class UsersListPage(Page):
             'copywriter': '👤',
             'editor': '🖋️'
         }
-        
+
         kaiten_users_dict = await brain_client.get_kaiten_users_dict()
         
         for user in users:
@@ -153,31 +156,37 @@ class UsersListPage(Page):
 
     @Page.on_callback('reset-filters')
     async def on_reset_filters(self, callback, args):
-        await self.scene.update_key('scene', 'users_filter_role', None)
-        await self.scene.update_key('scene', 'users_filter_department', None)
+        await self.scene.update_key('scene', 
+                                    'users_filter_role', None)
+        await self.scene.update_key('scene', 
+                                    'users_filter_department', None)
         await callback.answer("✅ Фильтры сброшены")
         await self.scene.update_message()
 
     @Page.on_callback('add-user')
     async def on_add_user(self, callback, args):
         # Сбрасываем все данные нового пользователя
-        await self.scene.update_key('scene', 'new_user_id', None)
-        await self.scene.update_key('scene', 'new_user_role', None)
-        await self.scene.update_key('scene', 'new_user_tasker_id', None)
-        await self.scene.update_key('scene', 'new_user_department', None)
-        await self.scene.update_key('scene', 'about_text', '')
+        self.scene.data['scene'].update(
+            {
+                'new_user_id': None,
+                'new_user_role': None,
+                'new_user_tasker_id': None,
+                'new_user_department': None,
+                'about_text': '',
+                'selected_role': None,
+                'selected_kaiten_id': None,
+                'selected_department': None
+            }
+        )
+        self.scene.data['edit-about'][
+            'about_text'] = ''
+        self.scene.data['select-department'][
+            'selected_department'] = None
+        self.scene.data['select-kaiten-user'][
+            'selected_kaiten_id'] = None
+        self.scene.data['select-role'][
+            'selected_role'] = None
 
-        await self.scene.update_key('scene', 'selected_role', None)
-        await self.scene.update_key('select-role', 'selected_role', None)
-
-        await self.scene.update_key('scene', 'selected_kaiten_id', None)
-        await self.scene.update_key('select-kaiten-user', 'selected_kaiten_id', None)
-        
-        await self.scene.update_key('scene', 'selected_department', None)
-        await self.scene.update_key('select-department', 'selected_department', None)
-        
-        await self.scene.update_key('scene', 'about_text', '')
-        await self.scene.update_key('edit-about', 'about_text', '')
-        
+        await self.scene.save_to_db()
         await self.scene.update_page('add-user')
 

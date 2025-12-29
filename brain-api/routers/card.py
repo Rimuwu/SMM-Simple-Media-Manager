@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from database.connection import session_factory
-from global_modules.classes.enums import CardType
+from global_modules.classes.enums import CardType, Department, UserRole
 from global_modules.timezone import now_naive as moscow_now
 from modules.kaiten import add_kaiten_comment, kaiten
 from modules.properties import multi_properties
@@ -24,7 +24,7 @@ from modules.card_service import (
     notify_executor, increment_customer_tasks
 )
 from modules.executors_client import (
-    send_forum_message, delete_forum_message_by_id,
+    notify_users, send_forum_message, delete_forum_message_by_id,
     delete_all_complete_previews, close_card_related_scenes,
 )
 from modules.logs import brain_logger as logger
@@ -204,6 +204,21 @@ async def create_card(card_data: CardCreate):
             print(f"Error in forum send: {error}")
         if message_id:
             await card.add_message('forum', message_id)
+    
+    if card_data.type_id == CardType.private:
+        customer = await User.get_by_key(
+            'user_id', card_data.customer_id)
+
+        if customer and customer['department'] != Department.smm:
+
+            admins = await User.get_all_by_key('role', UserRole.admin)
+            listeners = [admin.telegram_id for admin in admins if admin.telegram_id]
+
+            comment = f'Появилась новая личная задача от отдела {customer["department"]}\n\n📝 {card_data.title}\n{card_data.description}'
+
+            await notify_users(
+                listeners, comment
+                )
 
     try:
         if card_data.send_time is None:
