@@ -21,7 +21,7 @@ class SelectDepartmentPage(RadioTypeScene):
             "board_games": "Настольные игры",
             "smm": "SMM",
             "judging": "Судейство",
-            "streaming": "Стриминг",
+            "streaming": "Трансляции",
             "without_department": "Без отдела"
         }
         

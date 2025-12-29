@@ -57,7 +57,7 @@ class UserDetailPage(Page):
             "board_games": "Отдел настольных игр",
             "smm": "SMM отдел",
             "judging": "Отдел судейства",
-            "streaming": "Отдел стриминга",
+            "streaming": "Отдел трансляций",
             "without_department": "Без отдела"
         }
         

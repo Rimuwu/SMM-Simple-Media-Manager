@@ -40,12 +40,12 @@ class Department(str, Enum):
     it = "it" # IT отдел
     design = "design" # Дизайн отдел
     cosplay = "cosplay" # Отдел косплея
-    craft = "craft" # Ремесленный отдел
+    craft = "craft" # Крфат отдел
     media = "media" # Медиа отдел
     board_games = "board_games" # Отдел настольных игр
     smm = "smm" # SMM отдел
     judging = "judging" # Отдел судейства
-    streaming = "streaming" # Отдел стриминга
+    streaming = "streaming" # Отдел трансляций
 
     without_department = "without_department" # Без отдела
 
