@@ -9,10 +9,7 @@ class AssignExecutorPage(UserSelectorPage):
     __page_name__ = 'assign-executor'
     __scene_key__ = 'executor_id'
     __next_page__ = 'task-detail'
-    
-    scene_key = 'executor_id'
-    next_page = 'task-detail'
-    
+
     update_to_db = True
     allow_reset = True
     filter_department = 'smm'  # Фильтруем только пользователей из SMM департамента
@@ -21,16 +18,21 @@ class AssignExecutorPage(UserSelectorPage):
     async def data_preparate(self):
         """Подгружаем текущего исполнителя из данных задачи"""
         task = self.scene.data['scene'].get('current_task_data')
+
         if task:
-            executor_id = task.get('executor_id')
-            if executor_id:
-                await self.scene.update_key('scene', 'executor_id', str(executor_id))
-        
+            selected_value = task.get('executor_id')
+
+            await self.scene.update_key(
+                'scene', 
+                self.scene_key, selected_value)
+            await self.scene.update_key(
+                self.__page_name__, 
+                self.scene_key, selected_value)
+
         await super().data_preparate()
 
     async def update_to_database(self, user_id) -> bool:
         """Обновляем исполнителя в карточке"""
-        print("Updating executor to database:", user_id)
 
         task = self.scene.data['scene'].get('current_task_data')
         if not task:
@@ -56,7 +58,6 @@ class AssignExecutorPage(UserSelectorPage):
             # Обновляем карточку
             result = await brain_client.update_card(**update_params)
             success = result is not None
-            print("Update executor response:", result)
 
         if success:
             # Обновляем данные задачи
@@ -80,10 +81,10 @@ class AssignExecutorPage(UserSelectorPage):
                         self.scene.__bot__, 
                         selected_user.get('tasker_id')
                     )
-                    
+
                     telegram_id = selected_user.get('telegram_id')
                     tasker_id = selected_user.get('tasker_id')
-                    
+
                     task['executor'] = {
                         'user_id': str(user_id),
                         'telegram_id': telegram_id,

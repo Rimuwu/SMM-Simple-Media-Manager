@@ -124,9 +124,11 @@ class TaskListPage(Page):
         elif selected_filter == 'created-by-me':
             # Задачи созданные пользователем
             tasks = await brain_client.get_cards(customer_id=user_uuid)
+
         elif selected_filter == 'for-review':
             # Задачи на проверку
             tasks = await brain_client.get_cards(status=CardStatus.review)
+
         elif selected_filter == 'department-tasks':
             # Задачи отдела - получаем всех пользователей из отдела и их задачи
             department = user.get('department')
@@ -143,7 +145,7 @@ class TaskListPage(Page):
                     # Получаем задачи созданные пользователем
                     customer_tasks = await brain_client.get_cards(customer_id=dept_user_id)
                     all_department_tasks.extend(customer_tasks)
-                
+
                 # Убираем дубликаты по card_id
                 seen_ids = set()
                 tasks = []
@@ -154,7 +156,7 @@ class TaskListPage(Page):
                         tasks.append(task)
             else:
                 tasks = []
-        
+
         elif selected_filter == 'by-user':
             # Задачи конкретного пользователя (для админов)
             filter_user_id = self.scene.data['scene'].get('filter_user_id')
@@ -203,7 +205,7 @@ class TaskListPage(Page):
                 tasks = []
 
         await self.scene.update_key('scene', 'tasks', tasks)
-    
+
     def sort_tasks_by_deadline(self, tasks: list) -> list:
         """Сортирует задачи по дедлайну (ближайшие первые)"""
         def get_deadline_sort_key(task):
@@ -217,9 +219,9 @@ class TaskListPage(Page):
                     pass
             # Задачи без дедлайна в конец
             return datetime.max
-        
+
         return sorted(tasks, key=get_deadline_sort_key)
-    
+
     def format_deadline_label(self, task: dict) -> str:
         """Форматирует название задачи с дедлайном и эмодзи"""
         task_name = task.get('name', 'Без названия')
@@ -323,7 +325,7 @@ class TaskListPage(Page):
         
         # Сохраняем ID выбранной задачи
         await self.scene.update_key('scene', 'selected_task', task_id)
-        
+
         # Переходим к детальному просмотру
         await self.scene.update_page('task-detail')
         await self.scene.update_message()

@@ -278,10 +278,12 @@ async def delete_complete_preview(
         data = {}
         if post_ids is not None:
             data["post_ids"] = post_ids
-        elif entities is not None:
+        if entities is not None:
             data["entities"] = entities
         if info_ids is not None:
             data["info_ids"] = info_ids
+        
+        print(data)
 
         await executors_api.post(
             ApiEndpoints.COMPLETE_DELETE_PREVIEW,
@@ -301,10 +303,11 @@ async def delete_complete_preview(
                     msgs = await CardMessage.filter_by(session=session, message_type='complete_entity', message_id=eid)
                     for m in msgs:
                         await m.delete(session=session)
-            if info_id is not None:
-                msgs = await CardMessage.filter_by(session=session, message_type='complete_info', message_id=info_id)
-                for m in msgs:
-                    await m.delete(session=session)
+            if info_ids:
+                for iid in info_ids:
+                    msgs = await CardMessage.filter_by(session=session, message_type='complete_info', message_id=iid)
+                    for m in msgs:
+                        await m.delete(session=session)
 
         elif card_id:
             # если передан card_id, удаляем записи, ограничивая карточкой
@@ -317,8 +320,8 @@ async def delete_complete_preview(
                 if entities:
                     for m in [m for m in msgs if m.message_type == 'complete_entity' and int(m.message_id) in entities]:
                         await m.delete()
-                if info_id is not None:
-                    for m in [m for m in msgs if m.message_type == 'complete_info' and int(m.message_id) == info_id]:
+                if info_ids:
+                    for m in [m for m in msgs if m.message_type == 'complete_info' and int(m.message_id) in info_ids]:
                         await m.delete()
 
         return True
@@ -350,10 +353,9 @@ async def delete_all_complete_previews(
 
         print(
             'Отправка удаления complete preview:',
-            f'post_ids={post_ids}, info_ids={info_ids}, entity_ids={entity_ids}'
+            f'post_ids={post_ids}, info_ids={info_ids}, entities={entity_ids}'
         )
 
-        # Используем сессию для атомарности: удаляем remote и БД внутри сессии
         async with session_factory() as s:
             if post_ids or info_ids:
                 await delete_complete_preview(post_ids=post_ids or None, 

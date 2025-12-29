@@ -746,7 +746,8 @@ async def delete_complete_preview(info_ids: list[int] | None = None,
 
         if post_ids:
             ids_to_delete.extend(post_ids)
-        elif entities:
+
+        if entities:
             ids_to_delete.extend(entities)
 
         if info_ids:

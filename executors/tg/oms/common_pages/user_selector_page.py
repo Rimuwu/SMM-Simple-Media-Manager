@@ -40,7 +40,7 @@ class UserSelectorPage(RadioTypeScene):
                 users = await get_users(department=self.filter_department)
             else:
                 users = await get_users()
-            
+
             if users:
                 self.users_data = users
                 
@@ -92,7 +92,7 @@ class UserSelectorPage(RadioTypeScene):
         """Формирует контент с отображением текущего пользователя"""
         current_user_id = self.scene.data['scene'].get(self.scene_key)
         current_user_name = 'Не назначен'
-        
+
         if current_user_id:
             # Ищем пользователя в загруженных данных
             user_data = next((u for u in self.users_data if str(u.get('user_id')) == str(current_user_id)), None)
@@ -103,13 +103,20 @@ class UserSelectorPage(RadioTypeScene):
                     self.scene.__bot__, 
                     user_data.get('tasker_id')
                 )
-        
+
+        page = self.scene.get_key(self.__page_name__, 'page') or 0
+        total = len(self.filtered_users) if hasattr(self, 'filtered_users') else len(self.users_data)
+        start = page * self.users_per_page
+
         # Формируем переменные для подстановки в шаблон
         variables = {
             'user': current_user_name,
-            'executor': current_user_name
+            'executor': current_user_name,
+            'start': start,
+            'end': min(start + self.users_per_page, total),
+            'total': total
         }
-        
+
         return self.append_variables(**variables)
 
     async def buttons_worker(self):
@@ -121,25 +128,18 @@ class UserSelectorPage(RadioTypeScene):
         start = page * self.users_per_page
         end = min(start + self.users_per_page, total)
 
-        # Добавляем индикатор страницы
-        buttons.append({
-            'text': f'📃 {start+1}-{end} из {total}',
-            'callback_data': callback_generator(self.scene.__scene_name__, 'noop'),
-            'ignore_row': True
-        })
-
         nav_buttons = []
         if page > 0:
             nav_buttons.append({
                 'text': '⬅️ Назад',
                 'callback_data': callback_generator(self.scene.__scene_name__, 'usr_nav', str(page - 1)),
-                'ignore_row': True
+                'ignore_row': end >= total
             })
+
         if end < total:
             nav_buttons.append({
                 'text': 'Вперед ➡️',
                 'callback_data': callback_generator(self.scene.__scene_name__, 'usr_nav', str(page + 1)),
-                'ignore_row': True
             })
 
         if nav_buttons:
@@ -187,24 +187,25 @@ class UserSelectorPage(RadioTypeScene):
         """Обработка выбора пользователя"""
         # Сохраняем в сцену
         await self.scene.update_key('scene', self.scene_key, selected_value)
-        
+        await self.scene.update_key(self.__page_name__, self.scene_key, selected_value)
+
         # Если нужно обновить в БД
         if self.update_to_db:
             success = await self.update_to_database(selected_value)
-            
+
             if success:
                 await callback.answer("✅ Пользователь назначен")
-                
+
                 # Выполняем callback если есть
                 if self.on_success_callback:
                     await self.on_success_callback(callback, selected_value)
             else:
                 await callback.answer("❌ Ошибка при обновлении")
                 return
-        
+
         # Переходим на следующую страницу
         await self.scene.update_page(self.next_page)
-    
+
     async def update_to_database(self, user_id: Optional[str]) -> bool:
         """
         Метод для обновления данных в БД.

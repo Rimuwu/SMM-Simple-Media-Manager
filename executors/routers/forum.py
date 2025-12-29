@@ -133,12 +133,17 @@ async def delete_complete_preview_endpoint(request: DeleteCompletePreviewRequest
     Удалить превью готового поста из complete_topic.
     Удаляет все сообщения: с постом (включая медиа-группы) и с информацией.
     """
+    
+    print("Запрос на удаление complete preview:",
+        f"post_ids={request.post_ids}, info_ids={request.info_ids}, entities={request.entities}"
+    )
+
     data = await delete_complete_preview(
         info_ids=request.info_ids,
         post_ids=request.post_ids,
         entities=request.entities
     )
-    
+
     return {
         "success": data.get("success", False),
         "error": data.get("error", None)

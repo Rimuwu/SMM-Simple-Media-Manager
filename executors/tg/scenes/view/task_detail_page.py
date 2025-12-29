@@ -19,7 +19,7 @@ class TaskDetailPage(Page):
         # Загружаем детальную информацию о задаче
         role = self.scene.data['scene'].get('user_role')
         self.user = {}
-        
+
         if role is None:
             telegram_id = self.scene.user_id
             user = await brain_client.get_user(telegram_id=telegram_id)
@@ -37,7 +37,7 @@ class TaskDetailPage(Page):
     async def load_task_details(self):
         """Загружает краткую информацию о выбранной задаче"""
         self.clear_content()
-        
+
         task_id = self.scene.data['scene'].get('selected_task')
         if not task_id:
             return

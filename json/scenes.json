@@ -373,8 +373,6 @@
                 "to_pages": {
                     "task-detail": "⬅️ Назад"
                 },
-                "type": "radio",
-                "scene_key": "executor_id",
                 "row_width": 2
             },
             "editor-assigned": {
@@ -409,14 +407,14 @@
                 }
             },
             "select-user-filter": {
-                "content": "👤 **Выберите пользователя для фильтрации задач:**",
+                "content": "👤 Выберите пользователя для фильтрации задач:\n\n_📃 {start}-{end} из {total}_",
                 "to_pages": {
                     "filter-selection": "⬅️ Назад"
                 },
-                "row_width": 1
+                "row_width": 2
             },
             "select-department-filter": {
-                "content": "🏢 **Выберите отдел для фильтрации задач:**",
+                "content": "🏢 Выберите отдел для фильтрации задач:",
                 "to_pages": {},
                 "row_width": 2
             }

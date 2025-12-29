@@ -46,14 +46,23 @@ async def upload_image_to_kaiten(card_id: str, file_data: bytes, file_name: str)
             content_type = None
 
         # Загружаем файл через brain-api
-        res = await brain_client.upload_file(card_id=str(card_id), file_data=file_data_to_upload, filename=file_name, content_type=content_type)
+        res = await brain_client.upload_file(
+            card_id=str(card_id), file_data=file_data_to_upload, 
+            filename=file_name, content_type=content_type
+            )
         if res:
             logger.info(f"Файл {file_name} загружен для задачи {card_id}")
+
+            cards = await brain_client.get_cards(card_id=card_id)
+            if not cards:
+                logger.error(f"Не удалось получить данные задачи {card_id} после загрузки файла.")
+                return False
+            card = cards[0]
 
             # Уведомляем исполнителя через общий метод
             notify_success = await brain_client.notify_executor(
                 card_id=card_id,
-                message="🖼 К вашей задаче добавлено новое изображение от дизайнеров!"
+                message=f"🖼 К вашей задаче \"{card['name']}\" добавлено новое изображение от дизайнеров!"
             )
 
             if notify_success:
