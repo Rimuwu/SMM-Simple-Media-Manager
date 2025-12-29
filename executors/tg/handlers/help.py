@@ -89,7 +89,7 @@ async def help(message: Message):
                 parse_mode='Markdown')
 
 
-@dp.callback_query(Authorize())
+@dp.callback_query(Authorize(), lambda call: (call.data or '').lower().startswith('help:'))
 async def help_callback(call: CallbackQuery):
     """Handle inline help button presses with role-specific buttons."""
     try:
