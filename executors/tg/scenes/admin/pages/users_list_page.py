@@ -6,15 +6,15 @@ from global_modules.classes.enums import Department
 
 # Маппинг отделов на читаемые имена
 DEPARTMENT_NAMES = {
-    Department.it.value: "IT отдел",
+    Department.it.value: "IT",
     Department.design.value: "Дизайн",
     Department.cosplay.value: "Косплей",
-    Department.craft.value: "Ремесло",
+    Department.craft.value: "Крафт",
     Department.media.value: "Медиа",
     Department.board_games.value: "Настольные игры",
     Department.smm.value: "SMM",
     Department.judging.value: "Судейство",
-    Department.streaming.value: "Стриминг",
+    Department.streaming.value: "Трансляции",
     Department.without_department.value: "Без отдела",
 }
 
@@ -86,7 +86,8 @@ class UsersListPage(Page):
             role_icon = roles.get(user.get('role', ''), "👤")
 
             name = await get_display_name(
-                user['telegram_id'], kaiten_users_dict, self.scene.__bot__, user.get('tasker_id')
+                user['telegram_id'], kaiten_users_dict, self.scene.__bot__, user.get('tasker_id'),
+                short=True
             )
             buttons.append({
                 "text": f"{role_icon} {name}",
