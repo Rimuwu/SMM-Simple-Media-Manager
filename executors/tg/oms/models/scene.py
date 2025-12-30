@@ -386,9 +386,9 @@ class Scene:
     async def text_handler(self, message: Message) -> None:
         """Обработчик текстовых сообщений"""
         page = self.current_page
-        await page.text_handler(message)
+        parse_type = await page.text_handler(message)
 
-        if self.scene.settings.delete_after_send:
+        if self.scene.settings.delete_after_send and parse_type not in ['not_handled', 'error']:
             print("Delete message after send")
             try:
                 await self.__bot__.delete_message(

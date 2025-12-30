@@ -73,6 +73,7 @@ class UserUpdate(BaseModel):
     tasker_id: Optional[int] = None
     department: Optional[str] = None
     about: Optional[str] = None
+    can_pick: Optional[bool] = None
 
 @router.post("/update")
 async def update(user_data: UserUpdate):
@@ -102,6 +103,9 @@ async def update(user_data: UserUpdate):
 
     if user_data.about is not None:
         update_data['about'] = user_data.about
+
+    if user_data.can_pick is not None:
+        update_data['can_pick'] = user_data.can_pick
 
     try:
             await user.update(**update_data)

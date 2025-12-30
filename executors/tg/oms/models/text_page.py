@@ -28,12 +28,12 @@ class TextTypeScene(Page):
         if len(text) < self.min_length:
             self.content += f"\n\nТекст слишком короткий. Минимальная длина: {self.min_length} символов."
             await self.scene.update_message()
-            return
+            return 'error'
 
         if len(text) > self.max_length:
             self.content += f"\n\nТекст слишком длинный. Максимальная длина: {self.max_length} символов."
             await self.scene.update_message()
-            return
+            return 'error'
 
         # Сохраняем текст в сцену
         await self.scene.update_key(

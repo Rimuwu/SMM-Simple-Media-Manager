@@ -27,12 +27,12 @@ class IntTypeScene(Page):
         if value < self.min_int:
             self.content += f"\n\nЧисло слишком маленькое. Минимальное число: {self.min_int}"
             await self.scene.update_message()
-            return
+            return 'error'
 
         if value > self.max_int:
             self.content += f"\n\nЧисло слишком большое. Максимальная число: {self.max_int}"
             await self.scene.update_message()
-            return
+            return 'error'
 
         # Сохраняем текст в сцену
         await self.scene.update_key(

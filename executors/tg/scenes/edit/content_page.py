@@ -316,13 +316,14 @@ class ContentSetterPage(TextTypeScene):
 
         if len(text) > adjusted_max_length:
             self.content += f"\n\n❗️ Текст слишком длинный. Максимальная длина: {adjusted_max_length} символов (с учётом тегов: {tags_length} символов). Длина сейчас: {len(text)}."
-            return
+            await self.scene.update_message()
+            return 'error'
 
         if len(text) > self.max_length:
             self.content += f"\n\n❗️ Текст слишком длинный. Максимальная длина: {self.max_length} символов. Длинна сейчас: {len(text)}."
             await self.scene.update_message()
-            return
-        
+            return 'error'
+
         # Обновляем карточку через новый API эндпоинт /card/set-content
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:

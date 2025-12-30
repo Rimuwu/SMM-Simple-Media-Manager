@@ -165,7 +165,8 @@ class Page:
             return func
         return decorator
 
-    async def text_handler(self, message: Message) -> None:
+    async def text_handler(self, message: Message) -> Literal['time', 'int', 'list', 'str', 
+                                                              'not_handled', 'error']:
         """ Обработка текстовых сообщений с автоматическим определением типа """
         text = message.text or ""
         handled = False
@@ -185,7 +186,7 @@ class Page:
             parsed_value = parse_text(text, data_type, separator)
 
             if parsed_value is not None:
-                await handler(message=message, value=parsed_value)
+                result = await handler(message=message, value=parsed_value)
                 handled = True
                 break
 
@@ -194,11 +195,18 @@ class Page:
             handler = self.__text_handlers__['all']['handler']
             await handler(message=message)
 
+        if result in ['error']: return result
+
         # Если текст не был обработан
         if not handled:
             handler = self.__text_handlers__.get('not_handled', {}).get('handler')
             if handler:
-                await handler(message=message)
+                result = await handler(message=message)
+                if result in ['error']:
+                    return result
+            return 'not_handled'
+
+        return data_type
 
 
     @staticmethod
