@@ -8,8 +8,16 @@ class AICheckPage(Page):
 
     __page_name__ = 'ai-check'
 
-    # Храним активные таски для каждого пользователя
-    _pending_tasks: dict[int, asyncio.Task] = {}
+    # Функция, вызываемая при получении результата от AI через events/ai_callback
+    async def on_ai_result(self, result: str):
+        """Обработка результата от AI: сохраняем ответ, снимаем индикатор загрузки и обновляем страницу."""
+        try:
+            await self.scene.update_key(self.__page_name__, 'ai_response', result)
+            await self.scene.update_key(self.__page_name__, 'is_loading', False)
+            if self.scene.current_page.__page_name__ == self.__page_name__:
+                await self.scene.update_page(self.__page_name__)
+        except Exception as e:
+            logger.error(f"Error handling AI callback for user {self.scene.user_id}: {e}")
 
     async def data_preparate(self):
         """Подготовка данных страницы"""
@@ -35,66 +43,69 @@ class AICheckPage(Page):
             await self.scene.update_key(
                 self.__page_name__, 'is_loading', False)
 
-        # Если нет ответа и не загружается - запускаем генерацию
+        # Если нет ответа и не загружается - отправляем запрос к AI (fire-and-forget)
         if ai_response is None and not is_loading:
             await self.scene.update_key(
                 self.__page_name__, 'is_loading', True)
             await self.scene.update_key(
                 self.__page_name__, 'checked_content', content)
 
-            # Запускаем фоновый таск
-            task = asyncio.create_task(
-                self._generate_ai_response(content))
-            AICheckPage._pending_tasks[self.scene.user_id] = task
+            # Отправляем запрос к AI в фоне — результат придёт в /events/ai_callback
+            asyncio.create_task(self._send_ai_request(content))
 
-    async def _generate_ai_response(self, content: str):
-        """Фоновая генерация ответа AI"""
+    async def _send_ai_request(self, content: str):
+        """Отправляет запрос к AI-сервису асинхронно (fire-and-forget).
+
+        Включает в payload callback-метаданные (user_id, scene, page и имя функции),
+        чтобы AI-сервис мог POST-ить результат в `/events/ai_callback`.
+        """
+        prompt = (
+            "Проверь следующий текст на ошибки (орфографические, пунктуационные, стилистические).\n"
+            "Текст должен быть написан на «ты», конкретным и емким. В некоторых случаях это не обязательно, так что это лишь рекомендация.\n"
+            "Проверь корректность использования тире (–), смайликов (не более одного перед абзацем), пробелов после смайликов. Смайлики обычно ставятся перед абзацем.\n"
+            "Убедись, что после каждого абзаца есть пустая строка.\n"
+            "При перечислении проверь наличие «;» и «.» в конце пунктов, корректность цитирования («текст»).\n"
+            "Ссылки должны быть укорочены или скрыты под гиперссылку.\n"
+            "Избегай длинных сложных предложений.\n"
+            "Текст предназанчен для публикации в каналах и пабликах вузовской организации.\n"
+            "Запрещено использовать всё что связано с хеллоуином, лгбт, политикой, всем запрещённым в РФ.\n\n"
+            "ЭТО КРИТИЧНО И ВСЕ ОШИБКИ ДОЛЖНЫ БЫТЬ ОТМЕЧЕНЫ, ОСОБЕННО - орфографические, пунктуационные, стилистические\n"
+            "Не обращай внимание на html теги и спецсимволы, они там для форматирования.\n"
+            f"Текст:\n{content}\n\n"
+            "Ответь в формате:\n"
+            "- Если есть ошибки или рекомендации: перечисли их с рекомендациями по исправлению\n"
+        )
+
+        payload = {
+            'prompt': prompt,
+            'callback': {
+                'user_id': self.scene.user_id,
+                'scene': self.scene.__scene_name__,
+                'page': self.__page_name__,
+                'function': 'on_ai_result'
+            }
+        }
+
         try:
-            prompt = (
-                "Проверь следующий текст на ошибки (орфографические, пунктуационные, стилистические).\n"
-                "Текст должен быть написан на «ты», конкретным и емким. В некоторых случаях это не обязательно, так что это лишь рекомендация.\n"
-                "Проверь корректность использования тире (–), смайликов (не более одного перед абзацем), пробелов после смайликов. Смайлики обычно ставятся перед абзацем.\n"
-                "Убедись, что после каждого абзаца есть пустая строка.\n"
-                "При перечислении проверь наличие «;» и «.» в конце пунктов, корректность цитирования («текст»).\n"
-                "Ссылки должны быть укорочены или скрыты под гиперссылку.\n"
-                "Избегай длинных сложных предложений.\n"
-                "Текст предназанчен для публикации в каналах и пабликах вузовской организации.\n"
-                "Запрещено использовать всё что связано с хеллоуином, лгбт, политикой, всем запрещённым в РФ.\n\n"
-                "ЭТО КРИТИЧНО И ВСЕ ОШИБКИ ДОЛЖНЫ БЫТЬ ОТМЕЧЕНЫ, ОСОБЕННО - орфографические, пунктуационные, стилистические\n"
-                "Не обращай внимание на html теги и спецсимволы, они там для форматирования.\n"
-                f"Текст:\n{content}\n\n"
-                "Ответь в формате:\n"
-                "- Если есть ошибки или рекомендации: перечисли их с рекомендациями по исправлению\n"
-            )
-
-            response, status = await brain_api.post(
-                '/ai/send',
-                data={'prompt': prompt}
-            )
-
-            if status == 200:
-                ai_response = response
-            else:
-                ai_response = '❌ **Ошибка при обращении к AI**\n\nПопробуйте позже.'
-
+            # Отправляем запрос и логируем, но не блокируем основной flow (это фоновой таск)
+            response, status = await brain_api.post('/ai/send', data=payload)
+            if status != 200:
+                logger.error(f"Failed to send AI request for user {self.scene.user_id}: status={status} response={response}")
+                # Сразу возвращаем ошибку пользователю
+                try:
+                    await self.scene.update_key(self.__page_name__, 'ai_response', '❌ **Ошибка при отправке запроса в AI. Попробуйте позже.**')
+                    await self.scene.update_key(self.__page_name__, 'is_loading', False)
+                    await self.scene.update_page(self.__page_name__)
+                except Exception as e:
+                    logger.error(f"Error updating scene after failed AI send: {e}")
         except Exception as e:
-            logger.error(f"AI check error: {e}")
-            ai_response = f'❌ **Ошибка:**\n\n{str(e)}'
-        
-        # Сохраняем результат и обновляем страницу
-        await self.scene.update_key(
-            self.__page_name__, 'ai_response', ai_response)
-        await self.scene.update_key(
-            self.__page_name__, 'is_loading', False)
-
-        # Удаляем таск из списка
-        AICheckPage._pending_tasks.pop(self.scene.user_id, None)
-
-        # Обновляем страницу
-        try:
-            await self.scene.update_page(self.__page_name__)
-        except Exception as e:
-            logger.error(f"Error updating page after AI response: {e}")
+            logger.error(f"Exception while sending AI request for user {self.scene.user_id}: {e}")
+            try:
+                await self.scene.update_key(self.__page_name__, 'ai_response', '❌ **Ошибка при отправке запроса в AI. Попробуйте позже.**')
+                await self.scene.update_key(self.__page_name__, 'is_loading', False)
+                await self.scene.update_page(self.__page_name__)
+            except Exception as e:
+                logger.error(f"Error updating scene after exception: {e}")
 
     async def content_worker(self) -> str:
         self.clear_content()
@@ -140,9 +151,11 @@ class AICheckPage(Page):
 
         return buttons
 
+
+
     @Page.on_callback('recheck')
     async def recheck_content(self, callback, args):
-        """Перезапустить проверку"""
+        """Перезапустить проверку — сбросим текущие данные и обновим страницу (новая проверка начнётся автоматически)."""
         # Сбрасываем кэш
         await self.scene.update_key(
             self.__page_name__, 'ai_response', None)

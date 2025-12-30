@@ -60,7 +60,7 @@ class UserDetailPage(Page):
             "streaming": "Отдел трансляций",
             "without_department": "Без отдела"
         }
-        
+
         department_value = self.user.get('department', 'Не указан')
         department_display = department_names.get(department_value, department_value)
 

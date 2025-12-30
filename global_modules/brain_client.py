@@ -231,7 +231,7 @@ class BrainAPIClient:
         telegram_id: int,
         role: Optional[str] = None,
         tasker_id: Optional[int] = None,
-        department: Optional[Department] = None,
+        department: Optional[Department] | str = None,
         about: Optional[str] = None
     ) -> dict | None:
         """Обновить пользователя"""
@@ -239,7 +239,7 @@ class BrainAPIClient:
             "telegram_id": telegram_id,
             "role": role,
             "tasker_id": tasker_id,
-            "department": department.value if department else None,
+            "department": department.value if isinstance(department, Department) else department,
             "about": about
         }
         user, res_status = await self.api.post("/user/update", data=data)

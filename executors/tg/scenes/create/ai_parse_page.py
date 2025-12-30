@@ -1,4 +1,5 @@
 import json
+import asyncio
 from datetime import datetime
 from tg.oms import Page
 from tg.oms.utils import callback_generator
@@ -21,8 +22,11 @@ class AIParserPage(Page):
         page_data = self.get_data()
         parsed_data = page_data.get('parsed_data') if page_data else None
         parse_error = page_data.get('parse_error') if page_data else None
+        is_loading = page_data.get('is_loading', False) if page_data else False
         
-        if parse_error:
+        if is_loading:
+            self.content += '\n\n⏳ *Парсится...*\n\nПожалуйста, подождите — результат будет отправлен автоматически.'
+        elif parse_error:
             self.content += f'\n\n❌ **Ошибка парсинга**\n\n{parse_error}'
         elif parsed_data:
             self.content += '\n\n✅ **Данные успешно распознаны:**\n\n'
@@ -71,35 +75,22 @@ class AIParserPage(Page):
     
     @Page.on_text('str')
     async def handle_text_input(self, message, value: str):
-        """Обработка введённого текста и отправка на парсинг AI"""
-        
-        parsed_data = None
-        last_error = None
-        
-        for attempt in range(self.max_retries):
-            try:
-                parsed_data, error = await self._parse_with_ai(value)
-                
-                if parsed_data:
-                    # Успешно распарсили
-                    await self.update_data('parsed_data', parsed_data)
-                    await self.update_data('parse_error', None)
-                    await self.scene.update_message()
-                    return
-                
-                last_error = error
-                
-            except Exception as e:
-                last_error = str(e)
-        
-        # Все попытки неуспешны
+        """Отправка введённого текста на парсинг AI (fire-and-forget).
+
+        Результат придёт в `/events/ai_callback` и будет обработан методом `on_ai_parsed_result`.
+        """
+        # Сбрасываем старые результаты и ставим индикатор загрузки
         await self.update_data('parsed_data', None)
-        await self.update_data('parse_error', f'Не удалось распарсить данные после {self.max_retries} попыток.\nПоследняя ошибка: {last_error}')
+        await self.update_data('parse_error', None)
+        await self.update_data('checked_text', value)
+        await self.update_data('is_loading', True)
         await self.scene.update_message()
-    
-    async def _parse_with_ai(self, text: str) -> tuple[dict | None, str | None]:
-        """Отправка текста на парсинг AI и получение структурированных данных"""
-        
+
+        # Отправляем асинхронный запрос к AI
+        asyncio.create_task(self._send_parse_request(value))
+
+    async def _send_parse_request(self, text: str):
+        """Отправляет текст на парсинг в brain-api с callback-метаданными."""
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         tag_options = {
@@ -107,7 +98,7 @@ class AIParserPage(Page):
             for key, tag in SETTINGS['properties']['tags']['values'].items()
         }
         tags_list = ', '.join([f'"{key}" ({name})' for key, name in tag_options.items()])
-        
+
         prompt = (
             f"Текущая дата и время: {current_datetime}\n\n"
             "Преобразуй следующий текст в JSON с ключами:\n"
@@ -120,20 +111,34 @@ class AIParserPage(Page):
             "Ответь ТОЛЬКО валидным JSON без дополнительного текста, markdown-разметки или пояснений.\n\n"
             f"Текст:\n{text}"
         )
-        
+
+        payload = {
+            'prompt': prompt,
+            'callback': {
+                'user_id': self.scene.user_id,
+                'scene': self.scene.__scene_name__,
+                'page': self.__page_name__,
+                'function': 'on_ai_parsed_result'
+            }
+        }
+
         try:
-            response, status = await brain_api.post(
-                '/ai/send',
-                data={'prompt': prompt}
-            )
-            
+            resp, status = await brain_api.post('/ai/send', data=payload)
             if status != 200:
-                return None, f"Ошибка API: статус {status}"
-            
-            # Пытаемся распарсить JSON из ответа
-            ai_response = response if isinstance(response, str) else str(response)
-            
-            # Убираем возможные markdown-обёртки
+                logger.error(f"Failed to send AI parse request for user {self.scene.user_id}: status={status} resp={resp}")
+                await self.update_data('parse_error', '❌ **Ошибка при отправке запроса в AI. Попробуйте позже.**')
+                await self.update_data('is_loading', False)
+                await self.scene.update_message()
+        except Exception as e:
+            logger.error(f"Exception while sending AI parse request for user {self.scene.user_id}: {e}")
+            await self.update_data('parse_error', '❌ **Ошибка при отправке запроса в AI. Попробуйте позже.**')
+            await self.update_data('is_loading', False)
+            await self.scene.update_message()
+
+    async def on_ai_parsed_result(self, result: str):
+        """Обработка результата парсинга от AI: пытаемся распарсить JSON и сохранить parsed_data/parse_error."""
+        try:
+            ai_response = result if isinstance(result, str) else str(result)
             ai_response = ai_response.strip()
             if ai_response.startswith('```json'):
                 ai_response = ai_response[7:]
@@ -142,39 +147,50 @@ class AIParserPage(Page):
             if ai_response.endswith('```'):
                 ai_response = ai_response[:-3]
             ai_response = ai_response.strip()
-            
+
             parsed = json.loads(ai_response)
-            
-            # Проверяем наличие нужных ключей
             if not isinstance(parsed, dict):
-                return None, "AI вернул не объект"
-            
+                raise ValueError('AI вернул не объект')
+
             # Приводим к нужному формату и обрезаем по максимальной длине
             name = parsed.get('name')
             description = parsed.get('description')
             image = parsed.get('image')
-            
-            # Валидируем теги - оставляем только существующие
             raw_tags = parsed.get('tags', [])
-            print(raw_tags)
-            valid_tags = [t for t in raw_tags if t in tags_list
-                          ] if isinstance(raw_tags, list) else []
-            
-            result = {
+
+            tag_options = {
+                key: tag['name'] 
+                for key, tag in SETTINGS['properties']['tags']['values'].items()
+            }
+            valid_tags = [t for t in (raw_tags if isinstance(raw_tags, list) else []) if t in tag_options]
+
+            result_data = {
                 'name': name[:100] if name else None,
                 'description': description[:2096] if description else None,
                 'image': image[:256] if image else None,
                 'deadline': parsed.get('deadline'),
                 'tags': valid_tags
             }
-            
-            return result, None
-            
+
+            await self.update_data('parsed_data', result_data)
+            await self.update_data('parse_error', None)
+            await self.update_data('is_loading', False)
+            if self.scene.current_page.__page_name__ == self.__page_name__:
+                await self.scene.update_page(self.__page_name__)
+
         except json.JSONDecodeError as e:
-            return None, f"Ошибка парсинга JSON: {e}"
+            await self.update_data('parsed_data', None)
+            await self.update_data('parse_error', f"Ошибка парсинга JSON: {e}")
+            await self.update_data('is_loading', False)
+            if self.scene.current_page.__page_name__ == self.__page_name__:
+                await self.scene.update_page(self.__page_name__)
         except Exception as e:
-            return None, f"Неожиданная ошибка: {e}"
-    
+            await self.update_data('parsed_data', None)
+            await self.update_data('parse_error', f"Неожиданная ошибка: {e}")
+            await self.update_data('is_loading', False)
+            if self.scene.current_page.__page_name__ == self.__page_name__:
+                await self.scene.update_page(self.__page_name__)
+
     @Page.on_callback('confirm_parsed_data')
     async def confirm_parsed_data_handler(self, callback, args):
         """Подтверждение распарсенных данных и сохранение в сцену"""

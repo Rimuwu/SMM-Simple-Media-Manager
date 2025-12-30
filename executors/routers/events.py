@@ -1,4 +1,5 @@
 import pprint
+import asyncio
 from aiogram import Bot
 from tg.oms.models.scene import Scene
 from tg.main import TelegramExecutor
@@ -82,6 +83,54 @@ async def update_scenes(event: ScenesEvent):
         "total_active_scenes": len(active_scenes),
         "updated_scenes": updated_count
     }
+
+
+# Модель и endpoint для получения результатов от AI
+class AiCallback(BaseModel):
+    user_id: int
+    scene_name: Optional[str] = None
+    page_name: Optional[str] = None
+    function: Optional[str] = None
+    result: str
+
+@router.post("/ai_callback")
+async def ai_callback(event: AiCallback):
+    """Принимает результат от AI и вызывает на странице метод (по имени) или обновляет ключи.
+
+    Ожидаемые поля: user_id, scene_name (опционально), page_name (опционально), function (опционально), result
+    """
+    logger.info(f"AI callback received for user {event.user_id} scene={event.scene_name} page={event.page_name}")
+    updated = 0
+
+    active_scenes = list(scene_manager._instances.values())
+    for scene in active_scenes:
+        if scene.user_id != event.user_id:
+            continue
+        if event.scene_name and scene.__scene_name__ != event.scene_name:
+            continue
+        if event.page_name and scene.current_page.__page_name__ != event.page_name:
+            continue
+
+        try:
+            page = scene.current_page
+            func_name = event.function or 'on_ai_result'
+            func = getattr(page, func_name, None)
+            if func:
+                if asyncio.iscoroutinefunction(func):
+                    await func(event.result)
+                else:
+                    func(event.result)
+            else:
+                # fallback: сохранение в ключи сцены
+                await scene.update_key(page.__page_name__, 'ai_response', event.result)
+                await scene.update_key(page.__page_name__, 'is_loading', False)
+                await scene.update_page(page.__page_name__)
+
+            updated += 1
+        except Exception as e:
+            logger.error(f"Error processing AI callback for user {event.user_id}: {e}")
+
+    return {"status": "ok", "updated": updated}
 
 
 class NotifyUserEvent(BaseModel):
