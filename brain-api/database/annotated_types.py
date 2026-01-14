@@ -3,13 +3,18 @@
 from datetime import datetime
 from typing import Annotated
 from uuid import uuid4, UUID as _UUID
-from sqlalchemy import DateTime, Integer, text
+from sqlalchemy import DateTime, Integer, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 # Стандартный тип для создания uuid полей
 uuidPK = Annotated[_UUID, mapped_column(UUID(as_uuid=True), 
     primary_key=True, default=uuid4)
+                   ]
+
+# Стандартный тип для создания str_pk полей
+strPK = Annotated[str, mapped_column(String,
+    primary_key=True)
                    ]
 
 # Стандартный тип для создания поля с временем создания (UTC)

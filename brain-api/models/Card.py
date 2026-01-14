@@ -31,7 +31,8 @@ class Card(Base, AsyncCRUDMixin):
     task_id: Mapped[int] = mapped_column(nullable=False)
 
     name: Mapped[str] = mapped_column(String, nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True)
 
     # Связь с пользователем (заказчиком)
     customer_id: Mapped[Optional[_UUID]] = mapped_column(
