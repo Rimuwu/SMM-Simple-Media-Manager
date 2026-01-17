@@ -65,6 +65,69 @@ def validate_poll(data: dict) -> dict:
     return normalized
 
 
+def validate_inline_keyboard(data: dict) -> dict:
+    """Validate and normalize inline keyboard data.
+
+    Expected format:
+    {
+        'buttons': [
+            {'text': str, 'url': str},
+            ...
+        ],
+        optional: 'name': str
+    }
+    Returns normalized dict or raises HTTPException
+    """
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=420, detail='Invalid data for inline_keyboard')
+
+    buttons = data.get('buttons')
+    if not buttons or not isinstance(buttons, list) or len(buttons) < 1:
+        raise HTTPException(status_code=421, detail="Inline keyboard must contain at least one 'button'")
+
+    normalized_buttons = []
+    for btn in buttons:
+        if not isinstance(btn, dict):
+            raise HTTPException(status_code=422, detail="Each button must be a dict")
+        
+        text = btn.get('text')
+        url = btn.get('url')
+        
+        if not text or not isinstance(text, str):
+            raise HTTPException(status_code=423, detail="Button must contain 'text' (str)")
+        if not url or not isinstance(url, str):
+            raise HTTPException(status_code=424, detail="Button must contain 'url' (str)")
+        
+        text = text.strip()
+        url = url.strip()
+        
+        if not text or not url:
+            raise HTTPException(status_code=425, detail="Button text and url cannot be empty")
+
+        if url is not None and not (url.startswith('http://') or url.startswith('https://')):
+            raise HTTPException(status_code=427, detail="Button 'url' must start with http:// or https://")
+
+        normalized_buttons.append({
+            'text': text,
+            'url': url
+        })
+
+    if len(normalized_buttons) > 12:
+        raise HTTPException(status_code=426, detail="Inline keyboard cannot exceed 12 buttons")
+
+    name = data.get('name', 'Клавиатура ссылок')
+    if isinstance(name, str):
+        name = name.strip()
+    if not name:
+        name = 'Клавиатура ссылок'
+
+    return {
+        'buttons': normalized_buttons,
+        'name': name[:50]
+    }
+
+
 avaibale_entities = {
-    'poll': validate_poll
+    'poll': validate_poll,
+    'inline_keyboard': validate_inline_keyboard
 }

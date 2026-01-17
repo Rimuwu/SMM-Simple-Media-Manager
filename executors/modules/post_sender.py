@@ -124,12 +124,34 @@ async def send_post_preview(
     try:
         message_ids = []
 
+        # Формируем inline клавиатуру из entities типа inline_keyboard
+        reply_markup = None
+        if entities:
+            keyboard_buttons = []
+            for entity in entities:
+                if entity.get('type') == 'inline_keyboard':
+                    entity_data = entity.get('data', {})
+                    buttons = entity_data.get('buttons', [])
+                    # Все кнопки из одного entity в одну строку
+                    row = []
+                    for btn in buttons:
+                        text_btn = btn.get('text')
+                        url = btn.get('url')
+                        if text_btn and url:
+                            row.append(InlineKeyboardButton(text=text_btn, url=url))
+                    if row:
+                        keyboard_buttons.append(row)
+
+            if keyboard_buttons:
+                reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
         # Если нет медиа - просто текст
         if not media_files:
             msg = await bot.send_message(
                 chat_id=chat_id,
                 text=text,
-                parse_mode=parse_mode
+                parse_mode=parse_mode,
+                reply_markup=reply_markup
             )
             message_ids.append(msg.message_id)
 
@@ -167,7 +189,8 @@ async def send_post_preview(
                     video=input_file,
                     caption=text,
                     parse_mode=parse_mode,
-                    has_spoiler=file_hide
+                    has_spoiler=file_hide,
+                    reply_markup=reply_markup
                 )
             else:
                 msg = await bot.send_photo(
@@ -175,7 +198,8 @@ async def send_post_preview(
                     photo=input_file,
                     caption=text,
                     parse_mode=parse_mode,
-                    has_spoiler=file_hide
+                    has_spoiler=file_hide,
+                    reply_markup=reply_markup
                 )
 
             message_ids.append(msg.message_id)
@@ -233,13 +257,25 @@ async def send_post_preview(
                     media=media_group
                 )
                 message_ids = [m.message_id for m in messages]
+                
+                # Для media group добавляем клавиатуру отдельным невидимым сообщением
+                if reply_markup:
+                    keyboard_msg = await bot.send_message(
+                        chat_id=chat_id,
+                        text="⬆️",  # Стрелка вверх для указания на пост
+                        reply_markup=reply_markup
+                    )
+                    message_ids.append(keyboard_msg.message_id)
             else:
                 logger.warning("No valid media to send in media group")
 
-        
-        
+
         for entity in entities or []:
             entity_type = entity.get('type')
+            
+            # inline_keyboard уже обработан выше
+            if entity_type == 'inline_keyboard':
+                continue
 
             if entity_type == 'poll':
                 entity_data = entity.get('data', {})

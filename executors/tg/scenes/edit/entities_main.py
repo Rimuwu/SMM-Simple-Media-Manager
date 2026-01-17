@@ -44,6 +44,7 @@ class EntitiesMainPage(Page):
 
         types = {
             'poll': 'Опрос',
+            'inline_keyboard': 'Клавиатура ссылок',
         }
 
         if status != 200 or not resp:
@@ -95,15 +96,21 @@ class EntitiesMainPage(Page):
                 'callback_data': callback_generator(self.scene.__scene_name__, 'create_poll'),
                 'ignore_row': True
             })
-        
+            buttons.append({
+                'text': '➕ Создать клавиатуру ссылок',
+                'callback_data': callback_generator(self.scene.__scene_name__, 'create_keyboard'),
+                'ignore_row': True
+            })
+
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            resp, status = await brain_api.get(f'/card/entities?card_id={task_id}&client_id={self.selected_client}')
+            resp, status = await brain_api.get(
+                f'/card/entities?card_id={task_id}&client_id={self.selected_client}')
             if status == 200 and resp:
                 entities = resp.get('entities', [])
                 for e in entities:
                     eid = e.get('id')
-                    title = e.get('name') or e.get('type')
+                    title = e.get('data', {}).get('name') or e.get('type') or e.get('type')
                     buttons.append({
                         'text': f'👁 {title}',
                         'callback_data': callback_generator(self.scene.__scene_name__, 'view', eid)
@@ -140,12 +147,19 @@ class EntitiesMainPage(Page):
         await self.scene.update_key('entities-main', 'selected_client', self.selected_client)
         await self.scene.update_page('entities-poll-create')
 
+    @Page.on_callback('create_keyboard')
+    async def create_keyboard(self, callback, args):
+        """Go to keyboard creation page"""
+        await self.scene.update_key('entities-main', 'selected_client', self.selected_client)
+        await self.scene.update_page('entities-keyboard-create')
+
     @Page.on_callback('view')
     async def view(self, callback, args):
         """View entity details"""
         if len(args) < 2:
             await callback.answer('❌ Ошибка')
             return
+
         eid = args[1]
         await self.scene.update_key('entities-main', 'view_entity_id', eid)
         await self.scene.update_key('entities-main', 'selected_client', self.selected_client)

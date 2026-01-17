@@ -31,10 +31,13 @@ class TelegramExecutor(BaseExecutor):
                 reply_to_message_id: Optional[int] = None,
                 list_markup: Optional[list] = None,
                 row_width: int = 3,
-                parse_mode: Optional[str] = 'HTML'
+                parse_mode: Optional[str] = 'HTML',
+                reply_markup: Optional[object] = None
                            ) -> dict:
         """Отправить сообщение"""
         markup = list_to_inline(list_markup or [], row_width=row_width)
+        if reply_markup:
+            markup = reply_markup
 
         try:
             result = await self.bot.send_message(chat_id, text,
@@ -102,7 +105,8 @@ class TelegramExecutor(BaseExecutor):
                          list_markup: Optional[list] = None,
                          row_width: int = 3,
                          reply_to_message_id: Optional[int] = None,
-                         has_spoiler: bool = False
+                         has_spoiler: bool = False,
+                         reply_markup: Optional[object] = None
                          ) -> dict:
         """
         Отправить фото.
@@ -119,6 +123,8 @@ class TelegramExecutor(BaseExecutor):
         from aiogram.types import BufferedInputFile
         
         markup = list_to_inline(list_markup or [], row_width=row_width) if list_markup else None
+        if reply_markup:
+            markup = reply_markup
         
         try:
             # Если photo - bytes, конвертируем в BufferedInputFile
@@ -147,7 +153,8 @@ class TelegramExecutor(BaseExecutor):
                          list_markup: Optional[list] = None,
                          row_width: int = 3,
                          reply_to_message_id: Optional[int] = None,
-                         has_spoiler: bool = False
+                         has_spoiler: bool = False,
+                         reply_markup: Optional[object] = None
                          ) -> dict:
         """
         Отправить видео.
@@ -164,6 +171,8 @@ class TelegramExecutor(BaseExecutor):
         from aiogram.types import BufferedInputFile
         
         markup = list_to_inline(list_markup or [], row_width=row_width) if list_markup else None
+        if reply_markup:
+            markup = reply_markup
         
         try:
             video_input = BufferedInputFile(video, filename="video.mp4")
@@ -190,7 +199,8 @@ class TelegramExecutor(BaseExecutor):
                             parse_mode: Optional[str] = 'HTML',
                             list_markup: Optional[list] = None,
                             row_width: int = 3,
-                            reply_to_message_id: Optional[int] = None
+                            reply_to_message_id: Optional[int] = None,
+                            reply_markup: Optional[object] = None
                             ) -> dict:
         """
         Отправить документ.
@@ -208,6 +218,8 @@ class TelegramExecutor(BaseExecutor):
         from aiogram.types import BufferedInputFile
         
         markup = list_to_inline(list_markup or [], row_width=row_width) if list_markup else None
+        if reply_markup:
+            markup = reply_markup
         
         try:
             document_input = BufferedInputFile(document, filename=filename)
@@ -231,6 +243,7 @@ class TelegramExecutor(BaseExecutor):
                                caption: Optional[str] = None,
                                parse_mode: Optional[str] = 'HTML',
                                reply_to_message_id: Optional[int] = None,
+                               reply_markup: Optional[object] = None
                                ) -> dict:
         """
         Отправить группу медиа (фото и видео).
@@ -312,7 +325,8 @@ class TelegramExecutor(BaseExecutor):
             result = await self.bot.send_media_group(
                 chat_id=chat_id,
                 media=media_group,
-                reply_to_message_id=reply_to_message_id
+                reply_to_message_id=reply_to_message_id,
+                reply_markup=reply_markup
             )
             
             # Возвращаем ID первого сообщения и список всех ID

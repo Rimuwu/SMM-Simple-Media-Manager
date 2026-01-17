@@ -2,6 +2,10 @@ from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.api_client import brain_api
 
+types = {
+    'poll': 'Опрос',
+    'inline_keyboard': 'Клавиатура ссылок',
+}
 
 class EntityViewPage(Page):
     __page_name__ = 'entities-view'
@@ -25,10 +29,9 @@ class EntityViewPage(Page):
             return '❌ Entity не найден'
 
         txt = [
-            f"Тип: {e.get('type')}", 
-            f"Имя: {e.get('name')}", 
-            f"ID: {e.get('id')}",
-            f"Создано: {e.get('created_at')}"
+            f"Тип: {types.get(e.get('type'), e.get('type'))}", 
+            f"Имя: {e.get('data', {}).get('name') or e.get('type')}", 
+            f"ID: {e.get('id')}\n"
         ]
         data = e.get('data') or {}
 
@@ -37,6 +40,15 @@ class EntityViewPage(Page):
             opts = data.get('options', [])
             for i, o in enumerate(opts, 1):
                 txt.append(f"{i}. {o}")
+
+        elif e.get('type') == 'inline_keyboard':
+            buttons = data.get('buttons', [])
+            if buttons:
+                txt.append(f"Кнопок: {len(buttons)}")
+                for i, btn in enumerate(buttons, 1):
+                    txt.append(f"{i}. {btn.get('text')} → {btn.get('url')}")
+            else:
+                txt.append("Нет кнопок")
 
         return "\n".join(txt)
 
@@ -94,11 +106,23 @@ class EntityViewPage(Page):
             await callback.answer('❌ Клиент не выбран')
             return
 
-        # Подготовить данные для страницы создания опроса и перейти на неё
-        # Сохраняем сущность в форме, чтобы PollCreatePage мог начать в режиме редактирования
-        await self.scene.update_key('entities-poll-create', 'data', e.get('data', {}) )
-        await self.scene.update_key('entities-poll-create', 'entity_id', e.get('id'))
-        await self.scene.update_page('entities-poll-create')
+        entity_type = e.get('type')
+        entity_data = e.get('data', {})
+        entity_id = e.get('id')
+
+        # Определяем страницу в зависимости от типа entity
+        if entity_type == 'poll':
+            page_name = 'entities-poll-create'
+        elif entity_type == 'inline_keyboard':
+            page_name = 'entities-keyboard-create'
+        else:
+            await callback.answer(f'❌ Неизвестный тип entity: {entity_type}')
+            return
+
+        # Подготовить данные для страницы редактирования и перейти на неё
+        await self.scene.update_key(page_name, 'data', entity_data)
+        await self.scene.update_key(page_name, 'entity_id', entity_id)
+        await self.scene.update_page(page_name)
         await self.scene.update_message()
 
     @Page.on_callback('back')

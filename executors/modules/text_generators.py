@@ -411,6 +411,32 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     entities_ids = []  # Список ID сущностей
     
     try:
+        # Получаем entities для формирования клавиатуры
+        entities_result = await get_entities_for_client(card_id, client_key)
+        entities = entities_result.get('entities', []) if entities_result.get('success') else []
+        
+        # Формируем inline клавиатуру из entities типа inline_keyboard
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        reply_markup = None
+        if entities:
+            keyboard_buttons = []
+            for entity in entities:
+                if entity.get('type') == 'inline_keyboard':
+                    entity_data = entity.get('data', {})
+                    buttons = entity_data.get('buttons', [])
+                    # Все кнопки из одного entity в одну строку
+                    row = []
+                    for btn in buttons:
+                        text_btn = btn.get('text')
+                        url = btn.get('url')
+                        if text_btn and url:
+                            row.append(InlineKeyboardButton(text=text_btn, url=url))
+                    if row:
+                        keyboard_buttons.append(row)
+            
+            if keyboard_buttons:
+                reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+        
         # Отправляем пост с изображениями или без
         if downloaded_images:
             if len(downloaded_images) == 1:
@@ -420,7 +446,8 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                     caption=post_text,
                     parse_mode="HTML",
                     reply_to_message_id=complete_topic,
-                    has_spoiler=downloaded_images[0].get('hide', False)
+                    has_spoiler=downloaded_images[0].get('hide', False),
+                    reply_markup=reply_markup
                 )
                 if result.get("success"):
                     post_id = result.get("message_id")
@@ -436,12 +463,24 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                 if result.get("success"):
                     post_id = result.get("message_id")
                     post_ids = result.get("message_ids", [post_id])  # Сохраняем все ID
+                    
+                    # Для media group добавляем клавиатуру отдельным сообщением
+                    if reply_markup:
+                        keyboard_result = await client_executor.send_message(
+                            chat_id=group_forum,
+                            text="⬆️",
+                            reply_markup=reply_markup,
+                            reply_to_message_id=complete_topic
+                        )
+                        if keyboard_result.get("success"):
+                            post_ids.append(keyboard_result.get("message_id"))
         else:
             result = await client_executor.send_message(
                 chat_id=group_forum,
                 text=post_text,
                 reply_to_message_id=complete_topic,
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=reply_markup
             )
             if result.get("success"):
                 post_id = result.get("message_id")
@@ -452,15 +491,17 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                 f"Failed to send preview: {result.get('error', 'Unknown error')}", 
                 "success": False}
         
-        # Получаем и отправляем entities (опросы и др.)
-        entities_result = await get_entities_for_client(card_id, client_key)
-        if entities_result.get('success') and entities_result.get('entities'):
-            entities = entities_result['entities']
-            for entity in entities:
-                entity_type = entity.get('type')
-                entity_data = entity.get('data', {})
-                
-                if entity_type == 'poll':
+        # Отправляем entities (опросы и др.) - inline_keyboard уже обработан выше
+        for entity in entities:
+            entity_type = entity.get('type')
+            
+            # inline_keyboard уже обработан выше
+            if entity_type == 'inline_keyboard':
+                continue
+            
+            entity_data = entity.get('data', {})
+            
+            if entity_type == 'poll':
                     poll_result = await send_poll_preview(
                         bot=client_executor.bot,
                         chat_id=group_forum,
@@ -700,9 +741,9 @@ async def update_complete_preview(card_id: str, client_key: str,
                     )
                     if tg_user:
                         editor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name
-            
+
             card_name = card.get("name", "Без названия")
-            
+
             # Получаем настройки для клиента
             settings_text = ""
             clients_settings = card.get("clients_settings", {})

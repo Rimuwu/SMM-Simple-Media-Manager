@@ -15,8 +15,9 @@ from .image_prompt_page import ImagePromptPage
 from .client_settings_page import ClientSettingsPage
 from .image_view_setting_page import ImageViewSettingPage
 from tg.oms.common_pages import DatePickerPage
-from tg.scenes.edit.entities import poll, view
+from tg.scenes.edit.entities import poll, view, keyboard
 from tg.scenes.edit.entities_main import EntitiesMainPage
+
 
 class TaskScene(Scene):
 
@@ -38,7 +39,8 @@ class TaskScene(Scene):
         DatePickerPage,
         poll.PollCreatePage,
         view.EntityViewPage,
-        EntitiesMainPage
+        EntitiesMainPage,
+        keyboard.KeyboardCreatePage
     ]
 
     # Привязываем функции для работы с БД

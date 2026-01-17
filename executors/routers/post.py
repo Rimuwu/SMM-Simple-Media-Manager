@@ -190,6 +190,28 @@ async def send_post(request: PostSendRequest):
 
         # Обработка для Telegram
         elif isinstance(executor, TelegramExecutor):
+            # Формируем inline клавиатуру из entities типа inline_keyboard
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            reply_markup = None
+            if request.entities:
+                keyboard_buttons = []
+                for entity in request.entities:
+                    if entity.get('type') == 'inline_keyboard':
+                        entity_data = entity.get('data', {})
+                        buttons = entity_data.get('buttons', [])
+                        # Все кнопки из одного entity в одну строку
+                        row = []
+                        for btn in buttons:
+                            text_btn = btn.get('text')
+                            url = btn.get('url')
+                            if text_btn and url:
+                                row.append(InlineKeyboardButton(text=text_btn, url=url))
+                        if row:
+                            keyboard_buttons.append(row)
+                
+                if keyboard_buttons:
+                    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+            
             if downloaded_files:
                 if len(downloaded_files) == 1:
                     file_info = downloaded_files[0]
@@ -199,14 +221,14 @@ async def send_post(request: PostSendRequest):
                     if ftype == 'photo':
                         send_start = time.perf_counter()
                         result = await executor.send_photo(chat_id=str(chat_id), 
-                                                           photo=file_info['data'], caption=post_text, has_spoiler=has_spoiler)
+                                                           photo=file_info['data'], caption=post_text, has_spoiler=has_spoiler, reply_markup=reply_markup)
                         send_end = time.perf_counter()
 
                         add_log('tg_send_photo', 'Отправлено фото', duration_ms=(send_end - send_start) * 1000, file_name=file_info.get('name'))
 
                     elif ftype == 'video':
                         send_start = time.perf_counter()
-                        result = await executor.send_video(chat_id=str(chat_id), video=file_info['data'], caption=post_text)
+                        result = await executor.send_video(chat_id=str(chat_id), video=file_info['data'], caption=post_text, reply_markup=reply_markup)
                         send_end = time.perf_counter()
 
                         add_log('tg_send_video', 
@@ -215,7 +237,7 @@ async def send_post(request: PostSendRequest):
                     else:
                         send_start = time.perf_counter()
                         result = await executor.send_document(
-                            chat_id=str(chat_id), document=file_info['data'], caption=post_text)
+                            chat_id=str(chat_id), document=file_info['data'], caption=post_text, reply_markup=reply_markup)
                         send_end = time.perf_counter()
 
                         add_log('tg_send_document', 
@@ -231,9 +253,21 @@ async def send_post(request: PostSendRequest):
     
                     add_log('tg_send_media_group', 'Отправлена медиагруппа', 
                             duration_ms=(send_end - send_start) * 1000, files_count=len(downloaded_files))
+                    
+                    # Для media group добавляем клавиатуру отдельным сообщением
+                    if reply_markup:
+                        keyboard_start = time.perf_counter()
+                        keyboard_result = await executor.send_message(
+                            chat_id=str(chat_id),
+                            text="⬆️",
+                            reply_markup=reply_markup
+                        )
+                        keyboard_end = time.perf_counter()
+                        add_log('tg_send_keyboard', 'Отправлена клавиатура к media group', 
+                                duration_ms=(keyboard_end - keyboard_start) * 1000)
             else:
                 send_start = time.perf_counter()
-                result = await executor.send_message(chat_id=str(chat_id), text=post_text)
+                result = await executor.send_message(chat_id=str(chat_id), text=post_text, reply_markup=reply_markup)
                 send_end = time.perf_counter()
                 add_log('tg_send_message', 
                         'Отправлено текстовое сообщение', duration_ms=(send_end - send_start) * 1000)
@@ -242,11 +276,16 @@ async def send_post(request: PostSendRequest):
         if result and result.get('success'):
             add_log('sent', f"Пост успешно отправлен для карточки {request.card_id}, клиента {request.client_key}, файлов: {len(downloaded_files)}", files_sent=len(downloaded_files))
 
-            # Отправляем entities если они есть (polls и т.д.)
+            # Отправляем entities если они есть (polls и т.д.) - inline_keyboard уже обработан выше
             if request.entities and isinstance(executor, TelegramExecutor):
                 for entity in request.entities:
                     try:
                         entity_type = entity.get('type')
+                        
+                        # inline_keyboard уже обработан выше
+                        if entity_type == 'inline_keyboard':
+                            continue
+                        
                         if entity_type == 'poll':
                             entity_data = entity.get('data', {})
 

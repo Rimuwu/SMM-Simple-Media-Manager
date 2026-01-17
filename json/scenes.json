@@ -317,6 +317,10 @@
                 "content": "🗳 *Создание опроса*\n\n{content}",
                 "row_width": 4
             },
+            "entities-keyboard-create": {
+                "content": "⌨️ *Создание клавиатуры ссылок*\n\n{content}",
+                "row_width": 4
+            },
             "entities-view": {
                 "content": "🔍 *Просмотр entity*\n\n{entity_text}",
                 "to_pages": {
