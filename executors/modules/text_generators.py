@@ -1,6 +1,7 @@
 
 from datetime import datetime
 from pprint import pprint
+from modules.post_sender import download_files
 from tg.main import TelegramExecutor
 from modules.executors_manager import manager
 from modules.constants import SETTINGS, CLIENTS
@@ -404,8 +405,8 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     
     downloaded_images = []
     if post_images:
-        downloaded_images = await download_files_raw(post_images)
-    
+        downloaded_images = await download_files(post_images)
+
     post_ids = []  # Список всех ID сообщений для медиа-групп
     entities_ids = []  # Список ID сущностей
     
@@ -415,10 +416,11 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
             if len(downloaded_images) == 1:
                 result = await client_executor.send_photo(
                     chat_id=group_forum,
-                    photo=downloaded_images[0],
+                    photo=downloaded_images[0]['data'],
                     caption=post_text,
                     parse_mode="HTML",
-                    reply_to_message_id=complete_topic
+                    reply_to_message_id=complete_topic,
+                    has_spoiler=downloaded_images[0].get('hide', False)
                 )
                 if result.get("success"):
                     post_id = result.get("message_id")
@@ -510,11 +512,27 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
         
         # Отправляем информацию о задаче и клиенте
         card_name = card.get("name", "Без названия")
+        
+        # Получаем настройки для клиента
+        settings_text = ""
+        clients_settings = card.get("clients_settings", {})
+        if isinstance(clients_settings, dict):
+            client_settings = clients_settings.get(client_key, {})
+            if isinstance(client_settings, dict) and client_settings:
+                settings_lines = []
+                for key, value in client_settings.items():
+                    # Форматируем ключ (заменяем _ на пробел, капитализируем)
+                    formatted_key = key.replace('_', ' ').capitalize()
+                    settings_lines.append(f"  • <code>{formatted_key}</code>: {value}")
+                if settings_lines:
+                    settings_text = "\n<b>⚙️ Настройки:</b>\n" + "\n".join(settings_lines)
+        
         info_text = (
             f"✅ Готовый пост для задачи <b>{card_name}</b> для клиента <b>{client_label}</b>\n"
             f"📅 Дата отправки: <b>{date_str}</b>\n"
             f"👤 Исполнитель: <code>{executor_name}</code>\n"
             f"✏️ Редактор: <code>{editor_name}</code>"
+            f"{settings_text}"
         )
         
         info_result = await client_executor.send_message(
@@ -684,13 +702,29 @@ async def update_complete_preview(card_id: str, client_key: str,
                         editor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name
             
             card_name = card.get("name", "Без названия")
+            
+            # Получаем настройки для клиента
+            settings_text = ""
+            clients_settings = card.get("clients_settings", {})
+            if isinstance(clients_settings, dict):
+                client_settings = clients_settings.get(client_key, {})
+                if isinstance(client_settings, dict) and client_settings:
+                    settings_lines = []
+                    for key, value in client_settings.items():
+                        # Форматируем ключ (заменяем _ на пробел, капитализируем)
+                        formatted_key = key.replace('_', ' ').capitalize()
+                        settings_lines.append(f"  • <code>{formatted_key}</code>: {value}")
+                    if settings_lines:
+                        settings_text = "\n<b>⚙️ Настройки:</b>\n" + "\n".join(settings_lines)
+            
             info_text = (
                 f"✅ Готовый пост для задачи <b>{card_name}</b> для клиента <b>{client_label}</b>\n"
                 f"📅 Дата отправки: <b>{date_str}</b>\n"
                 f"👤 Исполнитель: <code>{executor_name}</code>\n"
                 f"✏️ Редактор: <code>{editor_name}</code>"
+                f"{settings_text}"
             )
-            
+
             info_result = await client_executor.edit_message(
                 chat_id=group_forum,
                 message_id=str(info_id),

@@ -150,6 +150,8 @@ class FilesPage(Page):
         fid = str(target.get('id'))
         sel = await self._selected()
         is_selected = fid in sel
+        is_hidden = target.get('hide', False)
+        
         try:
             file_data, status = await brain_client.download_file(fid)
             if status != 200 or not isinstance(file_data, bytes):
@@ -157,6 +159,9 @@ class FilesPage(Page):
 
             toggle_action = 'toggle_remove' if is_selected else 'toggle_add'
             toggle_text = '❌ Убрать из выбранных' if is_selected else '✅ Добавить к выбранным'
+            
+            hide_emoji = '👁️' if is_hidden else '🙈'
+            hide_text = f'{hide_emoji} {"Показать" if is_hidden else "Скрыть"}'
 
             buttons = [
                 [
@@ -175,17 +180,31 @@ class FilesPage(Page):
                             toggle_action, str(idx))
                         )
                 ])
+            
+            # Кнопка для переключения hide
+            buttons.append([
+                InlineKeyboardButton(
+                    text=hide_text,
+                    callback_data=callback_generator(
+                        self.scene.__scene_name__,
+                        'toggle_hide', str(idx))
+                )
+            ])
 
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=buttons
             )
+            
+            hide_status_text = f"\n🙈 Скрыт: {'Да' if is_hidden else 'Нет'}"
+            selection_status = f"✅ Выбран" if is_selected else "⬜️ Не выбран"
 
             await callback.message.answer_photo(
                 photo=BufferedInputFile(file_data, 
                 filename='preview.png'
                 ), 
-                caption=f"📷 {target.get('original_filename', target.get('name', 'Без имени'))}\n\nСтатус: {'✅ Выбран' if is_selected else '⬜️ Не выбран'}", 
-                reply_markup=keyboard
+                caption=f"📷 {target.get('original_filename', target.get('name', 'Без имени'))}\n\nСтатус: {selection_status}{hide_status_text}", 
+                reply_markup=keyboard,
+                has_spoiler=is_hidden
                 )
             await callback.answer()
 
@@ -249,111 +268,44 @@ class FilesPage(Page):
         except: pass
         await self.scene.update_message()
 
-    @Page.on_callback('view_uploaded')
-    async def view_uploaded_handler(self, callback: CallbackQuery, args: list):
+    @Page.on_callback('toggle_hide')
+    async def toggle_hide_handler(self, callback: CallbackQuery, args: list):
         if len(args) < 2:
             return await callback.answer('❌ Ошибка: файл не найден')
         try:
             idx = int(args[1])
         except Exception:
             return await callback.answer('❌ Ошибка: неверный индекс')
-
-        uploaded = self.scene.get_key(self.__page_name__, 'uploaded_files') or []
-        if idx < 0 or idx >= len(uploaded):
+        
+        files = await self._files()
+        if idx < 0 or idx >= len(files):
             return await callback.answer('❌ Файл не найден')
-
-        f = uploaded[idx]
-        from tg.oms.utils import list_to_inline, callback_generator
-        markup = list_to_inline([
-            {'text': 
-                '🧧 Удалить сообщение', 
-                'callback_data': 'delete_message', 
-                'ignore_row': True
-                },
-            {'text': '🗑 Удалить файл', 
-             'callback_data': callback_generator(self.scene.__scene_name__, 'delete_uploaded', str(idx))
-             },
-            {'text': '✅ Установить', 
-             'callback_data': callback_generator(self.scene.__scene_name__, 'set_uploaded', str(idx))
-             }
-        ])
-        if f.get('type') == 'photo':
-            await self.scene.__bot__.send_photo(
-                        chat_id=self.scene.user_id, 
-                        photo=f.get('file_id'), 
-                        caption=f"📷 Фото: {f.get('original_filename', 'файл')}", 
-                        reply_markup=markup)
-    
-        elif f.get('type') == 'document':
-            await self.scene.__bot__.send_document(
-                        chat_id=self.scene.user_id,
-                        document=f.get('file_id'), 
-                        caption=f"📄 Документ: {f.get('original_filename', 'файл')}", 
-                        reply_markup=markup)
-            
-        elif f.get('type') == 'video':
-            await self.scene.__bot__.send_video(chat_id=self.scene.user_id, video=f.get('file_id'), caption=f"🎥 Видео: {f.get('original_filename', 'файл')}", reply_markup=markup)
-        await callback.answer()
-
-    @Page.on_callback('delete_uploaded')
-    async def delete_uploaded_handler(self, callback: CallbackQuery, args: list):
-        if len(args) < 2:
-            return await callback.answer('❌ Ошибка: файл не найден')
+        
+        f = files[idx]
+        file_id = str(f.get('id'))
+        
         try:
-            idx = int(args[1])
-        except Exception:
-            return await callback.answer('❌ Ошибка: неверный индекс')
-        uploaded = self.scene.get_key(self.__page_name__, 'uploaded_files') or []
-        if idx < 0 or idx >= len(uploaded):
-            return await callback.answer('❌ Файл не найден')
-        deleted = uploaded.pop(idx)
-        await self.scene.update_key(self.__page_name__, 'uploaded_files', uploaded)
-        await callback.answer(f'✅ Файл "{deleted.get("original_filename", "")}" удален')
-        await self.scene.update_message()
-        try:
-            await callback.message.delete()
-        except:
-            pass
-
-    @Page.on_callback('clear_uploaded')
-    async def clear_uploaded_handler(self, callback: CallbackQuery, args: list):
-        await self.scene.update_key(self.__page_name__, 'uploaded_files', [])
-        await callback.answer('✅ Все загруженные файлы удалены')
-        await self.scene.update_message()
-
-    @Page.on_callback('set_uploaded')
-    async def set_uploaded_handler(self, callback: CallbackQuery, args: list):
-        if len(args) < 2:
-            return await callback.answer('❌ Ошибка: файл не найден')
-        try:
-            idx = int(args[1])
-        except Exception:
-            return await callback.answer('❌ Ошибка: неверный индекс')
-
-        uploaded = self.scene.get_key(self.__page_name__, 'uploaded_files') or []
-        if idx < 0 or idx >= len(uploaded):
-            return await callback.answer('❌ Файл не найден')
-
-        f = uploaded[idx]
-        if f.get('type') != 'photo':
-            return await callback.answer('❌ Можно устанавливать только фотографии')
-
-        file = await self.scene.__bot__.get_file(f.get('file_id'))
-        data = await self.scene.__bot__.download_file(file.file_path)
-        card = await self._card()
-
-        if not card:
-            return await callback.answer('❌ Карточка не найдена')
-        success = await brain_client.update_card(card_id=card.get('card_id'), binary_data=data.read())
-        if success:
-            await callback.answer('✅ Изображение установлено!')
-            try:
-                await callback.message.delete()
-            except:
-                pass
-            await self.scene.update_message()
-        else:
-            await callback.answer('❌ Ошибка при обновлении карточки')
+            # Переключаем hide через API
+            result = await brain_client.toggle_file_hide(file_id)
+            if result:
+                new_hide = result.get('hide', False)
+                status_text = 'скрыт' if new_hide else 'показан'
+                await callback.answer(f'✅ Файл {status_text}')
+                
+                # Обновляем данные
+                await self.data_preparate()
+                await self.scene.update_message()
+                
+                # Удаляем превью сообщение
+                try:
+                    await callback.message.delete()
+                except:
+                    pass
+            else:
+                await callback.answer('❌ Ошибка при изменении статуса')
+        except Exception as e:
+            logger.error(f'Error toggling hide: {e}')
+            await callback.answer('❌ Произошла ошибка')
 
     async def page_leave(self) -> None:
         try:
@@ -392,6 +344,7 @@ class FilesPage(Page):
                 from asyncio import sleep
                 await sleep(3)
                 await msg.delete()
+                await message.delete()
             except:
                 pass
         else:

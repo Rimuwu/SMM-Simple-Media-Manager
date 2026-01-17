@@ -67,6 +67,7 @@ class FileInfoResponse(BaseModel):
     size: int
     data_info: dict
     order: int
+    hide: bool = False
     created_at: Optional[str] = None
 
 
@@ -227,6 +228,7 @@ async def list_card_files(card_id: str):
                     size=f.size,
                     data_info=f.data_info,
                     order=f.order,
+                    hide=f.hide,
                     created_at=_to_iso(getattr(f, 'created_at', None))
                 ).dict()
                 for f in files
@@ -264,6 +266,7 @@ async def get_file_info(file_id: str):
             size=card_file.size,
             data_info=card_file.data_info,
             order=card_file.order,
+            hide=card_file.hide,
             created_at=_to_iso(getattr(card_file, 'created_at', None))
         )
     
@@ -316,6 +319,46 @@ async def delete_file(file_id: str):
 
 class ReorderFilesRequest(BaseModel):
     file_ids: list[str]  # Список file_id в нужном порядке
+
+
+@router.post("/toggle-hide/{file_id}")
+async def toggle_file_hide(file_id: str):
+    """
+    Переключить скрытие файла
+    
+    Args:
+        file_id: ID файла
+    
+    Returns:
+        Обновленная информация о файле
+    """
+    try:
+        card_file = await CardFile.get_by_key('id', file_id)
+        if not card_file:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        new_hide_value = not card_file.hide
+        await card_file.update(hide=new_hide_value)
+        
+        logger.info(f"File {card_file.filename} hide toggled to {new_hide_value}")
+        
+        return FileInfoResponse(
+            id=str(card_file.id),
+            card_id=str(card_file.card_id),
+            filename=card_file.filename,
+            original_filename=card_file.original_filename,
+            size=card_file.size,
+            data_info=card_file.data_info,
+            order=card_file.order,
+            hide=new_hide_value,
+            created_at=_to_iso(getattr(card_file, 'created_at', None))
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error toggling file hide: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error toggling file hide: {str(e)}")
 
 
 @router.post("/reorder/{card_id}")

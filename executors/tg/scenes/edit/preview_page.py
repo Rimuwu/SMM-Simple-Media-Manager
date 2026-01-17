@@ -146,9 +146,8 @@ class PreviewPage(Page):
         
         tags = card.get('tags', [])
         post_images = card.get('post_images') or []
-        task_id = card.get('task_id')
         card_id = card.get('card_id')
-        
+
         try:
             result = await prepare_and_send_preview(
                 bot=self.scene.__bot__,
@@ -157,7 +156,6 @@ class PreviewPage(Page):
                 tags=tags,
                 client_key=client,
                 post_images=post_images,
-                cached_files=self._cached_files,
                 card_id=card_id
             )
 

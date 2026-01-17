@@ -66,7 +66,7 @@ async def download_files(file_ids: list[str]) -> list[dict]:
         file_ids: Список идентификаторов файлов (ID в БД)
 
     Returns:
-        Список словарей: [{'id': str, 'data': bytes, 'name': str, 'type': str}, ...]
+        Список словарей: [{'id': str, 'data': bytes, 'name': str, 'type': str, 'hide': bool}, ...]
     """
     if not file_ids:
         return []
@@ -81,12 +81,15 @@ async def download_files(file_ids: list[str]) -> list[dict]:
             if status == 200 and isinstance(file_data, (bytes, bytearray)):
                 file_info = await brain_client.get_file_info(file_id)
                 file_name = None
+
                 if isinstance(file_info, dict):
-                    file_name = file_info.get('original_filename') or file_info.get('name')
+                    file_name = file_info.get('original_filename') or file_info.get('name') or file_info.get('filename')
                 file_name = file_name or file_id
 
                 media_type = detect_media_type(file_data, file_name)
-                downloaded_files.append({'id': file_id, 'data': file_data, 'name': file_name, 'type': media_type})
+                downloaded_files.append({'id': file_id, 'data': file_data, 'name': file_name, 
+                                         'type': media_type, 'hide': file_info.get('hide', False)
+                                         })
                 logger.info(f"Downloaded file '{file_name}' ({len(file_data)} bytes, type: {media_type})")
             else:
                 logger.warning(f"Failed to download file {file_ref}: status={status}")
@@ -133,16 +136,21 @@ async def send_post_preview(
         # Одиночный файл
         elif len(media_files) == 1:
             file_info = media_files[0]
+            print(file_info.keys())
 
             # Нормализуем вход — поддерживаем dict {'data','name','type'} и raw bytes
             if isinstance(file_info, (bytes, bytearray)):
                 file_data = bytes(file_info)
                 file_name = getattr(file_info, 'name', 'file')
+                file_hide = getattr(file_info, 'hide', False)
                 file_type = detect_media_type(file_data, file_name)
+
             elif isinstance(file_info, dict):
                 file_data = file_info.get('data')
                 file_name = file_info.get('name', 'file')
+                file_hide = file_info.get('hide', False)
                 file_type = file_info.get('type') or detect_media_type(file_data or b'', file_name)
+
             else:
                 logger.warning(f"Unsupported file_info type for single file: {type(file_info)}")
                 raise ValueError("Unsupported media file format")
@@ -158,30 +166,37 @@ async def send_post_preview(
                     chat_id=chat_id,
                     video=input_file,
                     caption=text,
-                    parse_mode=parse_mode
+                    parse_mode=parse_mode,
+                    has_spoiler=file_hide
                 )
             else:
                 msg = await bot.send_photo(
                     chat_id=chat_id,
                     photo=input_file,
                     caption=text,
-                    parse_mode=parse_mode
+                    parse_mode=parse_mode,
+                    has_spoiler=file_hide
                 )
 
             message_ids.append(msg.message_id)
         else:
             # Media group (несколько файлов)
             media_group = []
+
             for idx, file_info in enumerate(media_files):
                 # Нормализация формата
                 if isinstance(file_info, (bytes, bytearray)):
                     file_data = bytes(file_info)
                     file_name = getattr(file_info, 'name', f'file_{idx}')
                     file_type = detect_media_type(file_data, file_name)
+                    file_hide = getattr(file_info, 'hide', False)
+
                 elif isinstance(file_info, dict):
                     file_data = file_info.get('data')
                     file_name = file_info.get('name', f'file_{idx}')
                     file_type = file_info.get('type') or detect_media_type(file_data or b'', file_name)
+                    file_hide = file_info.get('hide', False)
+
                 else:
                     logger.warning(f"Unsupported file_info type in media group: {type(file_info)}")
                     continue
@@ -200,13 +215,15 @@ async def send_post_preview(
                     media_group.append(InputMediaVideo(
                         media=input_file,
                         caption=caption,
-                        parse_mode=pm
+                        parse_mode=pm,
+                        has_spoiler=file_hide
                     ))
                 else:
                     media_group.append(InputMediaPhoto(
                         media=input_file,
                         caption=caption,
-                        parse_mode=pm
+                        parse_mode=pm,
+                        has_spoiler=file_hide
                     ))
 
             # Отправляем media group
@@ -299,9 +316,17 @@ async def prepare_and_send_preview(
                     file_name = None
                     if isinstance(file_info, dict):
                         file_name = file_info.get('original_filename') or file_info.get('name')
+
                     file_name = file_name or str(file_id)
                     media_type = detect_media_type(file_data, file_name)
-                    media_files.append({'data': file_data, 'name': file_name, 'type': media_type})
+
+                    image_data = await brain_client.get_file_info(file_id)
+                    hide = False
+                    if isinstance(image_data, dict):
+                        hide = image_data.get('hide', False)
+
+                    media_files.append({'data': file_data, 'name': file_name, 'type': media_type, 
+                                        'hide': hide})
                 else:
                     logger.error(f"Failed to download file {file_id}: status={status}")
             except Exception as e:

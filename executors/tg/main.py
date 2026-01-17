@@ -101,7 +101,8 @@ class TelegramExecutor(BaseExecutor):
                          parse_mode: Optional[str] = 'HTML',
                          list_markup: Optional[list] = None,
                          row_width: int = 3,
-                         reply_to_message_id: Optional[int] = None
+                         reply_to_message_id: Optional[int] = None,
+                         has_spoiler: bool = False
                          ) -> dict:
         """
         Отправить фото.
@@ -130,7 +131,8 @@ class TelegramExecutor(BaseExecutor):
                 caption=caption,
                 parse_mode=parse_mode,
                 reply_markup=markup,
-                reply_to_message_id=reply_to_message_id
+                reply_to_message_id=reply_to_message_id,
+                has_spoiler=has_spoiler
             )
             return {"success": True, "message_id": result.message_id}
         except Exception as e:
@@ -144,7 +146,8 @@ class TelegramExecutor(BaseExecutor):
                          parse_mode: Optional[str] = 'HTML',
                          list_markup: Optional[list] = None,
                          row_width: int = 3,
-                         reply_to_message_id: Optional[int] = None
+                         reply_to_message_id: Optional[int] = None,
+                         has_spoiler: bool = False
                          ) -> dict:
         """
         Отправить видео.
@@ -171,7 +174,8 @@ class TelegramExecutor(BaseExecutor):
                 caption=caption,
                 parse_mode=parse_mode,
                 reply_markup=markup,
-                reply_to_message_id=reply_to_message_id
+                reply_to_message_id=reply_to_message_id,
+                has_spoiler=has_spoiler
             )
             return {"success": True, "message_id": result.message_id}
         except Exception as e:
@@ -226,14 +230,14 @@ class TelegramExecutor(BaseExecutor):
                                media: list,
                                caption: Optional[str] = None,
                                parse_mode: Optional[str] = 'HTML',
-                               reply_to_message_id: Optional[int] = None
+                               reply_to_message_id: Optional[int] = None,
                                ) -> dict:
         """
         Отправить группу медиа (фото и видео).
         
         Args:
             chat_id: ID чата
-            media: Список bytes данных, словарей с file_id или dict с {data, type, name}
+            media: Список bytes данных, словарей с file_id или dict с {data, type, name, hide | has_spoiler}
             caption: Подпись (применяется к первому элементу)
             parse_mode: Режим парсинга
             reply_to_message_id: ID сообщения для ответа
@@ -254,7 +258,7 @@ class TelegramExecutor(BaseExecutor):
                     media_group.append(InputMediaPhoto(
                         media=photo_input,
                         caption=item_caption,
-                        parse_mode=item_parse_mode
+                        parse_mode=item_parse_mode,
                     ))
                 elif isinstance(item, dict):
                     # Новый формат: {data: bytes, type: str, name: str}
@@ -262,20 +266,23 @@ class TelegramExecutor(BaseExecutor):
                         file_data = item['data']
                         file_type = item['type']
                         file_name = item.get('name', f"file_{idx}")
+                        has_spoiler = item.get('hide', False) or item.get('has_spoiler', False)
                         
                         if file_type == 'photo':
                             media_input = BufferedInputFile(file_data, filename=file_name)
                             media_group.append(InputMediaPhoto(
                                 media=media_input,
                                 caption=item_caption,
-                                parse_mode=item_parse_mode
+                                parse_mode=item_parse_mode,
+                                has_spoiler=has_spoiler
                             ))
                         elif file_type == 'video':
                             media_input = BufferedInputFile(file_data, filename=file_name)
                             media_group.append(InputMediaVideo(
                                 media=media_input,
                                 caption=item_caption,
-                                parse_mode=item_parse_mode
+                                parse_mode=item_parse_mode,
+                                has_spoiler=has_spoiler
                             ))
                         else:
                             # Неизвестный тип - пропускаем в media group

@@ -541,6 +541,13 @@ class BrainAPIClient:
         res, status = await self.api.post(f"/files/reorder/{card_id}", data={"file_ids": file_ids})
         return status == 200
 
+    async def toggle_file_hide(self, file_id: str) -> dict | None:
+        """Переключить статус hide файла"""
+        res, status = await self.api.post(f"/files/toggle-hide/{file_id}")
+        if status == 200:
+            return res
+        return None
+
     async def set_content(self, card_id: str, content: str, client_key: Optional[str] = None) -> bool:
         res, status = await self.api.post("/card/set-content", data={"card_id": card_id, "content": content, "client_key": client_key})
         return status == 200

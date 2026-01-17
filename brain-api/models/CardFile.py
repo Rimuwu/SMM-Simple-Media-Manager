@@ -1,6 +1,6 @@
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID as _UUID
-from sqlalchemy import String, BigInteger, ForeignKey, Integer
+from sqlalchemy import String, BigInteger, ForeignKey, Integer, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.connection import Base
@@ -32,6 +32,9 @@ class CardFile(Base, AsyncCRUDMixin):
     
     # Порядок файла в списке отправки (для сортировки)
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    
+    # Скрытие файла (не отображается в списках)
+    hide: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Временные метки
     created_at: Mapped[createAT]
@@ -60,6 +63,7 @@ class CardFile(Base, AsyncCRUDMixin):
             "size": self.size,
             "data_info": self.data_info,
             "order": self.order,
+            "hide": self.hide,
             "created_at": getattr(self, 'created_at', None)
         }
 

@@ -194,11 +194,12 @@ async def send_post(request: PostSendRequest):
                 if len(downloaded_files) == 1:
                     file_info = downloaded_files[0]
                     ftype = file_info.get('type')
+                    has_spoiler = file_info.get('hide', False)
 
                     if ftype == 'photo':
                         send_start = time.perf_counter()
                         result = await executor.send_photo(chat_id=str(chat_id), 
-                                                           photo=file_info['data'], caption=post_text)
+                                                           photo=file_info['data'], caption=post_text, has_spoiler=has_spoiler)
                         send_end = time.perf_counter()
 
                         add_log('tg_send_photo', 'Отправлено фото', duration_ms=(send_end - send_start) * 1000, file_name=file_info.get('name'))
@@ -224,7 +225,8 @@ async def send_post(request: PostSendRequest):
                     result = await executor.send_media_group(
                         chat_id=str(chat_id), 
                         media=downloaded_files, 
-                        caption=post_text)
+                        caption=post_text
+                        )
                     send_end = time.perf_counter()
     
                     add_log('tg_send_media_group', 'Отправлена медиагруппа', 
