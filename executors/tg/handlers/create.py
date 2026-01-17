@@ -62,6 +62,28 @@ async def cmd_create_copywriter(message: Message):
 
     await sc.start()
 
+@dp.message(Command("create"), RoleFilter('editor'))
+async def cmd_create_copywriter(message: Message):
+    n_s = scene_manager.get_scene(message.from_user.id)
+    if n_s:
+        await n_s.end()
+    
+    user = await brain_client.get_user(telegram_id=message.from_user.id)
+    if not user:
+        await message.answer("❌ Ошибка: пользователь не найден в базе данных.")
+        return
+
+    sc = scene_manager.create_scene(
+        message.from_user.id,
+        CreateTaskScene,
+        bot
+    )
+    sc.data['scene']['copywriter_selfcreate'] = True
+    sc.data['scene']['user'] = user['user_id']
+    sc.data['scene']['type'] = 'private'
+
+    await sc.start()
+
 @dp.message(Command("create"))
 async def not_authorized_create(message: Message):
     await message.answer("У вас нет прав для использования этой команды.")
