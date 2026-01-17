@@ -170,6 +170,8 @@ class Page:
         """ Обработка текстовых сообщений с автоматическим определением типа """
         text = message.text or ""
         handled = False
+        result = None
+        data_type = 'str'
 
         # Определяем порядок приоритета типов (от наиболее к наименее специфичным)
         type_priority = ['time', 'int', 'list', 'str']
@@ -193,7 +195,7 @@ class Page:
         # Если есть обработчик для 'all', вызываем его всегда
         if 'all' in self.__text_handlers__:
             handler = self.__text_handlers__['all']['handler']
-            await handler(message=message)
+            result = await handler(message=message)
 
         if result in ['error']: return result
 
@@ -202,8 +204,7 @@ class Page:
             handler = self.__text_handlers__.get('not_handled', {}).get('handler')
             if handler:
                 result = await handler(message=message)
-                if result in ['error']:
-                    return result
+                if result in ['error']: return result
             return 'not_handled'
 
         return data_type
