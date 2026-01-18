@@ -1,11 +1,15 @@
 
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 from uuid import uuid4, UUID as _UUID
 from sqlalchemy import DateTime, Integer, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
+
+# Функция для получения текущего времени в UTC
+def _get_utc_now():
+    return datetime.now(timezone.utc)
 
 # Стандартный тип для создания uuid полей
 uuidPK = Annotated[_UUID, mapped_column(UUID(as_uuid=True), 
@@ -19,13 +23,15 @@ strPK = Annotated[str, mapped_column(String,
 
 # Стандартный тип для создания поля с временем создания (UTC)
 createAT = Annotated[datetime, mapped_column(DateTime,
-    server_default=text("TIMEZONE('utc', now())"))
+    server_default=text("TIMEZONE('utc', now())"),
+    default=_get_utc_now)
                      ]
 
 # Стандартный тип для создания поля с временем обновления (UTC)
 updateAT = Annotated[datetime, mapped_column(DateTime,
     server_default=text("TIMEZONE('utc', now())"),
-    onupdate=text("TIMEZONE('utc', now())"))
+    onupdate=text("TIMEZONE('utc', now())"),
+    default=_get_utc_now)
                    ]
 
 # Стандартный тип для создания автоинкрементных полей числа
