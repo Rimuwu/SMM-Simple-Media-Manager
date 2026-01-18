@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 # Функция для получения текущего времени в UTC
 def _get_utc_now():
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # Стандартный тип для создания uuid полей
 uuidPK = Annotated[_UUID, mapped_column(UUID(as_uuid=True), 
