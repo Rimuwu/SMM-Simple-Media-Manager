@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import JSON, UUID
 from datetime import datetime
 from database.connection import Base
 from database.crud_mixins import AsyncCRUDMixin
-from database.annotated_types import uuidPK
+from database.annotated_types import uuidPK, createAT, updateAT
 from typing import Optional, TYPE_CHECKING
 from uuid import UUID as PyUUID
 
@@ -37,6 +37,10 @@ class ScheduledTask(Base, AsyncCRUDMixin):
     
     # Время выполнения задачи
     execute_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    
+    # Временные метки
+    created_at: Mapped[createAT]
+    updated_at: Mapped[updateAT]
 
     def __repr__(self) -> str:
         return f"<ScheduledTask(id={self.task_id}, execute_at='{self.execute_at}')>"
