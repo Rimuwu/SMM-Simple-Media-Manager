@@ -44,7 +44,7 @@ services:
     networks:
       - smm_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready"]
+      test: ["CMD-SHELL", "nc -z localhost 5432 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -183,7 +183,6 @@ services:
       dockerfile: storage-api/Dockerfile.storage
     environment:
       - VAULT_ADDR=http://vault:8200
-      - VAULT_TOKEN=${VAULT_TOKEN}
       - TZ=Europe/Moscow
     secrets:
       - vault_token
