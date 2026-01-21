@@ -16,6 +16,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from global_modules.vault.vault_client import vault_getenv
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
@@ -74,8 +75,8 @@ def main(argv: list[str] | None = None):
         sys.exit(1)
 
     env = load_env(ROOT / ".env")
-    pg_user = os.getenv("POSTGRES_USER") or env.get("POSTGRES_USER") or "as1"
-    pg_db = os.getenv("POSTGRES_DB") or env.get("POSTGRES_DB") or "smm"
+    pg_user = vault_getenv("POSTGRES_USER") or env.get("POSTGRES_USER") or "as1"
+    pg_db = vault_getenv("POSTGRES_DB") or env.get("POSTGRES_DB") or "smm"
 
     compose_parts = shlex.split(args.compose)
 

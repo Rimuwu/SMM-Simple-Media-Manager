@@ -1,25 +1,54 @@
 services:
 
-  postgres:
-    image: postgres:15-alpine
+  vault:
+    image: hashicorp/vault:latest
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-app}
-      POSTGRES_USER: ${POSTGRES_USER:-app_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
-      TZ: Europe/Moscow
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      VAULT_ADDR: http://0.0.0.0:8200
     ports:
-      - "5432:5432"
-    restart: unless-stopped
+      - "127.0.0.1:8200:8200"
+    cap_add:
+      - IPC_LOCK
+    entrypoint: ["/vault_prod_init.sh"]
+    volumes:
+      - vault_data:/vault/file
+      - ./secrets:/vault/secrets
+      - ./vault/config:/vault/config:ro
+      - ./scripts/vault_prod_init.sh:/vault_prod_init.sh:ro
     networks:
       - smm_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app_user} -d ${POSTGRES_DB:-app}"]
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      VAULT_ADDR: http://vault:8200
+      TZ: Europe/Moscow
+    secrets:
+      - vault_token
+    entrypoint: ["/postgres_vault_entrypoint.sh"]
+    command: ["postgres"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres_vault_entrypoint.sh:/postgres_vault_entrypoint.sh:ro
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    depends_on:
+      vault:
+        condition: service_healthy
+    networks:
+      - smm_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 15s
     deploy:
       resources:
         limits:
@@ -34,21 +63,24 @@ services:
       context: .
       dockerfile: brain-api/Dockerfile.brain
     environment:
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - DEBUG=${DEBUG}
-      - ADMIN_ID=${ADMIN_ID}
-      - KAITEN_TOKEN=${KAITEN_TOKEN}
-      - KAITEN_DOMAIN=${KAITEN_DOMAIN}
+      - VAULT_ADDR=http://vault:8200
       - TZ=Europe/Moscow
+    secrets:
+      - vault_token
     ports:
       - "127.0.0.1:8010:8000"
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
+    entrypoint: ["/entrypoint.sh"]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
       - ./json:/json:rw
+      - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
     networks:
       - smm_network
     healthcheck:
@@ -73,18 +105,22 @@ services:
       context: .
       dockerfile: calendar-api/Dockerfile.calendar
     environment:
-      - DEBUG=${DEBUG}
-      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
-      - GOOGLE_CALENDAR_ID=${GOOGLE_CALENDAR_ID}
-      - TZ=Europe/Moscow
+      - VAULT_ADDR=http://vault:8200
+    secrets:
+      - vault_token
     ports:
       - "127.0.0.1:8011:8001"
     depends_on:
+      vault:
+        condition: service_healthy
       brain:
         condition: service_healthy
+    entrypoint: ["/entrypoint.sh"]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
+      - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
     networks:
       - smm_network
     healthcheck:
@@ -92,7 +128,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 20s
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -107,27 +143,23 @@ services:
       context: .
       dockerfile: executors/Dockerfile.executors
     environment:
-      - TG_BOT_TOKEN=${TG_BOT_TOKEN}
-      - TP_API_ID=${TP_API_ID}
-      - TP_API_HASH=${TP_API_HASH}
-      - TP_PHONE_NUMBER=${TP_PHONE_NUMBER}
-      - VK_GROUP_ID=${VK_GROUP_ID}
-      - VK_ACCESS_TOKEN=${VK_ACCESS_TOKEN}
-      - TP_PASSWORD=${TP_PASSWORD}
-      - DEBUG=${DEBUG}
-      - KAITEN_DOMAIN=${KAITEN_DOMAIN}
-      - TZ=Europe/Moscow
-      - VK_USER_TOKEN=${VK_USER_TOKEN}
-      - ADMIN_ID=${ADMIN_ID}
+      - VAULT_ADDR=http://vault:8200
+    secrets:
+      - vault_token
     ports:
       - "127.0.0.1:8013:8003"
     depends_on:
+      vault:
+        condition: service_healthy
       brain:
         condition: service_healthy
+    entrypoint: ["/entrypoint.sh"]
+    command: ["python", "main.py"]
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
       - ./sessions:/sessions:rw
+      - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
     networks:
       - smm_network
     healthcheck:
@@ -135,7 +167,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 30s
+      start_period: 40s
     deploy:
       resources:
         limits:
@@ -150,14 +182,23 @@ services:
       context: .
       dockerfile: storage-api/Dockerfile.storage
     environment:
-      - DEBUG=${DEBUG}
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=${VAULT_TOKEN}
       - TZ=Europe/Moscow
+    secrets:
+      - vault_token
     ports:
       - "127.0.0.1:8012:8002"
+    depends_on:
+      vault:
+        condition: service_healthy
+    entrypoint: ["/entrypoint.sh"]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
     restart: unless-stopped
     volumes:
       - ./storage_data:/storage:rw
       - ./logs:/logs:rw
+      - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
     networks:
       - smm_network
     healthcheck:
@@ -180,28 +221,25 @@ services:
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB:-app}
-      - POSTGRES_USER=${POSTGRES_USER:-app_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-app_password}
-      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-7}
+      - VAULT_ADDR=http://vault:8200
+      - BACKUP_RETENTION_DAYS=7
       - BACKUP_COMPRESS=true
       - TZ=Europe/Moscow
+    secrets:
+      - vault_token
     volumes:
       - ./backups:/backups:rw
       - ./scripts/backup_postgres.py:/backup_postgres.py:ro
+      - ./scripts/backup_vault_entrypoint.sh:/backup_vault_entrypoint.sh:ro
     depends_on:
+      vault:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
       - smm_network
     restart: unless-stopped
-    command: >
-      sh -c "apk add --no-cache python3 &&
-             while true; do
-               python3 /backup_postgres.py;
-               echo 'Next backup in 24 hours...';
-               sleep 86400;
-             done"
+    entrypoint: ["/backup_vault_entrypoint.sh"]
     deploy:
       resources:
         limits:
@@ -219,6 +257,16 @@ volumes:
   storage_data:
     driver: local
     name: smm_manager_storage_data
+
+  vault_data:
+    driver: local
+    name: smm_manager_vault_data
+
+secrets:
+  vault_token:
+    file: ./secrets/vault_token.txt
+  vault_unseal_key:
+    file: ./secrets/vault_unseal_key.txt
 
 networks:
   smm_network:

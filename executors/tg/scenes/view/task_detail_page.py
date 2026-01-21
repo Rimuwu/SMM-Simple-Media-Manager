@@ -1,4 +1,4 @@
-from os import getenv
+from global_modules.vault.vault_client import vault_getenv as getenv
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator

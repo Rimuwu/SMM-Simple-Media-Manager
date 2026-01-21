@@ -4,8 +4,7 @@ import hashlib
 import json
 import time
 from typing import Optional
-from os import getenv
-
+from global_modules.vault.vault_client import vault_getenv as getenv
 
 CACHE_TIMEOUT = 60
 

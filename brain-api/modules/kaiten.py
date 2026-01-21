@@ -1,6 +1,6 @@
 from typing import Any, Optional
 from global_modules.kaiten_client import KaitenClient
-from os import getenv
+from global_modules.vault.vault_client import vault_getenv as getenv
 
 TOKEN = getenv("KAITEN_TOKEN", '')
 DOMAIN = getenv("KAITEN_DOMAIN", "kaiten.io")

@@ -12,3 +12,8 @@ __pycache__
 clients.json
 backups/*
 storage_data/*
+
+secrets/
+vault_token.txt
+*.pem
+*.key

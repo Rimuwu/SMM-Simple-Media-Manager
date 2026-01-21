@@ -1,4 +1,4 @@
-import os
+from global_modules.vault.vault_client import vault_getenv
 
 def value_env(value: str | dict) -> str | int | bool:
     """Работаем со строками / словарями.
@@ -7,7 +7,7 @@ def value_env(value: str | dict) -> str | int | bool:
     Если значения нет в окружении, возвращаем значение ключа 'env' как есть.
     """
     if isinstance(value, dict) and 'env' in value:
-        return os.environ.get(value['env'], value['env'])
+        return vault_getenv(value['env'], value.get('default'))
     return value
 
 def check_env_config(config: dict) -> dict:

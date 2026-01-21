@@ -2,7 +2,7 @@ from modules.utils import get_display_name
 from tg.oms import Page
 from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
-from os import getenv
+from global_modules.vault.vault_client import vault_getenv as getenv
 
 superuser_id = int(getenv("ADMIN_ID", 0))
 

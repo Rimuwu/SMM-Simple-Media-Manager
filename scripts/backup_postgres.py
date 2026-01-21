@@ -6,7 +6,7 @@ from pathlib import Path
 import gzip
 import shutil
 
-# Конфигурация из переменных окружения
+# Конфигурация из переменных окружения (уже загружены через entrypoint)
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'postgres')
 POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
 POSTGRES_DB = os.getenv('POSTGRES_DB', 'app')
