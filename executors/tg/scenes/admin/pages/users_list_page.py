@@ -14,7 +14,7 @@ DEPARTMENT_NAMES = {
     Department.board_games.value: "Настольные игры",
     Department.smm.value: "SMM",
     Department.judging.value: "Судейство",
-    Department.streaming.value: "Трансляции",
+    Department.streaming.value: "Твич",
     Department.without_department.value: "Без отдела",
 }
 

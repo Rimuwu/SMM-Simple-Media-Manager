@@ -10,12 +10,12 @@ DEPARTMENT_NAMES = {
     Department.it.value: "IT отдел",
     Department.design.value: "Дизайн",
     Department.cosplay.value: "Косплей",
-    Department.craft.value: "Ремесло",
+    Department.craft.value: "Крафт",
     Department.media.value: "Медиа",
     Department.board_games.value: "Настольные игры",
     Department.smm.value: "SMM",
     Department.judging.value: "Судейство",
-    Department.streaming.value: "Стриминг",
+    Department.streaming.value: "Твич",
     Department.without_department.value: "Без отдела",
 }
 
