@@ -163,10 +163,6 @@ async def create_card(card_data: CardCreate):
         logger.error(f"Ошибка при создании карточки в Kaiten: {e}")
         card_id = 0
 
-    # clients_settings = {
-    #     key: {} for key in card_data.channels or []
-    # }
-
     card = await Card.create(
         name=card_data.title,
         description=card_data.description,
@@ -183,6 +179,9 @@ async def create_card(card_data: CardCreate):
         need_check=card_data.need_check,
         editor_id=card_data.editor_id,
     )
+    
+    if card_data.customer_id == card_data.executor_id:
+        await card.update(status=CardStatus.edited)
 
     # Создаём пустые настройки клиентов в отдельной таблице
     from models.ClientSetting import ClientSetting

@@ -1,3 +1,4 @@
+from enum import Enum
 import aiohttp
 import asyncio
 import hashlib
@@ -128,7 +129,11 @@ class APIClient:
                 print(f"GET client error for {endpoint}: {e}")
             return {"error": str(e)}, 502
 
-    async def post(self, endpoint: str, data: dict = None, no_filter_none: bool = False, timeout: Optional[aiohttp.ClientTimeout] = None):
+    async def post(self, 
+                   endpoint: str, 
+                   data: dict = None, 
+                   no_filter_none: bool = False, 
+                   timeout: Optional[aiohttp.ClientTimeout] = None):
         # Убедимся, что сессия создана внутри event loop
         await self._ensure_session()
         # Фильтруем None значения из data
@@ -137,6 +142,9 @@ class APIClient:
 
         if data:
             data = json.loads(json.dumps(data))  # Преобразуем данные в стандартный формат
+
+        if isinstance(endpoint, Enum):
+            endpoint = endpoint.value
 
         try:
             async with self._semaphore:
