@@ -210,7 +210,7 @@ async def create_card(card_data: CardCreate):
 
         if customer and customer.department != Department.smm:
 
-            admins = await User.get_all_by_key('role', UserRole.admin)
+            admins = await User.filter_by(role=UserRole.admin)
             listeners = [admin.telegram_id for admin in admins if admin.telegram_id]
 
             comment = f'Появилась новая личная задача от отдела {customer["department"]}\n\n📝 {card_data.title}\n{card_data.description}'

@@ -262,13 +262,13 @@ class TaskDetailPage(Page):
             if is_admin:
                 # Только админ может изменять название и описание
                 action_buttons.extend([
-                    ('change_name', '✏️ Изменить название'),
-                    ('change_description', '📝 Изменить описание')
+                    ('change_name', '✏️ Изменить название')
                 ])
             action_buttons.extend([
                 ('change_deadline', '⏰ Изменить дедлайн'),
                 ('add_comment', '💬 Добавить комментарий'),
-                ('files-view', '📁 Файлы')
+                ('files-view', '📁 Файлы'),
+                ('change_description', '📝 Изменить описание')
             ])
 
             if task_status in [CardStatus.review, CardStatus.ready]:
