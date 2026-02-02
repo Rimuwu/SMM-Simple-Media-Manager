@@ -213,7 +213,7 @@ async def create_card(card_data: CardCreate):
             admins = await User.filter_by(role=UserRole.admin)
             listeners = [admin.telegram_id for admin in admins if admin.telegram_id]
 
-            comment = f'Появилась новая личная задача от отдела {customer["department"]}\n\n📝 {card_data.title}\n{card_data.description}'
+            comment = f'Появилась новая личная задача от отдела {customer.department}\n\n📝 {card_data.title}\n{card_data.description}'
 
             await notify_users(
                 listeners, comment
