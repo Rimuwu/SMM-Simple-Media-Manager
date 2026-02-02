@@ -516,7 +516,7 @@ async def notify_user(telegram_id: int,
         return False
 
 
-async def notify_users(users: list[_UUID | None], 
+async def notify_users(users: list[_UUID | int | str | None], 
                        message: str,
                        skip_if_page: str | None | list[str] = None
                        ) -> int:
@@ -524,19 +524,37 @@ async def notify_users(users: list[_UUID | None],
     Отправить уведомление списку пользователей.
 
     Args:
-        users: Список объектов User с атрибутом telegram_id
+        users: Список идентификаторов — может быть UUID (`user_id`), `telegram_id` (int), или строка
         message: Текст сообщения
 
     Returns:
         Количество успешно отправленных уведомлений
     """
     success_count = 0
-    users = list(set(users))  # Убираем дубликаты
+    # Убираем дубликаты, сохраняя порядок
+    users = list(dict.fromkeys(users))
 
     for user_id in users:
-        if user_id is None: continue
+        if user_id is None:
+            continue
 
-        user = await User.get_by_key('user_id', user_id)
+        user = None
+        # Если передали telegram_id как int
+        if isinstance(user_id, int):
+            user = await User.get_by_key('telegram_id', user_id)
+        else:
+            # Попробуем распознать UUID
+            try:
+                uid = _UUID(str(user_id))
+                user = await User.get_by_key('user_id', uid)
+            except Exception:
+                # Если строка из цифр — возможно telegram_id
+                if isinstance(user_id, str) and user_id.isdigit():
+                    user = await User.get_by_key('telegram_id', int(user_id))
+                else:
+                    # Последняя попытка: искать по user_id напрямую (например, если это уже UUID объект)
+                    user = await User.get_by_key('user_id', user_id)
+
         if not user or not user.telegram_id:
             continue
 
