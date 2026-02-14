@@ -247,13 +247,18 @@ class TelegramExecutor(BaseExecutor):
                                ) -> dict:
         """
         Отправить группу медиа (фото и видео).
-        
+
+        Примечание: Telegram Bot API не поддерживает `reply_markup` в sendMediaGroup.
+        Если передан `reply_markup`, он будет прикреплён к первому сообщению группы
+        методом `edit_message_reply_markup`
+
         Args:
             chat_id: ID чата
             media: Список bytes данных, словарей с file_id или dict с {data, type, name, hide | has_spoiler}
             caption: Подпись (применяется к первому элементу)
             parse_mode: Режим парсинга
             reply_to_message_id: ID сообщения для ответа
+            reply_markup: InlineKeyboardMarkup или None — будет применён к первому сообщению
         """
         from aiogram.types import InputMediaPhoto, InputMediaVideo, BufferedInputFile
         
@@ -325,10 +330,21 @@ class TelegramExecutor(BaseExecutor):
             result = await self.bot.send_media_group(
                 chat_id=chat_id,
                 media=media_group,
-                reply_to_message_id=reply_to_message_id,
-                reply_markup=reply_markup
+                reply_to_message_id=reply_to_message_id
             )
-            
+
+            # attach reply_markup to the first message of the media group
+            # (Bot.send_media_group does NOT accept reply_markup) 
+            if reply_markup and result:
+                try:
+                    await self.bot.edit_message_reply_markup(
+                        chat_id=chat_id,
+                        message_id=result[0].message_id,
+                        reply_markup=reply_markup
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to attach reply_markup to media group first message: {e}")
+
             # Возвращаем ID первого сообщения и список всех ID
             first_message_id = result[0].message_id if result else None
             all_message_ids = [msg.message_id for msg in result] if result else []
