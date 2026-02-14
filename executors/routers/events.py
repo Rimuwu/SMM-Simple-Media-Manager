@@ -186,3 +186,46 @@ async def notify_user(event: NotifyUserEvent):
     except Exception as e:
         print(f"Error sending notification to user {event.user_id}: {e}")
         return {"status": "error", "error": str(e), "sent": False}
+
+
+class SendLeaderboardEvent(BaseModel):
+    chat_id: int
+    period: Optional[str] = "month"  # month | year | all
+    extra_text: Optional[str] = None
+    reply_to: Optional[int] = None
+    parse_mode: Optional[str] = "html"
+
+@router.post("/send_leaderboard")
+async def send_leaderboard(event: SendLeaderboardEvent):
+    """Send leaderboard (month/year/all) to specified chat — used by brain-api."""
+    logger.info(f"Leaderboard request: chat={event.chat_id} period={event.period}")
+    try:
+        from tg.handlers.leaderboard import get_leaderboard_text
+
+        client_executor: TelegramExecutor = manager.get("telegram_executor") # type: ignore
+        bot: Bot = client_executor.bot
+
+        text = await get_leaderboard_text(event.period or "all")
+        if event.extra_text:
+            text = f"{text}\n\n{event.extra_text}"
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📅 Месяц", callback_data="leaderboard_month"),
+                InlineKeyboardButton(text="📆 Год", callback_data="leaderboard_year"),
+                InlineKeyboardButton(text="🏆 Всё время", callback_data="leaderboard_all"),
+            ]
+        ])
+
+        await bot.send_message(
+            chat_id=event.chat_id,
+            text=text,
+            parse_mode=event.parse_mode,
+            reply_markup=keyboard,
+            reply_to_message_id=event.reply_to
+        )
+
+        return {"status": "ok", "sent": True}
+    except Exception as e:
+        logger.error(f"Error sending leaderboard: {e}")
+        return {"status": "error", "error": str(e)}

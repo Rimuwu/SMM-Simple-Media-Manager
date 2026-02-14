@@ -544,53 +544,8 @@ async def finalize_card_publication(card: Card, **kwargs):
     except Exception as e:
         logger.error(f"Ошибка финализации публикации карточки {card.card_id}: {e}", exc_info=True)
 
-async def get_leaderboard_text(period: str = "all") -> str:
-    """
-    Получить текст лидерборда.
-    
-    Args:
-        period: "all", "year" или "month"
-    
-    Returns:
-        Форматированный текст лидерборда
-    """
-    from sqlalchemy import desc
-    
-    # Получаем пользователей отсортированных по количеству задач
-    if period == "year":
-        users = await User.filter_by()  # Получаем всех
-        users = sorted(users, key=lambda u: u.task_per_year, reverse=True)
-        period_name = "год"
-        get_tasks = lambda u: u.task_per_year
-
-    elif period == "month":
-        users = await User.filter_by()
-        users = sorted(users, key=lambda u: u.task_per_month, reverse=True)
-        period_name = "месяц"
-        get_tasks = lambda u: u.task_per_month
-
-    else:  # all
-        users = await User.filter_by()
-        users = sorted(users, key=lambda u: u.tasks, reverse=True)
-        period_name = "всё время"
-        get_tasks = lambda u: u.tasks
-    
-    # Фильтруем пользователей с 0 задачами
-    users = [u for u in users if get_tasks(u) > 0]
-
-    if not users:
-        return f"🏆 Лидерборд ({period_name})\n\nПока нет выполненных задач."
-
-    # Формируем текст
-    text_lines = [f"🏆 Лидерборд ({period_name})\n"]
-    
-    medals = ["🥇", "🥈", "🥉"]
-    for i, user in enumerate(users[:10]):  # Топ 10
-        medal = medals[i] if i < 3 else f"{i + 1}."
-        tasks_count = get_tasks(user)
-        text_lines.append(f"{medal} ID: {user.telegram_id} — {tasks_count} задач")
-
-    return "\n".join(text_lines)
+# Логика генерации лидерборда перемещена в исполнителя (executors).
+# Brain API теперь только запрашивает у исполнителя отправку лидерборда через ApiEndpoints.SEND_LEADERBOARD.
 
 
 async def reset_monthly_tasks():
@@ -602,22 +557,20 @@ async def reset_monthly_tasks():
     logger.info("Запуск сброса месячного счетчика задач")
     
     try:
-        # Получаем и отправляем лидерборд перед сбросом
-        leaderboard_text = await get_leaderboard_text("month")
-
+        # Запрос исполнителю на отправку лидерборда перед сбросом
         settings = open_settings()
         group_forum = settings.get('group_forum')
 
         if group_forum:
             await executors_api.post(
-                ApiEndpoints.NOTIFY_USER,
+                ApiEndpoints.SEND_LEADERBOARD,
                 data={
-                    "user_id": group_forum,
-                    "message": f"📊 Итоги месяца:\n\n{leaderboard_text}",
+                    "chat_id": group_forum,
+                    "period": "month",
                     "reply_to": settings.get('forum_topic')
                 }
             )
-            logger.info("Лидерборд месяца отправлен на форум")
+            logger.info("Запрошена отправка лидерборда месяца исполнителем")
 
         # Сбрасываем счетчики
         users = await User.filter_by()
@@ -643,22 +596,21 @@ async def reset_yearly_tasks():
     logger.info("Запуск сброса годового счетчика задач")
     
     try:
-        # Получаем и отправляем лидерборд перед сбросом
-        leaderboard_text = await get_leaderboard_text("year")
-        
+        # Запрос исполнителю на отправку лидерборда перед сбросом
         settings = open_settings()
         group_forum = settings.get('group_forum')
         
         if group_forum:
             await executors_api.post(
-                ApiEndpoints.NOTIFY_USER,
+                ApiEndpoints.SEND_LEADERBOARD,
                 data={
-                    "user_id": group_forum,
-                    "message": f"📊 Итоги года:\n\n{leaderboard_text}\n\nС новым годом дизановры!",
+                    "chat_id": group_forum,
+                    "period": "year",
+                    "extra_text": "С новым годом дизановры!",
                     "reply_to": settings.get('forum_topic')
                 }
             )
-            logger.info("Лидерборд года отправлен на форум")
+            logger.info("Запрошена отправка лидерборда года исполнителем")
 
         # Сбрасываем счетчики (годовой и месячный)
         users = await User.filter_by()

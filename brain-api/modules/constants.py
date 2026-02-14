@@ -17,6 +17,7 @@ class ApiEndpoints(str, Enum):
     COMPLETE_UPDATE_PREVIEW = "/forum/update-complete-preview"
     COMPLETE_DELETE_PREVIEW = "/forum/delete-complete-preview"
     NOTIFY_USER = "/events/notify_user"
+    SEND_LEADERBOARD = "/events/send_leaderboard"
     UPDATE_SCENES = "/events/update_scenes"
 
 class SceneNames(str, Enum):
