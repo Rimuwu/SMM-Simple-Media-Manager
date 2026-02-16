@@ -69,7 +69,8 @@ class ClientSettingsPage(Page):
             settings.append(
                 "🖼 Отображение изображений (сетка/карусель)")
         elif executor_type == 'telegram_executor':
-            pass  # Entities managed separately
+            # Добавляем настройку автозакрепа для Telegram
+            settings.append('📌 Автозакреп')
         else:
             settings.append("ℹ️ Нет доступных настроек для этого канала")
         
@@ -113,6 +114,12 @@ class ClientSettingsPage(Page):
                         'callback_data': callback_generator(
                             self.scene.__scene_name__, 'to_image_view')
                     })
+                elif executor_type == 'telegram_executor':
+                    buttons.append({
+                        'text': '📌 Автозакреп',
+                        'callback_data': callback_generator(
+                            self.scene.__scene_name__, 'to_auto_pin')
+                    })
 
         return buttons
 
@@ -154,4 +161,15 @@ class ClientSettingsPage(Page):
         # Сохраняем выбранный клиент в данные сцены
         await self.scene.update_key('client-settings', 'selected_client', self.selected_client)
         await self.scene.update_page('client-settings-image-view',
+                                     selected_client=self.selected_client)
+
+    @Page.on_callback('to_auto_pin')
+    async def to_auto_pin(self, callback, args):
+        """Переход к настройке автозакрепа для Telegram"""
+        if self.selected_client == 'all':
+            await callback.answer("❌ Выберите конкретный канал")
+            return
+
+        await self.scene.update_key('client-settings', 'selected_client', self.selected_client)
+        await self.scene.update_page('client-settings-auto-pin',
                                      selected_client=self.selected_client)

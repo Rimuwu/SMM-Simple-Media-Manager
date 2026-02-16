@@ -17,6 +17,7 @@ from .image_view_setting_page import ImageViewSettingPage
 from tg.oms.common_pages import DatePickerPage
 from tg.scenes.edit.entities import poll, view, keyboard
 from tg.scenes.edit.entities_main import EntitiesMainPage
+from .auto_pin_setting_page import AutoPinSettingPage
 
 
 class TaskScene(Scene):
@@ -40,7 +41,8 @@ class TaskScene(Scene):
         poll.PollCreatePage,
         view.EntityViewPage,
         EntitiesMainPage,
-        keyboard.KeyboardCreatePage
+        keyboard.KeyboardCreatePage,
+        AutoPinSettingPage
     ]
 
     # Привязываем функции для работы с БД

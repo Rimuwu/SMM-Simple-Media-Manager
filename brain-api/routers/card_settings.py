@@ -40,9 +40,16 @@ async def set_client_settings_endpoint(data: CardSettings):
     if data.setting_type not in types:
         raise HTTPException(status_code=400, detail="Invalid setting type for client")
 
-    res, error = await vk_executor.avaibale_types[
-        data.setting_type](
-        card, data.client_id, data.data
-    )
+    if executor_type == 'vk_executor':
+        res, error = await vk_executor.avaibale_types[
+            data.setting_type](
+            card, data.client_id, data.data
+        )
+
+    elif executor_type == 'telegram_executor':
+        res, error = await tg_executor.avaibale_types[
+            data.setting_type](
+            card, data.client_id, data.data
+        )
 
     return res, error

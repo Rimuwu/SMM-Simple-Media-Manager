@@ -468,7 +468,7 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                     if reply_markup:
                         keyboard_result = await client_executor.send_message(
                             chat_id=group_forum,
-                            text="⬆️",
+                            text="🔗",
                             reply_markup=reply_markup,
                             reply_to_message_id=complete_topic
                         )

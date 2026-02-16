@@ -229,7 +229,12 @@ async def send_post(request: PostSendRequest):
 
                     elif ftype == 'video':
                         send_start = time.perf_counter()
-                        result = await executor.send_video(chat_id=str(chat_id), video=file_info['data'], caption=post_text, reply_markup=reply_markup)
+                        result = await executor.send_video(
+                            chat_id=str(chat_id), 
+                            video=file_info['data'], 
+                            caption=post_text, 
+                            reply_markup=reply_markup
+                        )
                         send_end = time.perf_counter()
 
                         add_log('tg_send_video', 
@@ -254,18 +259,35 @@ async def send_post(request: PostSendRequest):
     
                     add_log('tg_send_media_group', 'Отправлена медиагруппа', 
                             duration_ms=(send_end - send_start) * 1000, files_count=len(downloaded_files))
-                    
+
                     # Для media group добавляем клавиатуру отдельным сообщением
                     if reply_markup:
                         keyboard_start = time.perf_counter()
-                        keyboard_result = await executor.send_message(
+                        await executor.send_message(
                             chat_id=str(chat_id),
-                            text="⬆️",
+                            text="🔗",
                             reply_markup=reply_markup
                         )
                         keyboard_end = time.perf_counter()
                         add_log('tg_send_keyboard', 'Отправлена клавиатура к media group', 
                                 duration_ms=(keyboard_end - keyboard_start) * 1000)
+
+                print( request.settings)
+                print('---------------3-3-3-3-')
+                if request.settings.get('auto_pin', True):
+
+                    if result and result.get('success'):
+                        message_id = result.get('message_id')
+
+                        pin_start = time.perf_counter()
+                        pin_result = await executor.bot.pin_chat_message(
+                            chat_id=str(chat_id), message_id=message_id
+                            )
+                        pin_end = time.perf_counter()
+
+                        add_log('tg_pin_message', 'Закреплено сообщение', 
+                                duration_ms=(pin_end - pin_start) * 1000, 
+                                pin_result=pin_result)
             else:
                 send_start = time.perf_counter()
                 result = await executor.send_message(chat_id=str(chat_id), text=post_text, reply_markup=reply_markup)
