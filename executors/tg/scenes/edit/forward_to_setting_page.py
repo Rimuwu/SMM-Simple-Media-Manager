@@ -68,6 +68,13 @@ class ForwardToSettingPage(Page):
                 'callback_data': callback_generator(self.scene.__scene_name__, 'toggle_forward_target', k)
             })
 
+        # only_main_message toggle
+        only_main = clients_settings.get(selected_client, {}).get('only_main_message', True)
+        buttons.append({
+            'text': ('🎯 Только главное сообщение' + (' ✅' if only_main else ' ❌')),
+            'callback_data': callback_generator(self.scene.__scene_name__, 'toggle_only_main')
+        })
+
         return buttons
 
     @Page.on_callback('toggle_forward_target')
@@ -94,7 +101,50 @@ class ForwardToSettingPage(Page):
         else:
             forward_list.append(tgt)
 
-        # Сохраняем через brain-api
+        # Сохраняем через brain-api (сохраняем текущее значение only_main_message если есть)
+        task_id = self.scene.data['scene'].get('task_id')
+        if not task_id:
+            return await callback.answer('❌ Задача не найдена')
+
+        # берем текущее значение only_main_message из настроек (если есть)
+        only_main = cur.get('only_main_message', True)
+
+        response, status = await brain_api.post(
+            '/card/set-client_settings',
+            data={
+                'card_id': task_id,
+                'client_id': selected_client,
+                'setting_type': 'forward_to',
+                'data': {'forward_to': forward_list, 'only_main_message': only_main}
+            }
+        )
+
+        if status == 200 and response:
+            await callback.answer('✅ Настройка сохранена')
+            await self.scene.update_message()
+        else:
+            err = response.get('detail', 'Неизвестная ошибка') if isinstance(response, dict) else 'Ошибка сервера'
+            await callback.answer(f'❌ Ошибка: {err}', show_alert=True)
+
+    @Page.on_callback('toggle_only_main')
+    async def toggle_only_main(self, callback, args):
+        """Toggle only_main_message flag for forward_to"""
+        selected_client = self.scene.data.get(self.__page_name__, {}).get('selected_client')
+        if not selected_client:
+            return await callback.answer('❌ Клиент не выбран')
+
+        card = await self.scene.get_card_data()
+        if not card:
+            return await callback.answer('❌ Карточка не найдена')
+
+        clients_settings = card.get('clients_settings', {})
+        cur = clients_settings.get(selected_client, {})
+        only_main = cur.get('only_main_message', True)
+        new_val = not bool(only_main)
+
+        # keep existing forward_to list
+        forward_list = cur.get('forward_to', []) or []
+
         task_id = self.scene.data['scene'].get('task_id')
         if not task_id:
             return await callback.answer('❌ Задача не найдена')
@@ -105,7 +155,7 @@ class ForwardToSettingPage(Page):
                 'card_id': task_id,
                 'client_id': selected_client,
                 'setting_type': 'forward_to',
-                'data': {'forward_to': forward_list}
+                'data': {'forward_to': forward_list, 'only_main_message': new_val}
             }
         )
 

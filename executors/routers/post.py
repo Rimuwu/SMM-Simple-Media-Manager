@@ -144,7 +144,7 @@ async def send_post(request: PostSendRequest):
                     with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file_name}") as tmp_file:
                         tmp_file.write(file_info['data'])
                         tmp_path = tmp_file.name
-                    add_log("tmp_file_saved", f"Временный файл сохранён", tmp_path=tmp_path)
+                    add_log("tmp_file_saved", "Временный файл сохранён", tmp_path=tmp_path)
 
                     try:
                         upload_start = time.perf_counter()
@@ -164,14 +164,14 @@ async def send_post(request: PostSendRequest):
                         if upload_result.get('success') and upload_result.get('attachment'):
                             attachments.append(upload_result['attachment'])
                             add_log("vk_attachment_added", 
-                                    f"Вложение добавлено", attachment=upload_result.get('attachment'))
+                                    "Вложение добавлено", attachment=upload_result.get('attachment'))
                         else:
                             add_log("vk_upload_error", f"Ошибка загрузки {file_name}", level="error", error=upload_result.get('error'))
 
                     finally:
                         try:
                             os_module.unlink(tmp_path)
-                            add_log("tmp_file_removed", f"Временный файл удалён", tmp_path=tmp_path)
+                            add_log("tmp_file_removed", "Временный файл удалён", tmp_path=tmp_path)
                         except Exception as ex_rm:
                             add_log("tmp_remove_error", f"Не удалось удалить временный файл: {ex_rm}", level="warning")
 
@@ -213,6 +213,12 @@ async def send_post(request: PostSendRequest):
                 if keyboard_buttons:
                     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
+            # collect sent message ids (main + entities) for optional forwarding
+            sent_message_ids: list[int] = []
+            main_message_id = None
+            keyboard_message_id: int | None = None
+            is_media_group = False
+
             if downloaded_files:
                 if len(downloaded_files) == 1:
                     file_info = downloaded_files[0]
@@ -248,6 +254,12 @@ async def send_post(request: PostSendRequest):
 
                         add_log('tg_send_document', 
                                 'Отправлен документ', duration_ms=(send_end - send_start) * 1000, file_name=file_info.get('name'))
+
+                    # collect single-message id
+                    if result and result.get('success') and result.get('message_id'):
+                        main_message_id = result.get('message_id')
+                        sent_message_ids.append(main_message_id)
+
                 else:
                     send_start = time.perf_counter()
                     result = await executor.send_media_group(
@@ -260,60 +272,41 @@ async def send_post(request: PostSendRequest):
                     add_log('tg_send_media_group', 'Отправлена медиагруппа', 
                             duration_ms=(send_end - send_start) * 1000, files_count=len(downloaded_files))
 
+                    is_media_group = True
+
+                    # collect media_group message ids (preserve actual send order: media messages first)
+                    if result and result.get('success'):
+                        group_ids = result.get('message_ids') or []
+                        if group_ids:
+                            main_message_id = result.get('message_id')
+                            sent_message_ids.extend(group_ids)
+
                     # Для media group добавляем клавиатуру отдельным сообщением
+                    keyboard_message_id = None
                     if reply_markup:
                         keyboard_start = time.perf_counter()
-                        await executor.send_message(
+                        keyboard_result = await executor.send_message(
                             chat_id=str(chat_id),
                             text="🔗",
                             reply_markup=reply_markup
                         )
                         keyboard_end = time.perf_counter()
-                        add_log('tg_send_keyboard', 'Отправлена клавиатура к media group', 
-                                duration_ms=(keyboard_end - keyboard_start) * 1000)
+                        add_log('tg_send_keyboard', 'Отправлена клавиатура к media group',
+                                duration_ms=(keyboard_end - keyboard_start) * 1000, result=keyboard_result)
+                        if keyboard_result and keyboard_result.get('success') and keyboard_result.get('message_id'):
+                            keyboard_message_id = keyboard_result.get('message_id')
+                            sent_message_ids.append(keyboard_message_id)
 
-                # Репост (forward) — если в настройках клиента указан список целевых clients
-                forward_list = request.settings.get(
-                    'forward_to') if isinstance(request.settings, dict) else None
-                if forward_list and result and result.get('success'):
-                    message_id = result.get('message_id')
-                    if message_id:
-                        for tgt in forward_list:
-                            # Пропускаем если цель — тот же клиент
-                            if tgt == request.client_key:
-                                continue
-
-                            tgt_conf = CLIENTS.get(tgt)
-                            if not tgt_conf:
-                                add_log('tg_forward_skip', f'Client not found: {tgt}', level='warning')
-                                continue
-
-                            tgt_executor = tgt_conf.get('executor_name') or tgt_conf.get('executor')
-                            # Поддерживаем только Telegram -> Telegram forward
-                            if tgt_executor != 'telegram_executor':
-                                add_log('tg_forward_skip', f'Unsupported target executor for {tgt}: {tgt_executor}', level='warning')
-                                continue
-
-                            tgt_chat_id = tgt_conf.get('client_id')
-                            try:
-                                fwd_start = time.perf_counter()
-                                fwd_msg = await executor.bot.forward_message(
-                                    chat_id=str(tgt_chat_id),
-                                    from_chat_id=str(chat_id),
-                                    message_id=message_id
-                                )
-                                fwd_end = time.perf_counter()
-
-                                add_log('tg_forward', f'Forwarded to {tgt}', duration_ms=(fwd_end - fwd_start) * 1000,
-                                        target=tgt, forwarded_message_id=getattr(fwd_msg, 'message_id', None))
-                            except Exception as e:
-                                add_log('tg_forward_failed', f'Failed to forward to {tgt}: {e}', level='error', target=tgt)
             else:
                 send_start = time.perf_counter()
                 result = await executor.send_message(chat_id=str(chat_id), text=post_text, reply_markup=reply_markup)
                 send_end = time.perf_counter()
                 add_log('tg_send_message', 
                         'Отправлено текстовое сообщение', duration_ms=(send_end - send_start) * 1000)
+
+                if result and result.get('success') and result.get('message_id'):
+                    main_message_id = result.get('message_id')
+                    sent_message_ids.append(main_message_id)
 
         # Результат отправки
         if result and result.get('success'):
@@ -345,7 +338,9 @@ async def send_post(request: PostSendRequest):
                                         duration_ms=(ent_end - ent_start) * 1000, 
                                         entity_type='poll', result=poll_result
                                         )
- 
+                                # collect entity message id for possible forwarding
+                                if poll_result.get('message_id'):
+                                    sent_message_ids.append(poll_result.get('message_id'))
                             else:
                                 add_log('entity_send_failed', 
                                         f"Не удалось отправить сущность {entity.get('id')}: {poll_result.get('error')}", 
@@ -356,6 +351,136 @@ async def send_post(request: PostSendRequest):
                             add_log('entity_skip', f"Неподдерживаемый тип сущности: {entity_type}", level='warning')
                     except Exception as e:
                         add_log('entity_error', f"Ошибка при отправке сущности: {e}", level='error')
+
+            # Forwarding: if forward_to is set in client settings — forward messages to target clients
+            forward_list = request.settings.get('forward_to') if isinstance(request.settings, dict) else None
+            only_main = request.settings.get('only_main_message', True) if isinstance(request.settings, dict) else True
+
+            if forward_list and isinstance(forward_list, list) and sent_message_ids:
+                # choose which message ids to forward
+                if only_main:
+                    to_forward = []
+                    if main_message_id:
+                        to_forward = [main_message_id]
+                    elif sent_message_ids:
+                        to_forward = [sent_message_ids[0]]
+                else:
+                    to_forward = list(dict.fromkeys(sent_message_ids))  # unique preserve order
+
+                if to_forward:
+                    for tgt in forward_list:
+                        # skip if target is the same client
+                        if tgt == request.client_key:
+                            continue
+
+                        tgt_conf = CLIENTS.get(tgt)
+                        if not tgt_conf:
+                            add_log('tg_forward_skip', f'Client not found: {tgt}', level='warning')
+                            continue
+
+                        tgt_executor = tgt_conf.get('executor_name') or tgt_conf.get('executor')
+                        # only support Telegram->Telegram forwarding for now
+                        if tgt_executor != 'telegram_executor':
+                            add_log('tg_forward_skip', f'Unsupported target executor for {tgt}: {tgt_executor}', level='warning')
+                            continue
+
+                        tgt_chat_id = tgt_conf.get('client_id')
+                        try:
+                            # Special-case: original post was a media-album and user asked to forward all messages ->
+                            # re-send the album as a single media_group to the target (better than forwarding messages one-by-one),
+                            # then re-send the keyboard message (inline keyboard won't be preserved by forward_message).
+                            if is_media_group and (not only_main) and sent_message_ids:
+                                # Forward only the first photo of the album (use forward_message per requirement)
+                                # find group ids if available (fallback to sent_message_ids ordering)
+                                try:
+                                    _group_ids = group_ids
+                                except NameError:
+                                    _group_ids = [mid for mid in sent_message_ids if keyboard_message_id is None or mid != keyboard_message_id]
+
+                                first_media_id = None
+                                if _group_ids:
+                                    first_media_id = _group_ids[0]
+                                else:
+                                    for mid in to_forward:
+                                        if keyboard_message_id and mid == keyboard_message_id:
+                                            continue
+                                        first_media_id = mid
+                                        break
+
+                                # forward the first media message
+                                if first_media_id:
+                                    try:
+                                        fwd_start = time.perf_counter()
+                                        fwd_msg = await executor.bot.forward_message(
+                                            chat_id=str(tgt_chat_id),
+                                            from_chat_id=str(chat_id),
+                                            message_id=first_media_id
+                                        )
+                                        fwd_end = time.perf_counter()
+                                        add_log('tg_forward_first_media', f'Forwarded first media to {tgt}', duration_ms=(fwd_end - fwd_start) * 1000,
+                                                target=tgt, forwarded_message_id=getattr(fwd_msg, 'message_id', None))
+                                    except Exception as e:
+                                        add_log('tg_forward_failed', f'Failed to forward first media to {tgt}: {e}', level='error', target=tgt)
+
+                                # forward keyboard message as a forward (so it appears in target)
+                                if keyboard_message_id:
+                                    try:
+                                        kb_fwd_start = time.perf_counter()
+                                        kb_fwd_msg = await executor.bot.forward_message(
+                                            chat_id=str(tgt_chat_id),
+                                            from_chat_id=str(chat_id),
+                                            message_id=keyboard_message_id
+                                        )
+                                        kb_fwd_end = time.perf_counter()
+                                        add_log('tg_forward_keyboard', f'Forwarded keyboard message to {tgt}', duration_ms=(kb_fwd_end - kb_fwd_start) * 1000,
+                                                target=tgt, forwarded_message_id=getattr(kb_fwd_msg, 'message_id', None))
+                                    except Exception as e:
+                                        add_log('tg_forward_failed', f'Failed to forward keyboard to {tgt}: {e}', level='warning', target=tgt)
+
+                                # Forward remaining entity messages (polls etc.) that are not part of the album or keyboard
+                                for pending_id in to_forward:
+                                    # skip other album items and already-forwarded ids
+                                    if (_group_ids and pending_id in _group_ids) or (keyboard_message_id and pending_id == keyboard_message_id) or (pending_id == first_media_id):
+                                        continue
+                                    try:
+                                        ent_fwd_start = time.perf_counter()
+                                        ent_fwd_msg = await executor.bot.forward_message(
+                                            chat_id=str(tgt_chat_id),
+                                            from_chat_id=str(chat_id),
+                                            message_id=pending_id
+                                        )
+                                        ent_fwd_end = time.perf_counter()
+                                        add_log('tg_forward_entity', f'Forwarded entity to {tgt}', duration_ms=(ent_fwd_end - ent_fwd_start) * 1000,
+                                                target=tgt, forwarded_message_id=getattr(ent_fwd_msg, 'message_id', None))
+                                    except Exception as e:
+                                        add_log('tg_forward_failed', f'Failed to forward entity to {tgt}: {e}', level='error', target=tgt)
+                            else:
+                                # Per-message forwarding: forward messages in original order.
+                                for msg_id in to_forward:
+                                    # if this id is the keyboard message — re-send it to preserve markup
+                                    if msg_id == keyboard_message_id and reply_markup:
+                                        kb_start = time.perf_counter()
+                                        kb_res = await executor.send_message(
+                                            chat_id=str(tgt_chat_id),
+                                            text="🔗",
+                                            reply_markup=reply_markup
+                                        )
+                                        kb_end = time.perf_counter()
+                                        add_log('tg_forward_keyboard', f'Re-sent keyboard to {tgt}', duration_ms=(kb_end - kb_start) * 1000,
+                                                target=tgt, result=kb_res)
+                                    else:
+                                        fwd_start = time.perf_counter()
+                                        fwd_msg = await executor.bot.forward_message(
+                                            chat_id=str(tgt_chat_id),
+                                            from_chat_id=str(chat_id),
+                                            message_id=msg_id
+                                        )
+                                        fwd_end = time.perf_counter()
+
+                                        add_log('tg_forward', f'Forwarded to {tgt}', duration_ms=(fwd_end - fwd_start) * 1000,
+                                                target=tgt, forwarded_message_id=getattr(fwd_msg, 'message_id', None))
+                        except Exception as e:
+                            add_log('tg_forward_failed', f'Failed to forward to {tgt}: {e}', level='error', target=tgt)
 
             if request.settings.get('auto_pin', True):
                 if result and result.get('success'):

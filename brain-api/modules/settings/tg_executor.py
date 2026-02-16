@@ -35,7 +35,7 @@ async def forward_to(card: Card,
                      data: dict
                      ) -> tuple[bool, str]:
     forward_list = data.get('forward_to')
-    only_main_message = data.get('only_main_message', False)
+    only_main_message = data.get('only_main_message', True)
 
     if forward_list is None:
         return False, "Missing 'forward_to' in data"
