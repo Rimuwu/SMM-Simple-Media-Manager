@@ -120,7 +120,7 @@ class MainPage(Page):
 
     async def buttons_worker(self) -> list[dict]:
         result = await super().buttons_worker()
-        
+
         if debug:
             result.append(
                 {
@@ -133,7 +133,7 @@ class MainPage(Page):
             )
 
         return result
-    
+
     @Page.on_callback('test_data')
     async def test_data_handler(self, callback, args):
         await self.scene.update_key(
@@ -154,8 +154,8 @@ class MainPage(Page):
             datetime.today().isoformat()
         )
         await self.scene.update_message()
-    
-    
+
+
     async def post_buttons(self, 
                            buttons: list[dict]) -> list[dict]:
 
@@ -171,6 +171,15 @@ class MainPage(Page):
                 buttons_lst[ind][
                     'next_line'] = False
 
+            if 'to_page_name' in item and 'style' not in item:
+                if item['to_page_name'] in ['finish']:
+                    buttons_lst[ind]['style'] = 'success'
+                elif item['to_page_name'] in ['cancel']:
+                    buttons_lst[ind]['style'] = 'danger'
+                elif item['to_page_name'] in [
+                    'ai-parse']:
+                    buttons_lst[ind]['style'] = 'primary'
+
         if not self.scene.data['scene']['copywriter_selfcreate']:
             mode = self.scene.data['scene'].get(
                 'mode', 'advanced'
@@ -181,7 +190,8 @@ class MainPage(Page):
                 'text': mode_text,
                 'callback_data': callback_generator(
                     self.scene.__scene_name__, 'mode_toggle'
-                    )
+                    ),
+                'style': 'primary'
             })
 
         return buttons_lst

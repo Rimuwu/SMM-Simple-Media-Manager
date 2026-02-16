@@ -8,6 +8,7 @@ from modules.api_client import brain_api, get_kaiten_users_dict
 from modules.logs import executors_logger as logger
 from tg.filters.authorize import Authorize
 from modules.utils import get_display_name
+from tg.filters.in_dm import InDMorWorkGroup
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp  # type: ignore
@@ -95,7 +96,7 @@ async def get_leaderboard_text(period: str = 'all') -> str:
         return f"❌ Ошибка: {str(e)[:100]}"
 
 
-@dp.message(Command("leaderboard"), Authorize())
+@dp.message(Command("leaderboard"), Authorize(), InDMorWorkGroup())
 async def leaderboard_command(message: Message):
     """
     Команда /leaderboard - показывает лидерборд
@@ -132,7 +133,7 @@ async def leaderboard_command(message: Message):
     await message.answer(text, parse_mode="html", reply_markup=keyboard)
 
 
-@dp.callback_query(lambda c: c.data.startswith('leaderboard_'))
+@dp.callback_query(lambda c: c.data.startswith('leaderboard_'), InDMorWorkGroup())
 async def leaderboard_callback(callback):
     """Обработчик кнопок переключения периода лидерборда"""
     period = callback.data.replace('leaderboard_', '')

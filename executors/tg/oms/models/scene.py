@@ -185,7 +185,8 @@ class Scene:
                         self.__scene_name__, 
                         'to_page', page_name
                     ),
-                    'next_line': len(buttons) > 0 and i == 0
+                    'next_line': len(buttons) > 0 and i == 0,
+                    'to_page_name': page_name
                 })
 
         buttons = await page.post_buttons(buttons)

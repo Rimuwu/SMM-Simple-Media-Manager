@@ -8,13 +8,14 @@ from tg.oms import scene_manager
 from tg.scenes.create.create_scene import CreateTaskScene
 from tg.filters.role_filter import RoleFilter
 from tg.filters.authorize import Authorize
+from tg.filters.in_dm import InDMorWorkGroup
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
 bot: Bot = client_executor.bot
 
 
-@dp.message(Command("create"), RoleFilter('admin'))
+@dp.message(Command("create"), RoleFilter('admin'), InDMorWorkGroup())
 async def cmd_create(message: Message):
 
     try:
@@ -36,11 +37,11 @@ async def cmd_create(message: Message):
         )
         await sc.start()
 
-@dp.message(Command("create"), RoleFilter('customer'))
+@dp.message(Command("create"), RoleFilter('customer'), InDMorWorkGroup())
 async def cmd_create_customer(message: Message):
     await cmd_create(message)
 
-@dp.message(Command("create"), RoleFilter('copywriter'))
+@dp.message(Command("create"), RoleFilter('copywriter'), InDMorWorkGroup())
 async def cmd_create_copywriter(message: Message):
     n_s = scene_manager.get_scene(message.from_user.id)
     if n_s:
@@ -62,8 +63,8 @@ async def cmd_create_copywriter(message: Message):
 
     await sc.start()
 
-@dp.message(Command("create"), RoleFilter('editor'))
-async def cmd_create_copywriter(message: Message):
+@dp.message(Command("create"), RoleFilter('editor'), InDMorWorkGroup())
+async def cmd_create_editor(message: Message):
     n_s = scene_manager.get_scene(message.from_user.id)
     if n_s:
         await n_s.end()
@@ -84,11 +85,11 @@ async def cmd_create_copywriter(message: Message):
 
     await sc.start()
 
-@dp.message(Command("create"))
+@dp.message(Command("create"), InDMorWorkGroup())
 async def not_authorized_create(message: Message):
     await message.answer("У вас нет прав для использования этой команды.")
 
-@dp.message(Command("cancel"), Authorize())
+@dp.message(Command("cancel"), Authorize(), InDMorWorkGroup())
 async def cancel(message: Message):
 
     ss = scene_manager.get_scene(message.from_user.id)
@@ -96,6 +97,6 @@ async def cancel(message: Message):
         await ss.end()
         await message.answer("Вы вышли из текущей сцены.")
 
-@dp.message(Command("cancel"))
+@dp.message(Command("cancel"), InDMorWorkGroup())
 async def cancel_na(message: Message):
     await message.answer("У вас нет прав для использования этой команды.")

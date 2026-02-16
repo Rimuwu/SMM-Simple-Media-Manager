@@ -32,7 +32,8 @@ class FinishPage(Page):
                 'callback_data': callback_generator(
                     self.scene.__scene_name__,
                     'end'),
-                'ignore_row': True
+                'ignore_row': True,
+                'style': 'success'
             })
 
         return buttons

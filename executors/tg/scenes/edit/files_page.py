@@ -5,7 +5,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from tg.oms import Page
 from global_modules.brain_client import brain_client
 from modules.logs import executors_logger as logger
-from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension
+from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension, is_video_by_mime_or_extension, detect_file_type_by_bytes
 
 
 class FilesPage(Page):
@@ -159,17 +159,11 @@ class FilesPage(Page):
 
             toggle_action = 'toggle_remove' if is_selected else 'toggle_add'
             toggle_text = '❌ Убрать из выбранных' if is_selected else '✅ Добавить к выбранным'
-            
+
             hide_emoji = '👁️' if is_hidden else '🙈'
             hide_text = f'{hide_emoji} {"Показать" if is_hidden else "Скрыть"}'
 
-            buttons = [
-                [
-                    InlineKeyboardButton(
-                        text='🗑 Удалить сообщение', 
-                        callback_data='delete_message')
-                ]
-            ]
+            buttons = []
 
             if self.__can_select__:
                 buttons.append([
@@ -191,82 +185,68 @@ class FilesPage(Page):
                 )
             ])
 
+            buttons.append([
+                InlineKeyboardButton(
+                    text='🗑 Закрыть сообщение',
+                    callback_data='delete_message',
+                    style='primary'
+                )
+            ])
+            
+
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=buttons
             )
             
-            hide_status_text = f"\n🙈 Скрыт: {'Да' if is_hidden else 'Нет'}"
+            hide_status_text = f"\nСкрыт: 🙈 {'Да' if is_hidden else 'Нет'}"
             selection_status = f"✅ Выбран" if is_selected else "⬜️ Не выбран"
 
-            await callback.message.answer_photo(
-                photo=BufferedInputFile(file_data, 
-                filename='preview.png'
-                ), 
-                caption=f"📷 {target.get('original_filename', target.get('name', 'Без имени'))}\n\nСтатус: {selection_status}{hide_status_text}", 
-                reply_markup=keyboard,
-                has_spoiler=is_hidden
+            # Определяем тип файла (video или image) по MIME/имени/байтам
+            mime = None
+            data_info = target.get('data_info') or {}
+            mime = data_info.get('mime_type') or target.get('mime_type') or ''
+            original_name = target.get('original_filename') or target.get('name') or ''
+
+            is_video = is_video_by_mime_or_extension(mime, original_name)
+
+            # Фоллбек: если mime/имя не дают ответа — определим по байтам
+            if not is_video:
+                try:
+                    _mime, _ext, ftype = detect_file_type_by_bytes(file_data)
+                    is_video = (ftype == 'video')
+                except Exception:
+                    is_video = False
+
+            caption_text = f"{('🎬' if is_video else '📷')} {target.get('original_filename', target.get('name', 'Без имени'))}\n\nСтатус: {selection_status}{hide_status_text}"
+
+            if is_video:
+                # Подбираем корректное имя файла с расширением
+                if '.' in original_name:
+                    fname = original_name
+                else:
+                    try:
+                        _mime, ext, _ = detect_file_type_by_bytes(file_data)
+                        fname = f'preview{ext or ".mp4"}'
+                    except Exception:
+                        fname = 'preview.mp4'
+
+                await callback.message.answer_video(
+                    video=BufferedInputFile(file_data, filename=fname),
+                    caption=caption_text,
+                    reply_markup=keyboard,
+                    has_spoiler=is_hidden
                 )
-            await callback.answer()
-
+            else:
+                await callback.message.answer_photo(
+                    photo=BufferedInputFile(file_data, filename='preview.png'),
+                    caption=caption_text,
+                    reply_markup=keyboard,
+                    has_spoiler=is_hidden
+                )
+        
         except Exception as e:
-            logger.debug('Error showing preview: %s', e)
-            await callback.answer('❌ Произошла ошибка')
-
-    async def _toggle_selected_by_idx(self, idx: int, add: bool):
-        target = await self._file_by_idx(idx)
-        if not target:
-            return None, '❌ Файл не найден'
-        fid = str(target.get('id'))
-        sel = await self._selected()
-
-        if add:
-            if fid in sel:
-                return None, '⚠️ Уже добавлен'
-            if len(sel) >= self.max_files:
-                return None, f'❌ Максимум {self.max_files} файлов'
-            sel.append(fid)
-
-        else:
-            if fid not in sel:
-                return None, '⚠️ Не был добавлен'
-            sel.remove(fid)
-        await self._set_selected(sel)
-        return target, None
-
-    @Page.on_callback('toggle_add')
-    async def toggle_add_handler(self, callback: CallbackQuery, args: list):
-        if len(args) < 2:
-            return await callback.answer('❌ Ошибка')
-        try:
-            idx = int(args[1])
-        except Exception:
-            return await callback.answer('❌ Ошибка: неверный индекс')
-        target, err = await self._toggle_selected_by_idx(idx, True)
-        if err:
-            return await callback.answer(err)
-        await callback.answer(f"✅ Добавлен: {target.get('original_filename', '')[:30]}")
-
-        try: await callback.message.delete()
-        except: pass
-        await self.scene.update_message()
-
-    @Page.on_callback('toggle_remove')
-    async def toggle_remove_handler(self, callback: CallbackQuery, args: list):
-        if len(args) < 2:
-            return await callback.answer('❌ Ошибка')
-        try:
-            idx = int(args[1])
-        except Exception:
-            return await callback.answer('❌ Ошибка: неверный индекс')
-
-        target, err = await self._toggle_selected_by_idx(idx, False)
-        if err:
-            return await callback.answer(err)
-        await callback.answer(f"❌ Убран: {target.get('original_filename', '')[:30]}")
-    
-        try: await callback.message.delete()
-        except: pass
-        await self.scene.update_message()
+            logger.error(f'Error showing file preview: {e}')
+            await callback.answer('❌ Произошла ошибка при отображении файла')
 
     @Page.on_callback('toggle_hide')
     async def toggle_hide_handler(self, callback: CallbackQuery, args: list):
@@ -372,4 +352,59 @@ class FilesPage(Page):
             return
         await self._upload_common(message, file_id, 
                                   filename, mime)
+    
+    async def _toggle_selected_by_idx(self, idx: int, add: bool):
+        target = await self._file_by_idx(idx)
+        if not target:
+            return None, '❌ Файл не найден'
+        fid = str(target.get('id'))
+        sel = await self._selected()
 
+        if add:
+            if fid in sel:
+                return None, '⚠️ Уже добавлен'
+            if len(sel) >= self.max_files:
+                return None, f'❌ Максимум {self.max_files} файлов'
+            sel.append(fid)
+
+        else:
+            if fid not in sel:
+                return None, '⚠️ Не был добавлен'
+            sel.remove(fid)
+        await self._set_selected(sel)
+        return target, None
+
+    @Page.on_callback('toggle_add')
+    async def toggle_add_handler(self, callback: CallbackQuery, args: list):
+        if len(args) < 2:
+            return await callback.answer('❌ Ошибка')
+        try:
+            idx = int(args[1])
+        except Exception:
+            return await callback.answer('❌ Ошибка: неверный индекс')
+        target, err = await self._toggle_selected_by_idx(idx, True)
+        if err:
+            return await callback.answer(err)
+        await callback.answer(f"✅ Добавлен: {target.get('original_filename', '')[:30]}")
+
+        try: await callback.message.delete()
+        except: pass
+        await self.scene.update_message()
+
+    @Page.on_callback('toggle_remove')
+    async def toggle_remove_handler(self, callback: CallbackQuery, args: list):
+        if len(args) < 2:
+            return await callback.answer('❌ Ошибка')
+        try:
+            idx = int(args[1])
+        except Exception:
+            return await callback.answer('❌ Ошибка: неверный индекс')
+
+        target, err = await self._toggle_selected_by_idx(idx, False)
+        if err:
+            return await callback.answer(err)
+        await callback.answer(f"❌ Убран: {target.get('original_filename', '')[:30]}")
+    
+        try: await callback.message.delete()
+        except: pass
+        await self.scene.update_message()

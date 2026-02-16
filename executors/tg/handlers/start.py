@@ -15,12 +15,13 @@ from tg.scenes.edit.task_scene import TaskScene
 from global_modules.brain_client import brain_client
 from urllib.parse import unquote_plus
 import re
+from tg.filters.in_dm import InDMorWorkGroup
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
 bot: Bot = client_executor.bot
 
-@dp.message(Command("start"), Authorize())
+@dp.message(Command("start"), Authorize(), InDMorWorkGroup())
 async def start_au(message: Message):
     # Если в команде есть аргументы — пытаемся обработать deep-link открытия задачи
     raw_args = ''
@@ -132,7 +133,7 @@ async def start_au(message: Message):
     )
 
 
-@dp.message(Command("start"))
+@dp.message(Command("start"), InDMorWorkGroup())
 async def start(message: Message):
     text = (
         "👋 Привет! Добро пожаловать в *Cyber-SMM*\n"

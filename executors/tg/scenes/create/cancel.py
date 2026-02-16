@@ -14,7 +14,8 @@ class CancelPage(Page):
                 self.scene.__scene_name__,
                 'reset'
             ),
-            'next_line': True
+            'next_line': True,
+            'style': 'danger'
         })
 
         return buttons

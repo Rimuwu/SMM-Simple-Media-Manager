@@ -350,7 +350,7 @@ class Page:
             Позволяет модифицировать список кнопок перехода
         """
         return to_page_buttons
-    
+
     async def post_buttons(self, 
                            buttons: list[dict]
                            ) -> list[dict]:

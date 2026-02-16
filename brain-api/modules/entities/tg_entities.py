@@ -71,7 +71,7 @@ def validate_inline_keyboard(data: dict) -> dict:
     Expected format:
     {
         'buttons': [
-            {'text': str, 'url': str},
+            {'text': str, 'url': str, optional 'style': 'primary'|'success'|'danger'},
             ...
         ],
         optional: 'name': str
@@ -89,18 +89,19 @@ def validate_inline_keyboard(data: dict) -> dict:
     for btn in buttons:
         if not isinstance(btn, dict):
             raise HTTPException(status_code=422, detail="Each button must be a dict")
-        
+
         text = btn.get('text')
         url = btn.get('url')
-        
+        style = btn.get('style', None)
+
         if not text or not isinstance(text, str):
             raise HTTPException(status_code=423, detail="Button must contain 'text' (str)")
         if not url or not isinstance(url, str):
             raise HTTPException(status_code=424, detail="Button must contain 'url' (str)")
-        
+
         text = text.strip()
         url = url.strip()
-        
+
         if not text or not url:
             raise HTTPException(status_code=425, detail="Button text and url cannot be empty")
 
@@ -109,7 +110,8 @@ def validate_inline_keyboard(data: dict) -> dict:
 
         normalized_buttons.append({
             'text': text,
-            'url': url
+            'url': url,
+            'style': style if style in ('primary', 'success', 'danger') else None
         })
 
     if len(normalized_buttons) > 12:

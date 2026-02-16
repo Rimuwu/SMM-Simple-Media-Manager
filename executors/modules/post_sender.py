@@ -137,8 +137,10 @@ async def send_post_preview(
                     for btn in buttons:
                         text_btn = btn.get('text')
                         url = btn.get('url')
+                        style = btn.get('style', None)
                         if text_btn and url:
-                            row.append(InlineKeyboardButton(text=text_btn, url=url))
+                            row.append(InlineKeyboardButton(
+                                text=text_btn, url=url, style=style))
                     if row:
                         keyboard_buttons.append(row)
 
@@ -158,7 +160,6 @@ async def send_post_preview(
         # Одиночный файл
         elif len(media_files) == 1:
             file_info = media_files[0]
-            print(file_info.keys())
 
             # Нормализуем вход — поддерживаем dict {'data','name','type'} и raw bytes
             if isinstance(file_info, (bytes, bytearray)):
@@ -257,12 +258,12 @@ async def send_post_preview(
                     media=media_group
                 )
                 message_ids = [m.message_id for m in messages]
-                
+
                 # Для media group добавляем клавиатуру отдельным невидимым сообщением
                 if reply_markup:
                     keyboard_msg = await bot.send_message(
                         chat_id=chat_id,
-                        text="⬆️",  # Стрелка вверх для указания на пост
+                        text="🔗",
                         reply_markup=reply_markup
                     )
                     message_ids.append(keyboard_msg.message_id)
@@ -272,7 +273,7 @@ async def send_post_preview(
 
         for entity in entities or []:
             entity_type = entity.get('type')
-            
+
             # inline_keyboard уже обработан выше
             if entity_type == 'inline_keyboard':
                 continue
@@ -284,7 +285,6 @@ async def send_post_preview(
                     chat_id=chat_id,
                     entity_data=entity_data
                 )
-                print(res)
                 if isinstance(res.get('message_id'), int):
                     message_ids.append(res.get('message_id'))
 

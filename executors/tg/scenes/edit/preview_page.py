@@ -108,7 +108,8 @@ class PreviewPage(Page):
                     self.scene.__scene_name__,
                     'preview_all'
                 ),
-                'ignore_row': True
+                'ignore_row': True,
+                'style': 'primary'
             })
 
         return buttons

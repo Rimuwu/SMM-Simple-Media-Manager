@@ -7,7 +7,7 @@ from aiogram.filters import Command
 from tg.filters.authorize import Authorize
 from aiogram.types.bot_command_scope_chat import BotCommandScopeChat
 from aiogram.types.bot_command import BotCommand
-
+from tg.filters.in_dm import InDMorWorkGroup
 
 from tg.oms import scene_manager
 from tg.scenes.view.view_tasks_scene import ViewTasksScene
@@ -50,7 +50,7 @@ HELP_TEXTS = {
 }
 
 
-@dp.message(Command("help"), Authorize())
+@dp.message(Command("help"), Authorize(), InDMorWorkGroup())
 async def help(message: Message):
     """Show help using inline buttons only. No role argument accepted."""
     try:
@@ -89,7 +89,7 @@ async def help(message: Message):
                 parse_mode='Markdown')
 
 
-@dp.callback_query(Authorize(), lambda call: (call.data or '').lower().startswith('help:'))
+@dp.callback_query(Authorize(), InDMorWorkGroup(), lambda call: (call.data or '').lower().startswith('help:'))
 async def help_callback(call: CallbackQuery):
     """Handle inline help button presses with role-specific buttons."""
     try:

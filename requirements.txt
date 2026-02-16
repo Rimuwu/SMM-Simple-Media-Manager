@@ -24,7 +24,7 @@ google-auth-httplib2==0.2.0
 
 # Executors зависимости
 vk_api==11.10.0
-aiogram==3.22.0
+aiogram==3.25.0
 kurigram==2.2.10
 tgcrypto==1.2.5
 Pillow>=10.0.0

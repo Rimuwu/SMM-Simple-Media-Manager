@@ -59,15 +59,23 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 @dp.message(Command("test_url_button"), 
             RoleFilter("admin"))
 async def test_url_button(message: Message):
+    """ "primary" | "success" | "danger" """
     
     buttons = [
         [InlineKeyboardButton(
             text="Visit OpenAI",
-            url="https://www.openai.com"
+            url="https://www.openai.com",
+            style="primary"
         )],
         [InlineKeyboardButton(
             text="Visit OpenAI",
-            url="https://www.openai.com"
+            url="https://www.openai.com",
+            style="success"
+        )],
+        [InlineKeyboardButton(
+            text="Visit OpenAI",
+            url="https://www.openai.com",
+            style="danger"
         )]
     ]
     

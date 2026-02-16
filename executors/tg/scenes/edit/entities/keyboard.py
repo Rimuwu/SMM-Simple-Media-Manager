@@ -32,8 +32,9 @@ class KeyboardCreatePage(TextTypeScene):
             keyboard_data.setdefault('name', 'Клавиатура ссылок')
             keyboard_data.setdefault('edit_mode', None)
             keyboard_data.setdefault('edit_button_idx', None)
+
             await self.scene.update_key(self.__page_name__, 'data', keyboard_data)
-        
+
         # Ensure selected client is set
         selected_client = self.scene.data.get('entities-main', {}).get('selected_client')
         if not selected_client:
@@ -66,7 +67,16 @@ class KeyboardCreatePage(TextTypeScene):
             buttons = keyboard_data.get('buttons', [])
             if idx is not None and 0 <= idx < len(buttons):
                 current = buttons[idx].get('url', '')
-                return f"🔗 *Редактирование URL кнопки {idx + 1}*\n\nТекущая ссылка: {current}\n\nВведите новую ссылку: {text_input}"
+                style = buttons[idx].get('style') or 'Без стиля'
+                return f"🔗 *Редактирование URL кнопки {idx + 1}*\n\nТекущая ссылка: {current}\nТекущий стиль: {style}\n\nВведите новую ссылку: {text_input}"
+            return "❌ Кнопка не найдена"
+
+        elif edit_mode == 'button_style':
+            idx = self.scene.data.get(self.__page_name__, {}).get('edit_button_idx')
+            buttons = keyboard_data.get('buttons', [])
+            if idx is not None and 0 <= idx < len(buttons):
+                current = buttons[idx].get('style') or 'Без стиля'
+                return f"🎨 *Редактирование стиля кнопки {idx + 1}*\n\nТекущий стиль: {current}\n\nВыберите новый стиль:"
             return "❌ Кнопка не найдена"
 
         elif edit_mode == 'add_button_text':
@@ -86,7 +96,8 @@ class KeyboardCreatePage(TextTypeScene):
             for i, btn in enumerate(buttons):
                 text = btn.get('text', 'Без текста')
                 url = btn.get('url', 'Без ссылки')
-                content += f"{i+1}. {text} → {url}\n"
+                style = btn.get('style') or 'Без стиля'
+                content += f"{i+1}. {text} → {url} ({style})\n"
         else:
             content += "Нет кнопок"
         
@@ -110,6 +121,41 @@ class KeyboardCreatePage(TextTypeScene):
             })
             return buttons
 
+        if edit_mode == 'button_style':
+            idx = self.scene.data.get(self.__page_name__, {}).get('edit_button_idx')
+            btns = keyboard_data.get('buttons', [])
+            if idx is None or not (0 <= idx < len(btns)):
+                return buttons
+            current = btns[idx].get('style')
+
+            # Варианты стиля
+            options = [
+                ('primary', '🔵 Primary'),
+                ('success', '🟢 Success'),
+                ('danger', '🔴 Danger'),
+                (None, '➖ Без стиля')
+            ]
+
+            for val, label in options:
+                label_text = label + (' ✅' if current == val else '')
+                cb_val = 'none' if val is None else val
+
+                buttons.append({
+                    'text': label_text,
+                    'callback_data': callback_generator(
+                        self.scene.__scene_name__, 'set_button_style', str(idx), cb_val),
+                    'style': val,
+                    'ignore_row': val == 'danger'
+                })
+
+            buttons.append({
+                'text': '⬅️ К клавиатуре',
+                'callback_data': callback_generator(self.scene.__scene_name__, 'cancel_edit'),
+                'ignore_row': True
+            })
+
+            return buttons
+
         buttons.append({
             'text': '✏️ Название',
             'callback_data': callback_generator(self.scene.__scene_name__, 'edit_name'),
@@ -129,6 +175,10 @@ class KeyboardCreatePage(TextTypeScene):
                 'text': f'{i+1}. {text}',
                 'callback_data': callback_generator(self.scene.__scene_name__, 'edit_button', str(i)),
                 'next_line': True
+            })
+            buttons.append({
+                'text': '🎨',
+                'callback_data': callback_generator(self.scene.__scene_name__, 'edit_button_style', str(i))
             })
             buttons.append({
                 'text': '🗑',
@@ -172,6 +222,47 @@ class KeyboardCreatePage(TextTypeScene):
         await self.scene.update_key(self.__page_name__, 'edit_button_idx', idx)
         await self.scene.update_message()
 
+    @Page.on_callback('edit_button_style')
+    async def edit_button_style(self, callback, args):
+        """Switch to edit button style mode"""
+        if len(args) < 2:
+            await callback.answer('❌ Ошибка')
+            return
+
+        idx = int(args[1])
+        await self.scene.update_key(self.__page_name__, 'edit_mode', 'button_style')
+        await self.scene.update_key(self.__page_name__, 'edit_button_idx', idx)
+        await self.scene.update_message()
+
+    @Page.on_callback('set_button_style')
+    async def set_button_style(self, callback, args):
+        """Set style for a button via callback (args: idx, style)"""
+        if len(args) < 3:
+            await callback.answer('❌ Ошибка')
+            return
+
+        try:
+            idx = int(args[1])
+        except Exception:
+            await callback.answer('❌ Ошибка')
+            return
+
+        style_arg = args[2]
+        style = style_arg if style_arg in ('primary', 'success', 'danger') else None
+
+        keyboard_data = self.scene.data.get(self.__page_name__, {}).get('data', {})
+        buttons = keyboard_data.get('buttons', [])
+        if idx is None or not (0 <= idx < len(buttons)):
+            await callback.answer('❌ Ошибка')
+            return
+
+        buttons[idx]['style'] = style
+        keyboard_data['buttons'] = buttons
+        await self.scene.update_key(self.__page_name__, 'data', keyboard_data)
+        await self.scene.update_key(self.__page_name__, 'edit_mode', None)
+        await callback.answer('✅ Стиль кнопки изменён')
+        await self.scene.update_message()
+
     @Page.on_callback('save_text')
     async def save_text(self, callback, args):
         """Save text input based on edit mode"""
@@ -200,7 +291,8 @@ class KeyboardCreatePage(TextTypeScene):
             # Добавляем кнопку с сохранённым текстом
             temp_text = self.scene.data.get(self.__page_name__, {}).get('temp_button_text')
             buttons = keyboard_data.get('buttons', [])
-            buttons.append({'text': temp_text, 'url': text_input})
+            # Сохраняем кнопку с полем 'style' (None — без стиля)
+            buttons.append({'text': temp_text, 'url': text_input, 'style': None})
             keyboard_data['buttons'] = buttons
             await self.scene.update_key(self.__page_name__, 'temp_button_text', None)
             await callback.answer('✅ Кнопка добавлена')
