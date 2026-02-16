@@ -5,6 +5,8 @@ from database.connection import session_factory
 from global_modules.classes.enums import UserRole
 from modules.kaiten import kaiten
 from global_modules.json_get import open_clients, open_settings
+from modules.api_client import executors_api
+from modules.constants import ApiEndpoints
 from models.Card import Card, CardStatus
 from models.User import User
 from modules.scheduler import schedule_card_notifications, cancel_card_tasks, schedule_post_tasks
@@ -15,7 +17,7 @@ from modules.constants import (
 from modules.card_service import increment_reviewers_tasks
 from modules.executors_client import (
     send_forum_message, update_forum_message, delete_forum_message, delete_forum_message_by_id,
-    send_complete_preview, update_complete_preview, delete_complete_preview, delete_all_complete_previews,
+    send_complete_preview, delete_all_complete_previews,
     close_user_scene, update_task_scenes, close_card_related_scenes,
     notify_user, notify_users
 )
@@ -151,7 +153,7 @@ async def to_pass(
         scene_name=SceneNames.VIEW_TASK
     )
 
-    if res := await card.get_forum_message():
+    if await card.get_forum_message():
         await delete_forum_message(str(card.card_id))
         message_id, _ = await send_forum_message(str(card.card_id))
 
@@ -604,12 +606,6 @@ async def to_sent(
                 for mes in forum_mes:
                     await mes.delete()
 
-    # Обновление сцены просмотра задачи
-    await update_task_scenes(
-        card_id=str(card.card_id),
-        scene_name=SceneNames.VIEW_TASK
-    )
-
     # Увеличение счетчика выполненных задач у исполнителя
     if card.executor_id:
         executor = await User.get_by_key('user_id', card.executor_id)
@@ -626,5 +622,3 @@ async def to_sent(
 
     # Закрытие всех сцен, связанных с этой задачей
     await close_card_related_scenes(str(card.card_id))
-
-    await card.delete()

@@ -12,7 +12,6 @@
                     "id": 16250862,
                     "name": "Контент",
                     "tag": "Content",
-
                     "forward_to_topic": 3144
                 },
                 "news": {
@@ -54,7 +53,6 @@
                     "id": 16248112,
                     "name": "Counter-Strike 2",
                     "tag": "CS2",
-
                     "forward_to_topic": 3142
                 },
                 "hearthstone": {
@@ -239,6 +237,5 @@
     "forum_topic": 2315,
     "complete_topic": 2442,
     "design_group": -1001670342796,
-
     "community_forum": -1001670342796
 }

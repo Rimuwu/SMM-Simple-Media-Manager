@@ -71,6 +71,7 @@ class ClientSettingsPage(Page):
         elif executor_type == 'telegram_executor':
             # Добавляем настройку автозакрепа для Telegram
             settings.append('📌 Автозакреп')
+            settings.append('↪️ Репост')
         else:
             settings.append("ℹ️ Нет доступных настроек для этого канала")
         

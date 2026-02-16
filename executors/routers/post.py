@@ -213,8 +213,11 @@ async def send_post(request: PostSendRequest):
                 if keyboard_buttons:
                     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
-            # collect sent message ids (main + entities) for optional forwarding
-            sent_message_ids: list[int] = []
+            # collect sent message ids (categorized) for optional forwarding and reporting
+            sent_main_ids: list[int] = []      # 'send_main' - primary post message(s)
+            sent_entity_ids: list[int] = []    # 'send_entity' - entities like polls
+            sent_other_ids: list[int] = []     # 'send_other' - keyboards, extra messages
+            sent_ordered: list[tuple[str,int]] = []  # preserve send order as (type, message_id)
             main_message_id = None
             keyboard_message_id: int | None = None
             is_media_group = False
@@ -258,7 +261,8 @@ async def send_post(request: PostSendRequest):
                     # collect single-message id
                     if result and result.get('success') and result.get('message_id'):
                         main_message_id = result.get('message_id')
-                        sent_message_ids.append(main_message_id)
+                        sent_main_ids.append(int(main_message_id))
+                        sent_ordered.append(("send_main", int(main_message_id)))
 
                 else:
                     send_start = time.perf_counter()
@@ -278,8 +282,20 @@ async def send_post(request: PostSendRequest):
                     if result and result.get('success'):
                         group_ids = result.get('message_ids') or []
                         if group_ids:
-                            main_message_id = result.get('message_id')
-                            sent_message_ids.extend(group_ids)
+                            # mark first media as main, others as 'other'
+                            try:
+                                first_media = int(group_ids[0])
+                                sent_main_ids.append(first_media)
+                                sent_ordered.append(("send_main", first_media))
+                            except Exception:
+                                pass
+
+                            for mid in group_ids[1:]:
+                                try:
+                                    sent_other_ids.append(int(mid))
+                                    sent_ordered.append(("send_other", int(mid)))
+                                except Exception:
+                                    pass
 
                     # Для media group добавляем клавиатуру отдельным сообщением
                     keyboard_message_id = None
@@ -295,7 +311,11 @@ async def send_post(request: PostSendRequest):
                                 duration_ms=(keyboard_end - keyboard_start) * 1000, result=keyboard_result)
                         if keyboard_result and keyboard_result.get('success') and keyboard_result.get('message_id'):
                             keyboard_message_id = keyboard_result.get('message_id')
-                            sent_message_ids.append(keyboard_message_id)
+                            try:
+                                sent_other_ids.append(int(keyboard_message_id))
+                                sent_ordered.append(("send_other", int(keyboard_message_id)))
+                            except Exception:
+                                pass
 
             else:
                 send_start = time.perf_counter()
@@ -305,9 +325,12 @@ async def send_post(request: PostSendRequest):
                         'Отправлено текстовое сообщение', duration_ms=(send_end - send_start) * 1000)
 
                 if result and result.get('success') and result.get('message_id'):
-                    main_message_id = result.get('message_id')
-                    sent_message_ids.append(main_message_id)
-
+                        main_message_id = result.get('message_id')
+                        try:
+                            sent_main_ids.append(int(main_message_id))
+                            sent_ordered.append(("send_main", int(main_message_id)))
+                        except Exception:
+                            pass
         # Результат отправки
         if result and result.get('success'):
             add_log('sent', f"Пост успешно отправлен для карточки {request.card_id}, клиента {request.client_key}, файлов: {len(downloaded_files)}", files_sent=len(downloaded_files))
@@ -340,7 +363,12 @@ async def send_post(request: PostSendRequest):
                                         )
                                 # collect entity message id for possible forwarding
                                 if poll_result.get('message_id'):
-                                    sent_message_ids.append(poll_result.get('message_id'))
+                                    try:
+                                        mid = int(poll_result.get('message_id'))
+                                        sent_entity_ids.append(mid)
+                                        sent_ordered.append(("send_entity", mid))
+                                    except Exception:
+                                        pass
                             else:
                                 add_log('entity_send_failed', 
                                         f"Не удалось отправить сущность {entity.get('id')}: {poll_result.get('error')}", 
@@ -356,16 +384,23 @@ async def send_post(request: PostSendRequest):
             forward_list = request.settings.get('forward_to') if isinstance(request.settings, dict) else None
             only_main = request.settings.get('only_main_message', True) if isinstance(request.settings, dict) else True
 
-            if forward_list and isinstance(forward_list, list) and sent_message_ids:
-                # choose which message ids to forward
+            if forward_list and isinstance(forward_list, list) and sent_ordered:
+                # choose which message ids to forward (preserve original send order using sent_ordered)
                 if only_main:
                     to_forward = []
-                    if main_message_id:
-                        to_forward = [main_message_id]
-                    elif sent_message_ids:
-                        to_forward = [sent_message_ids[0]]
+                    if sent_main_ids:
+                        to_forward = [sent_main_ids[0]]
+                    else:
+                        # fallback to the very first sent message (any type)
+                        to_forward = [sent_ordered[0][1]] if sent_ordered else []
                 else:
-                    to_forward = list(dict.fromkeys(sent_message_ids))  # unique preserve order
+                    # preserve send order and keep unique ids
+                    seen = set()
+                    to_forward = []
+                    for _type, mid in sent_ordered:
+                        if mid not in seen:
+                            seen.add(mid)
+                            to_forward.append(mid)
 
                 if to_forward:
                     for tgt in forward_list:
@@ -389,13 +424,13 @@ async def send_post(request: PostSendRequest):
                             # Special-case: original post was a media-album and user asked to forward all messages ->
                             # re-send the album as a single media_group to the target (better than forwarding messages one-by-one),
                             # then re-send the keyboard message (inline keyboard won't be preserved by forward_message).
-                            if is_media_group and (not only_main) and sent_message_ids:
+                            if is_media_group and (not only_main) and sent_ordered:
                                 # Forward only the first photo of the album (use forward_message per requirement)
-                                # find group ids if available (fallback to sent_message_ids ordering)
+                                # find group ids if available (fallback to sent_ordered ordering)
                                 try:
                                     _group_ids = group_ids
                                 except NameError:
-                                    _group_ids = [mid for mid in sent_message_ids if keyboard_message_id is None or mid != keyboard_message_id]
+                                    _group_ids = [mid for (_t, mid) in sent_ordered if (_t in ("send_main", "send_other")) and (keyboard_message_id is None or mid != keyboard_message_id)]
 
                                 first_media_id = None
                                 if _group_ids:
@@ -482,7 +517,7 @@ async def send_post(request: PostSendRequest):
                         except Exception as e:
                             add_log('tg_forward_failed', f'Failed to forward to {tgt}: {e}', level='error', target=tgt)
 
-            if request.settings.get('auto_pin', True):
+            if request.settings.get('auto_pin', False):
                 if result and result.get('success'):
                     message_id = result.get('message_id')
 
@@ -498,10 +533,16 @@ async def send_post(request: PostSendRequest):
 
             overall_end = time.perf_counter()
             total_ms = int((overall_end - overall_start) * 1000)
-            add_log('complete', f"Время выполнения {total_ms} ms", duration_ms=total_ms)
+            add_log('complete', f"Время выполнения {total_ms} ms", duration_ms=total_ms,
+                    sent_main_count=len(sent_main_ids), sent_entity_count=len(sent_entity_ids), sent_other_count=len(sent_other_ids))
 
-            return {"success": True, 
-                    "message_id": result.get('message_id') or result.get('post_id'), 
+            return {"success": True,
+                    "message_id": result.get('message_id') or result.get('post_id'),
+                    "sent_message_ids": {
+                        "send_main": sent_main_ids,
+                        "send_entity": sent_entity_ids,
+                        "send_other": sent_other_ids
+                    },
                     "logs": action_log}
         else:
             error_msg = result.get('error') if result else 'Unknown error'

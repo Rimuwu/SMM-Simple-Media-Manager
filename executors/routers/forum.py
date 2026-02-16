@@ -1,19 +1,18 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from modules.text_generators import forum_message, card_deleted, send_complete_preview, update_complete_preview, delete_complete_preview
 from tg.main import TelegramExecutor
 from modules.executors_manager import manager
-from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from typing import Optional
-from modules.constants import SETTINGS
-from modules.api_client import brain_api
-from global_modules.classes.enums import CardStatus
+from modules.constants import SETTINGS, CLIENTS
+from global_modules.json_get import open_settings
 
 router = APIRouter(prefix="/forum")
 
 forum_topic = SETTINGS.get('forum_topic', 0)
 group_forum = SETTINGS.get('group_forum', 0)
 complete_topic = SETTINGS.get('complete_topic', 0)
+community_forum = SETTINGS.get('community_forum', 0)
 
 class ForumMessage(BaseModel):
     card_id: str
@@ -148,3 +147,52 @@ async def delete_complete_preview_endpoint(request: DeleteCompletePreviewRequest
         "success": data.get("success", False),
         "error": data.get("error", None)
     }
+
+
+class ForwardFirstByTagsRequest(BaseModel):
+    source_chat_id: str | int
+    message_id: int
+    tags: Optional[list[str]] = None
+    source_client_key: Optional[str] = None
+
+@router.post("/forward-first-by-tags")
+async def forward_first_by_tags(
+    request: ForwardFirstByTagsRequest):
+    
+    print(request)
+
+    client_executor: TelegramExecutor = manager.get("telegram_executor")
+    if not client_executor:
+        return {"success": False, "error": "Executor not found"}
+
+    settings = open_settings() or {}
+    tags_values = settings.get('properties', {}).get('tags', {}).get('values', {})
+
+    client_id = CLIENTS.get(request.source_client_key, {}).get('client_id')
+
+    results: list[dict] = []
+    tags_to_process = list(dict.fromkeys(request.tags or []))
+    
+    print(client_id, tags_to_process)
+
+    for tag in tags_to_process:
+        tag_info = tags_values.get(tag, {})
+        forward_to_topic = tag_info.get('forward_to_topic')
+        if not forward_to_topic:
+            results.append({"tag": tag, "skipped": True})
+            continue
+
+        print(community_forum, client_id, request.message_id, forward_to_topic)
+
+        try:
+            copied = await client_executor.bot.forward_message(
+                chat_id=community_forum,
+                from_chat_id=client_id,
+                message_id=request.message_id,
+                message_thread_id=int(forward_to_topic)
+            )
+            results.append({"tag": tag, "forwarded_message_id": getattr(copied, 'message_id', None)})
+        except Exception as e:
+            results.append({"tag": tag, "error": str(e)})
+
+    return {"success": True, "results": results}

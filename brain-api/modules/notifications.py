@@ -5,7 +5,7 @@ from modules.api_client import executors_api
 from modules.constants import ApiEndpoints
 from datetime import datetime
 import html
-from global_modules.json_get import open_settings
+from global_modules.json_get import open_settings, open_clients
 from modules.logs import brain_logger as logger
 
 # logger = logging.getLogger(__name__)
@@ -260,6 +260,31 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
         
         if status == 200 and response.get('success'):
             logger.info(f"Пост для карточки {card.card_id} отправлен, клиент: {client_key}")
+
+            # Save sent message ids returned by executor (categorize and persist as CardMessage)
+            try:
+                sent = response.get('sent_message_ids') or {}
+                # expected shape: { 'send_main': [ids], 'send_entity': [ids], 'send_other': [ids] }
+                for tname, mids in (sent.items() if isinstance(sent, dict) else []):
+                    if not mids:
+                        continue
+                    msg_type = None
+                    if tname == 'send_main':
+                        msg_type = 'send_main'
+                    elif tname == 'send_entity':
+                        msg_type = 'send_entity'
+                    elif tname == 'send_other':
+                        msg_type = 'send_other'
+
+                    if msg_type:
+                        for mid in (mids or []):
+                            try:
+                                await card.add_message(message_type=msg_type, message_id=int(mid), data_info=client_key)
+                            except Exception as e:
+                                logger.error(f"Cannot save CardMessage {msg_type} {mid} for card {card.card_id}: {e}")
+            except Exception as e:
+                logger.error(f"Error while saving sent message ids for card {card.card_id}: {e}")
+
             # Добавляем логи в задачу финализации (если есть)
             try:
                 logs = response.get('logs', [])
@@ -467,7 +492,8 @@ async def finalize_card_publication(card: Card, **kwargs):
                 await executors_api.delete(f"/forum/delete-forum-message/{card.card_id}")
 
                 forum_message = await card.get_forum_message()
-                if forum_message: await forum_message.delete()
+                if forum_message:
+                    await forum_message.delete()
 
                 logger.info(f"Сообщение с форума для карточки {card.card_id} удалено")
             except Exception as e:
@@ -511,7 +537,53 @@ async def finalize_card_publication(card: Card, **kwargs):
                     logger.error(f"Ошибка увеличения счётчика проверенных задач для {reviewer_id}: {e}")
         except Exception as e:
             logger.error(f"Ошибка загрузки заметок редактора для карточки {card.card_id}: {e}")
-        
+
+        try:
+            clients_cfg = open_clients() or {}
+            src_client_key = None
+            for ck in (card.clients or []):
+                cfg = clients_cfg.get(ck)
+                if not cfg:
+                    continue
+                ex_name = cfg.get('executor_name') or cfg.get('executor')
+                if ex_name == 'telegram_executor':
+                    src_client_key = ck
+                    break
+
+            if src_client_key:
+                # prefer sent messages (send_main) created when executors sent the post
+                sent_msgs = await card.get_messages()
+                post_msgs = [m for m in sent_msgs if m.message_type == 'send_main' and m.data_info == src_client_key]
+
+                # fallback to preview message if no actual sent message recorded
+                if not post_msgs:
+                    complete_msgs = await card.get_complete_messages_by_client(client_key=src_client_key)
+                    post_msgs = [m for m in complete_msgs if m.message_type == 'complete_post']
+
+                if post_msgs:
+                    src_msg_id = int(post_msgs[0].message_id)
+                    settings = open_settings() or {}
+                    source_chat = settings.get('complete_topic')
+
+                    if source_chat and card.tags:
+                        try:
+                            resp, status = await executors_api.post(
+                                ApiEndpoints.FORUM_FORWARD_FIRST_BY_TAGS,
+                                data={
+                                    "source_chat_id": source_chat,
+                                    "message_id": src_msg_id,
+                                    "tags": card.tags,
+                                    "source_client_key": src_client_key
+                                }
+                            )
+                            logger.info(f"forward-first-by-tags called during finalize for card {card.card_id}: {resp}")
+                        except Exception as e:
+                            logger.error(f"Error calling forward-first-by-tags during finalize for card {card.card_id}: {e}", exc_info=True)
+                else:
+                    logger.debug(f"No post/preview message for client {src_client_key} (card {card.card_id}), skipping forward-first-by-tags")
+        except Exception as e:
+            logger.error(f"Error while preparing forward-first-by-tags in finalize_card_publication for card {card.card_id}: {e}", exc_info=True)
+
         # Получаем список каналов для отчёта
         clients_str = ", ".join(card.clients) if card.clients else "Не указаны"
         

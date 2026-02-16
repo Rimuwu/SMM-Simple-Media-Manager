@@ -561,7 +561,7 @@ async def change_status(request: ChangeStatusRequest):
         CardStatus.edited: status_changers.to_edited,
         CardStatus.review: status_changers.to_review,
         CardStatus.ready: status_changers.to_ready,
-        CardStatus.sent: status_changers.to_sent,
+        CardStatus.sent: status_changers.to_sent
     }
     
     handler = status_handlers.get(request.new_status)
