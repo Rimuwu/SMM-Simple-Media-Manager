@@ -158,8 +158,7 @@ class ForwardFirstByTagsRequest(BaseModel):
 @router.post("/forward-first-by-tags")
 async def forward_first_by_tags(
     request: ForwardFirstByTagsRequest):
-    
-    print(request)
+
 
     client_executor: TelegramExecutor = manager.get("telegram_executor")
     if not client_executor:
@@ -172,8 +171,6 @@ async def forward_first_by_tags(
 
     results: list[dict] = []
     tags_to_process = list(dict.fromkeys(request.tags or []))
-    
-    print(client_id, tags_to_process)
 
     for tag in tags_to_process:
         tag_info = tags_values.get(tag, {})
@@ -181,8 +178,6 @@ async def forward_first_by_tags(
         if not forward_to_topic:
             results.append({"tag": tag, "skipped": True})
             continue
-
-        print(community_forum, client_id, request.message_id, forward_to_topic)
 
         try:
             copied = await client_executor.bot.forward_message(

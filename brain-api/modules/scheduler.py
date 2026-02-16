@@ -77,17 +77,16 @@ class TaskScheduler:
             # Импортируем функцию по пути
             func = self._import_function(task.function_path)
             
-            # Получаем карточку, если card_id указан в аргументах
+            # Если указан card_id — убеждаемся, что карточка существует (передаём только card_id)
             if 'card_id' in task.arguments:
-                card = await session.get(Card, task.arguments['card_id'])
-                if not card:
+                exists = await session.get(Card, task.arguments['card_id'])
+                if not exists:
                     logger.error(f"Карточка {task.arguments['card_id']} не найдена")
                     await session.delete(task)
                     await session.commit()
                     return
 
-                # Добавляем карточку в аргументы
-                task.arguments['card'] = card
+
 
             # Удаляем задачу до выполнения, чтобы избежать повторного выполнения
             await session.delete(task)

@@ -191,7 +191,7 @@ async def send_admin_no_executor_alert(card: Card, **kwargs):
         logger.error(f"Ошибка отправки уведомлений админам для карточки {card.card_id}: {e}", exc_info=True)
 
 
-async def send_post_now(card: Card, client_key: str, **kwargs):
+async def send_post_now(card_id: str, client_key: str, **kwargs):
     """
     Немедленно отправить пост через исполнителя.
     Используется для telegram_executor и vk_executor, которые не поддерживают
@@ -200,11 +200,11 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
     Вся генерация контента и работа с исполнителями происходит на стороне executors API.
     
     Args:
-        card: Карточка с контентом
+        card_id: ID карточки с контентом
         client_key: Ключ клиента из clients.json
         **kwargs: Дополнительные параметры
     """
-    logger.info(f"Немедленная отправка поста для карточки {card.card_id}, клиент: {client_key}")
+    logger.info(f"Немедленная отправка поста для карточки {card_id}, клиент: {client_key}")
     
     try:
         # Загружаем связанные данные через явную сессию, чтобы избежать lazy-loading вне greenlet
@@ -215,6 +215,10 @@ async def send_post_now(card: Card, client_key: str, **kwargs):
 
         async with session_factory() as s:
             # Contents: выбираем последний (по created_at) для каждого client_key
+            card = await Card.get_by_key('card_id', card_id, session=s)
+            if not card:
+                logger.warning(f"Карточка {card_id} не найдена при отправке поста")
+                return
             contents = await card.get_content(session=s)
             content_map: dict[str, tuple[str, object]] = {}
             for c in contents:
@@ -446,7 +450,7 @@ async def append_logs_to_finalize_task(card_id: str, logs: list[dict] | None):
         logger.error(f"Ошибка добавления логов в задачу финализации для карточки {card_id}: {e}", exc_info=True)
 
 
-async def finalize_card_publication(card: Card, **kwargs):
+async def finalize_card_publication(card_id: str, **kwargs):
     """
     Финализировать публикацию карточки после отправки всех постов.
     Меняет статус на sent, удаляет сообщение с форума, увеличивает счётчики задач исполнителя и отправляет отчёт админам.
@@ -455,10 +459,14 @@ async def finalize_card_publication(card: Card, **kwargs):
         card: Карточка
         **kwargs: Дополнительные параметры
     """
-    logger.info(f"Финализация публикации карточки {card.card_id}")
+    logger.info(f"Финализация публикации карточки {card_id}")
     
     try:
         # Обновляем статус карточки на sent
+        card = await Card.get_by_key('card_id', card_id)
+        if not card:
+            logger.warning(f"Карточка {card_id} не найдена при финализации")
+            return
         await card.update(status=CardStatus.sent)
         logger.info(f"Статус карточки {card.card_id} изменен на sent")
         
@@ -486,57 +494,12 @@ async def finalize_card_publication(card: Card, **kwargs):
         except Exception as e:
             logger.error(f"Ошибка создания задачи удаления: {e}")
         
-        # Удаляем сообщение с форума
-        if await card.get_forum_message():
-            try:
-                await executors_api.delete(f"/forum/delete-forum-message/{card.card_id}")
 
-                forum_message = await card.get_forum_message()
-                if forum_message:
-                    await forum_message.delete()
-
-                logger.info(f"Сообщение с форума для карточки {card.card_id} удалено")
-            except Exception as e:
-                logger.error(f"Ошибка удаления сообщения с форума: {e}")
-        
-        # Увеличиваем счётчики задач исполнителя
-        if card.executor_id:
-            try:
-                executor = await User.get_by_key('user_id', card.executor_id)
-                if executor:
-                    await executor.update(
-                        tasks=executor.tasks + 1,
-                        task_per_month=executor.task_per_month + 1,
-                        task_per_year=executor.task_per_year + 1
-                    )
-                    logger.info(f"Счётчики задач исполнителя {executor.user_id} увеличены")
-            except Exception as e:
-                logger.error(f"Ошибка увеличения счётчиков задач: {e}")
-        
-        # Увеличиваем tasks_checked для редакторов из editor_notes (без ленивой загрузки)
         try:
-            from database.connection import session_factory
-            reviewer_ids = set()
-            async with session_factory() as s:
-                notes = await card.get_editor_notes(session=s)
-                for note in notes:
-                    # note may be a model instance; convert to dict if possible
-                    n = note.to_dict() if hasattr(note, 'to_dict') else note.__dict__
-                    if not n.get('is_customer', False):
-                        author_id = n.get('author')
-                        if author_id:
-                            reviewer_ids.add(str(author_id))
-
-            for reviewer_id in reviewer_ids:
-                try:
-                    reviewer = await User.get_by_key('user_id', reviewer_id)
-                    if reviewer:
-                        await reviewer.update(tasks_checked=reviewer.tasks_checked + 1)
-                        logger.info(f"Увеличен счётчик проверенных задач для редактора {reviewer.user_id}")
-                except Exception as e:
-                    logger.error(f"Ошибка увеличения счётчика проверенных задач для {reviewer_id}: {e}")
+            from modules.status_changers import to_sent
+            await to_sent(card=card)
         except Exception as e:
-            logger.error(f"Ошибка загрузки заметок редактора для карточки {card.card_id}: {e}")
+            logger.error(f"Ошибка смены статуса карточки {card.card_id}: {e}")
 
         try:
             clients_cfg = open_clients() or {}
@@ -551,11 +514,9 @@ async def finalize_card_publication(card: Card, **kwargs):
                     break
 
             if src_client_key:
-                # prefer sent messages (send_main) created when executors sent the post
                 sent_msgs = await card.get_messages()
                 post_msgs = [m for m in sent_msgs if m.message_type == 'send_main' and m.data_info == src_client_key]
 
-                # fallback to preview message if no actual sent message recorded
                 if not post_msgs:
                     complete_msgs = await card.get_complete_messages_by_client(client_key=src_client_key)
                     post_msgs = [m for m in complete_msgs if m.message_type == 'complete_post']
@@ -586,9 +547,9 @@ async def finalize_card_publication(card: Card, **kwargs):
 
         # Получаем список каналов для отчёта
         clients_str = ", ".join(card.clients) if card.clients else "Не указаны"
-        
+
         logs = normalize_logs(kwargs.get('logs', []))
-        
+
         # Отправляем отчёт админам
         admins = await User.filter_by(role=UserRole.admin)
         if admins:

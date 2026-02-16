@@ -12,7 +12,9 @@ async def increment_reviewers_tasks(card: Card):
     Увеличивает счётчик tasks_checked для всех редакторов,
     которые оставили комментарии в editor_notes (не is_customer).
     """
-    if not card.editor_notes:
+
+    editor_notes = await card.get_editor_notes()
+    if not editor_notes:
         return
 
     try:

@@ -5,8 +5,7 @@ from database.connection import session_factory
 from global_modules.classes.enums import UserRole
 from modules.kaiten import kaiten
 from global_modules.json_get import open_clients, open_settings
-from modules.api_client import executors_api
-from modules.constants import ApiEndpoints
+
 from models.Card import Card, CardStatus
 from models.User import User
 from modules.scheduler import schedule_card_notifications, cancel_card_tasks, schedule_post_tasks
@@ -481,9 +480,8 @@ async def to_ready(
             await schedule_post_tasks(session, card)
             logger.info(f"Запланированы задачи отправки для карточки {card.card_id}")
         else:
-            # Если не нужно отправлять, сразу переводим в sent
-            await card.update(status=CardStatus.sent)
-            logger.info(f"Карточка {card.card_id} не требует отправки, статус изменен на sent")
+            logger.info(f"Карточка {card.card_id} не требует отправки — выполняем финализацию (to_sent)")
+            await to_sent(card=card)
             return
 
         await session.commit()
