@@ -3,6 +3,7 @@
 logs/*
 .idea/*
 executors/json/clients.json
+executors/json/settings.json
 sessions
 
 .vscode
@@ -17,3 +18,4 @@ secrets/
 vault_token.txt
 *.pem
 *.key
+
