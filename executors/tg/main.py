@@ -390,4 +390,3 @@ class TelegramExecutor(BaseExecutor):
     def get_type(self) -> str:
         """Получить тип"""
         return "telegram"
-

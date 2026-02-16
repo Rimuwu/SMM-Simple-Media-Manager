@@ -9,6 +9,8 @@ from .tags_page import TagsSetterPage
 from .entities_main import EntitiesMainPage
 from .entities.poll import PollCreatePage
 from .entities.view import EntityViewPage
+from .auto_pin_setting_page import AutoPinSettingPage
+from .forward_to_setting_page import ForwardToSettingPage
 
 __all__ = [
     'TaskScene',
@@ -21,5 +23,7 @@ __all__ = [
     'TagsSetterPage',
     'EntitiesMainPage',
     'PollCreatePage',
-    'EntityViewPage'
+    'EntityViewPage',
+    'AutoPinSettingPage',
+    'ForwardToSettingPage'
 ]

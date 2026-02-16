@@ -18,6 +18,7 @@ from tg.oms.common_pages import DatePickerPage
 from tg.scenes.edit.entities import poll, view, keyboard
 from tg.scenes.edit.entities_main import EntitiesMainPage
 from .auto_pin_setting_page import AutoPinSettingPage
+from .forward_to_setting_page import ForwardToSettingPage
 
 
 class TaskScene(Scene):
@@ -42,7 +43,8 @@ class TaskScene(Scene):
         view.EntityViewPage,
         EntitiesMainPage,
         keyboard.KeyboardCreatePage,
-        AutoPinSettingPage
+        AutoPinSettingPage,
+        ForwardToSettingPage
     ]
 
     # Привязываем функции для работы с БД

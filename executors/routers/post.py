@@ -272,22 +272,42 @@ async def send_post(request: PostSendRequest):
                         add_log('tg_send_keyboard', 'Отправлена клавиатура к media group', 
                                 duration_ms=(keyboard_end - keyboard_start) * 1000)
 
-                print( request.settings)
-                print('---------------3-3-3-3-')
-                if request.settings.get('auto_pin', True):
+                # Репост (forward) — если в настройках клиента указан список целевых clients
+                forward_list = request.settings.get(
+                    'forward_to') if isinstance(request.settings, dict) else None
+                if forward_list and result and result.get('success'):
+                    message_id = result.get('message_id')
+                    if message_id:
+                        for tgt in forward_list:
+                            # Пропускаем если цель — тот же клиент
+                            if tgt == request.client_key:
+                                continue
 
-                    if result and result.get('success'):
-                        message_id = result.get('message_id')
+                            tgt_conf = CLIENTS.get(tgt)
+                            if not tgt_conf:
+                                add_log('tg_forward_skip', f'Client not found: {tgt}', level='warning')
+                                continue
 
-                        pin_start = time.perf_counter()
-                        pin_result = await executor.bot.pin_chat_message(
-                            chat_id=str(chat_id), message_id=message_id
-                            )
-                        pin_end = time.perf_counter()
+                            tgt_executor = tgt_conf.get('executor_name') or tgt_conf.get('executor')
+                            # Поддерживаем только Telegram -> Telegram forward
+                            if tgt_executor != 'telegram_executor':
+                                add_log('tg_forward_skip', f'Unsupported target executor for {tgt}: {tgt_executor}', level='warning')
+                                continue
 
-                        add_log('tg_pin_message', 'Закреплено сообщение', 
-                                duration_ms=(pin_end - pin_start) * 1000, 
-                                pin_result=pin_result)
+                            tgt_chat_id = tgt_conf.get('client_id')
+                            try:
+                                fwd_start = time.perf_counter()
+                                fwd_msg = await executor.bot.forward_message(
+                                    chat_id=str(tgt_chat_id),
+                                    from_chat_id=str(chat_id),
+                                    message_id=message_id
+                                )
+                                fwd_end = time.perf_counter()
+
+                                add_log('tg_forward', f'Forwarded to {tgt}', duration_ms=(fwd_end - fwd_start) * 1000,
+                                        target=tgt, forwarded_message_id=getattr(fwd_msg, 'message_id', None))
+                            except Exception as e:
+                                add_log('tg_forward_failed', f'Failed to forward to {tgt}: {e}', level='error', target=tgt)
             else:
                 send_start = time.perf_counter()
                 result = await executor.send_message(chat_id=str(chat_id), text=post_text, reply_markup=reply_markup)
@@ -336,6 +356,20 @@ async def send_post(request: PostSendRequest):
                             add_log('entity_skip', f"Неподдерживаемый тип сущности: {entity_type}", level='warning')
                     except Exception as e:
                         add_log('entity_error', f"Ошибка при отправке сущности: {e}", level='error')
+
+            if request.settings.get('auto_pin', True):
+                if result and result.get('success'):
+                    message_id = result.get('message_id')
+
+                    pin_start = time.perf_counter()
+                    pin_result = await executor.bot.pin_chat_message(
+                        chat_id=str(chat_id), message_id=message_id
+                        )
+                    pin_end = time.perf_counter()
+
+                    add_log('tg_pin_message', 'Закреплено сообщение', 
+                            duration_ms=(pin_end - pin_start) * 1000, 
+                            pin_result=pin_result)
 
             overall_end = time.perf_counter()
             total_ms = int((overall_end - overall_start) * 1000)

@@ -120,6 +120,11 @@ class ClientSettingsPage(Page):
                         'callback_data': callback_generator(
                             self.scene.__scene_name__, 'to_auto_pin')
                     })
+                    buttons.append({
+                        'text': '↪️ Репост',
+                        'callback_data': callback_generator(
+                            self.scene.__scene_name__, 'to_forward')
+                    })
 
         return buttons
 
@@ -172,4 +177,15 @@ class ClientSettingsPage(Page):
 
         await self.scene.update_key('client-settings', 'selected_client', self.selected_client)
         await self.scene.update_page('client-settings-auto-pin',
+                                     selected_client=self.selected_client)
+
+    @Page.on_callback('to_forward')
+    async def to_forward(self, callback, args):
+        """Переход к настройке репостов (forward) для Telegram"""
+        if self.selected_client == 'all':
+            await callback.answer("❌ Выберите конкретный канал")
+            return
+
+        await self.scene.update_key('client-settings', 'selected_client', self.selected_client)
+        await self.scene.update_page('client-settings-forward-to',
                                      selected_client=self.selected_client)
