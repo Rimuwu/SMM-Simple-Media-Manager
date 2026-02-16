@@ -204,14 +204,15 @@ async def send_post(request: PostSendRequest):
                         for btn in buttons:
                             text_btn = btn.get('text')
                             url = btn.get('url')
+                            style = btn.get('style', None)
                             if text_btn and url:
-                                row.append(InlineKeyboardButton(text=text_btn, url=url))
+                                row.append(InlineKeyboardButton(text=text_btn, url=url, style=style))
                         if row:
                             keyboard_buttons.append(row)
-                
+
                 if keyboard_buttons:
                     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-            
+
             if downloaded_files:
                 if len(downloaded_files) == 1:
                     file_info = downloaded_files[0]

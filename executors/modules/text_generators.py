@@ -400,7 +400,6 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     )
 
     # Загружаем изображения если есть
-    task_id = card.get("task_id")
     post_images = card.get("post_images", []) or []
     
     downloaded_images = []
@@ -429,8 +428,9 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
                     for btn in buttons:
                         text_btn = btn.get('text')
                         url = btn.get('url')
+                        style = btn.get('style', None)
                         if text_btn and url:
-                            row.append(InlineKeyboardButton(text=text_btn, url=url))
+                            row.append(InlineKeyboardButton(text=text_btn, url=url, style=style))
                     if row:
                         keyboard_buttons.append(row)
             
