@@ -111,6 +111,15 @@ async def send_post(request: PostSendRequest):
 
         result = None
 
+        # Инициализация контейнеров для идентификаторов отправленных сообщений (безопасно для всех исполнителей)
+        sent_main_ids: list[int] = []      # 'send_main' - primary post message(s)
+        sent_entity_ids: list[int] = []    # 'send_entity' - entities like polls
+        sent_other_ids: list[int] = []     # 'send_other' - keyboards, extra messages
+        sent_ordered: list[tuple[str,int]] = []  # preserve send order as (type, message_id)
+        main_message_id = None
+        keyboard_message_id: int | None = None
+        is_media_group = False
+
         # Получаем имена файлов для отправки
         post_image_names = request.post_images or []
 
@@ -213,14 +222,7 @@ async def send_post(request: PostSendRequest):
                 if keyboard_buttons:
                     reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
-            # collect sent message ids (categorized) for optional forwarding and reporting
-            sent_main_ids: list[int] = []      # 'send_main' - primary post message(s)
-            sent_entity_ids: list[int] = []    # 'send_entity' - entities like polls
-            sent_other_ids: list[int] = []     # 'send_other' - keyboards, extra messages
-            sent_ordered: list[tuple[str,int]] = []  # preserve send order as (type, message_id)
-            main_message_id = None
-            keyboard_message_id: int | None = None
-            is_media_group = False
+            # reuse initialized message-id containers (defined above)
 
             if downloaded_files:
                 if len(downloaded_files) == 1:
