@@ -4,7 +4,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKe
 from aiogram.filters import Command
 from modules.executors_manager import manager
 from modules.constants import SETTINGS
-from global_modules.brain_client import brain_client
+from global_modules.brain_client import brain_client, get_user_role
 from modules.logs import executors_logger as logger
 
 client_executor = manager.get("telegram_executor")
@@ -60,7 +60,7 @@ async def _build_page(chat_id: int, page: int) -> tuple[str, InlineKeyboardMarku
     for idx, card in enumerate(cards[start:end], start=start + 1):
         name = card.get('name', 'Без названия')
         dd = _format_deadline(card)
-        link = _make_message_link(chat_id, card['prompt_message'])
+        link = _make_message_link(DESIGN_GROUP, card['prompt_message'])
         # Markdown-ссылка
         rows.append(f"[{idx}. {name} — до {dd}]({link})")
 
@@ -83,8 +83,11 @@ async def _build_page(chat_id: int, page: int) -> tuple[str, InlineKeyboardMarku
 @dp.message(Command('design_tasks'))
 async def cmd_design_tasks(message: Message):
     """Команда для просмотра задач в группе дизайнеров."""
+    user_role = await get_user_role(message.from_user.id if message.from_user else None)
+
     if message.chat.id != DESIGN_GROUP:
-        return
+        if user_role not in ('admin'):
+            return
 
     logger.info(f"Design group command invoked by {message.from_user.id if message.from_user else None}")
     text, kb = await _build_page(message.chat.id, 0)
@@ -102,10 +105,6 @@ async def _design_tasks_nav(query: CallbackQuery):
     try:
         page = int(parts[1])
     except ValueError:
-        await query.answer()
-        return
-
-    if query.message.chat.id != DESIGN_GROUP:
         await query.answer()
         return
 
