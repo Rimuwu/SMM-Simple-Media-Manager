@@ -1,10 +1,9 @@
 import asyncio
 import importlib
 from datetime import datetime, timedelta
-from typing import Callable, Any
+from typing import Callable
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import logging
 
 from models.ScheduledTask import ScheduledTask
 from models.Card import Card

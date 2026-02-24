@@ -8,3 +8,4 @@ from . import design_photos
 from . import leaderboard
 from . import test
 from . import help
+from . import design_tasks
