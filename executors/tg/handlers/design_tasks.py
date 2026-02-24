@@ -62,9 +62,10 @@ async def _build_page(chat_id: int, page: int) -> tuple[str, InlineKeyboardMarku
         dd = _format_deadline(card)
         link = _make_message_link(DESIGN_GROUP, card['prompt_message'])
         # Markdown-ссылка
-        rows.append(f"[{idx}. {name} — до {dd}]({link})")
+        rows.append(f"{idx}. [{name} — до {dd}]({link})")
 
     text = f"*Задачи для дизайнеров ({start + 1}-{end}/{total}):*\n" + "\n".join(rows)
+    text += "\n\n_Задачи актуальны на момент запроса. Указаны только незавершённые задачи._"
 
     # Формирование клавиатуры (только если есть кнопки)
     buttons = []
