@@ -69,9 +69,9 @@ async def _build_page(chat_id: int, page: int) -> tuple[str, InlineKeyboardMarku
     # Формирование клавиатуры (только если есть кнопки)
     buttons = []
     if page > 0:
-        buttons.append(InlineKeyboardButton('⬅️ Назад', callback_data=f'design_tasks_page:{page-1}'))
+        buttons.append(InlineKeyboardButton(text='⬅️ Назад', callback_data=f'design_tasks_page:{page-1}'))
     if end < total:
-        buttons.append(InlineKeyboardButton('Вперед ➡️', callback_data=f'design_tasks_page:{page+1}'))
+        buttons.append(InlineKeyboardButton(text='Вперед ➡️', callback_data=f'design_tasks_page:{page+1}'))
     kb = None
     if buttons:
         kb = InlineKeyboardMarkup()
