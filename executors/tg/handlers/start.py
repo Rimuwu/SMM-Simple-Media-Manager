@@ -111,6 +111,7 @@ async def start_au(message: Message):
         "/create - Для создания задач. Копирайтер может создать задачу только для себя.\n\n"
         "× *(Админ)*\n"
         "/users - Создание и редактирование пользователей.\n\n"
+        "/design_tasks - Показать задачи для дизайнеров.\n\n"
         "× *(Любая роль)*\n"
         "/tasks - Для просмотра заказов, созданных задач или выбора задачи для работы.\n"
         "/leaderboard - Лидерборд выполненных задач.\n"
@@ -128,6 +129,7 @@ async def start_au(message: Message):
             BotCommand(command="leaderboard", description="Лидерборд задач"),
             BotCommand(command="cancel", description="Выйти из текущей сцены"),
             BotCommand(command="start", description="Список команд / обновить быстрые команды"),
+            BotCommand(command="design_tasks", description="Показать задачи для дизайнеров")
         ],
         BotCommandScopeChat(chat_id=message.chat.id)
     )
