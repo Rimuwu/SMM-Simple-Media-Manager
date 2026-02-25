@@ -33,5 +33,5 @@ Pillow>=10.0.0
 aiohttp>=3.8.0
 asyncio-throttle>=1.0.0
 
-g4f==0.3.5.5
+g4f>=7.2.5
 python-multipart==0.0.20
