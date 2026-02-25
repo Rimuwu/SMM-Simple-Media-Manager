@@ -5,7 +5,7 @@ services:
     environment:
       VAULT_ADDR: http://0.0.0.0:8200
     ports:
-      - "8200:8200"
+      - "127.0.0.1:8200:8200"
     cap_add:
       - IPC_LOCK
     entrypoint: ["sh", "/vault_prod_init.sh"]
