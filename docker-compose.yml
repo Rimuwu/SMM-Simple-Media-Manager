@@ -215,38 +215,38 @@ services:
           cpus: '0.1'
           memory: 128M
 
-  backup:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - VAULT_ADDR=http://vault:8200
-      - BACKUP_RETENTION_DAYS=7
-      - BACKUP_COMPRESS=true
-      - TZ=Europe/Moscow
-    secrets:
-      - vault_token
-    volumes:
-      - ./backups:/backups:rw
-      - ./scripts/backup_postgres.py:/backup_postgres.py:ro
-      - ./scripts/backup_vault_entrypoint.sh:/backup_vault_entrypoint.sh:ro
-    depends_on:
-      vault:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    networks:
-      - smm_network
-    restart: unless-stopped
-    entrypoint: ["sh", "/backup_vault_entrypoint.sh"]
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
+  # backup:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     - POSTGRES_HOST=postgres
+  #     - POSTGRES_PORT=5432
+  #     - VAULT_ADDR=http://vault:8200
+  #     - BACKUP_RETENTION_DAYS=7
+  #     - BACKUP_COMPRESS=true
+  #     - TZ=Europe/Moscow
+  #   secrets:
+  #     - vault_token
+  #   volumes:
+  #     - ./backups:/backups:rw
+  #     - ./scripts/backup_postgres.py:/backup_postgres.py:ro
+  #     - ./scripts/backup_vault_entrypoint.sh:/backup_vault_entrypoint.sh:ro
+  #   depends_on:
+  #     vault:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+  #   networks:
+  #     - smm_network
+  #   restart: unless-stopped
+  #   entrypoint: ["sh", "/backup_vault_entrypoint.sh"]
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.25'
+  #         memory: 256M
+  #       reservations:
+  #         cpus: '0.1'
+  #         memory: 64M
 
 volumes:
   postgres_data:
