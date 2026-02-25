@@ -36,7 +36,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/postgres_vault_entrypoint.sh:/postgres_vault_entrypoint.sh:ro
     ports:
-      - "127.0.0.1:5432:5432"
+      - "5432:5432"
     restart: unless-stopped
     depends_on:
       vault:
