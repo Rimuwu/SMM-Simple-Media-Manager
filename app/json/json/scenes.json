@@ -1,0 +1,508 @@
+{
+
+    "create-task": {
+        "settings": {
+            "parse_mode": "Markdown",
+            "delete_after_send": true,
+            "start_page": "main"
+        },
+        "standart_data": {
+            "name": null,
+            "type": "public",
+            "description": null,
+            "user": null,
+            "channels": [],
+            "publish_date": null,
+            "send_date": null,
+            "tags": [],
+            "image": null,
+            "files": [],
+            "editor_check": true,
+            "mode": "simple",
+            "copywriter_selfcreate": false
+        },
+        "pages": {
+            "main": {
+                "content": "📝 *Создание новой задачи*\n_Вы создаёте задание для написания поста. Пожалуйста, предоставьте максимально полную информацию._\n\n🧭 Режим: {mode}\n\n📌 Название: `{name}`\n🎯 Тип: {type}\n📅 Дедлайн: {publish_date}\n⏰ Дата отправки: {send_date}\n👤 Исполнитель: `{user}`\n✅ Проверка редактором: {editor_check}\n\n📢 Каналы: {channels}\n🏷 Теги: {tags}\n\n🖼 ТЗ Изображения: `{image}`\n📎 Файлы: {files}\n\n```Описание {description}```\n\nВыберите параметр для настройки...",
+                "to_pages": {
+                    "ai-parse": "🤖 Заполнить через AI",
+                    "name": "📌 Название",
+                    "type": "🎯 Тип",
+                    "description": "📄 Описание",
+                    "user": "👤 Исполнитель",
+                    "channels": "📢 Каналы",
+                    "publish-date": "📅 Дедлайн",
+                    "send-date": "⏰ Дата отправки",
+                    "tags": "🏷 Теги",
+                    "image": "🖼 Изображение",
+                    "files": "📎 Файлы",
+                    "editor-check": "⚙️ Проверка редактором",
+                    "help": "❓ Помощь",
+                    "finish": "✅ Завершить",
+                    "cancel": "❌ Отменить создание"
+                },
+                "row_width": 2
+            },
+            "cancel": {
+                "content": "❌ *Отмена создания задачи*\n\nВы уверены, что хотите отменить создание задачи? Все введённые данные будут потеряны.",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                }
+            },
+            "ai-parse": {
+                "content": "🤖 *Заполнение через AI*\n\nВведите произвольный текст с информацией о задании.\nAI автоматически извлечёт:\n• 📌 Название задания\n• 📄 Описание для поста\n• 🖼 ТЗ для дизайнеров\n• ⏰ Дедлайн\n• 📦 Хештеги\n\nОтправьте текст сообщением:",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                }
+            },
+            "name": {
+                "content": "📌 *Название задачи*\n\nНазвание сейчас: `{name}`\n\nВведите название (до {max_length} символов):",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+                "type": "text",
+                "max_length": 100,
+                "min_length": 1,
+                "scene_key": "name",
+                "next_page": "main"
+            },
+            "type": {
+                "content": "🎯 *Тип задачи*\n\nТип сейчас: *{type}*\n\n🌐 *Свободное* - задача будет отправлена на форум.\n🔒 *Личное* - задача личная и будет сразу назначена.\n\nВыберите тип:",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+                "type": "radio",
+                "scene_key": "type",
+                "default_value": "public",
+                "options": {
+                    "private": "🔒 Личное",
+                    "public": "🌐 Свободное"
+                },
+                "next_page": "main",
+                "row_width": 2
+            },
+            "description": {
+                "content": "📄 *Описание задачи*\n\nОписание сейчас\n`{description}`\n\nВведите описание (до {max_length} символов):",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+                "type": "text",
+                "max_length": 2096,
+                "min_length": 1,
+                "scene_key": "description",
+                "next_page": "main"
+            },
+            "user": {
+                "content": "👤 *Исполнитель*\n\nИсполнитель сейчас: *{user}*\n\nУкажите пользователя для выполнения задачи:",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+
+                "type": "radio",
+                "row_width": 2,
+                "scene_key": "user"
+            },
+            "channels": {
+                "content": "📢 *Каналы публикации*\n\nКаналы сейчас: *{channels}*",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+                "type": "option",
+                "scene_key": "channels",
+                "row_width": 2
+            },
+            "publish-date": {
+                "content": "📅 *Дедлайн*\n\nДата сейчас: *{publish_date}*\n\nВведите дату в формате:\n`ЧЧ:ММ ДД.ММ.ГГГГ` / `ЧЧ:ММ` / `ЧЧ:ММ ДД.ММ` / `ДД.ММ.ГГГГ` / `ДД.ММ`",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+                "check_busy_slots": false
+            },
+            "send-date": {
+                "content": "📅 *Дата отправки*\n\nДата сейчас: *{send_date}*\n\nВведите дату в формате:\n`ЧЧ:ММ ДД.ММ.ГГГГ` / `ЧЧ:ММ` / `ЧЧ:ММ ДД.ММ` / `ДД.ММ.ГГГГ` / `ДД.ММ`",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+                "check_busy_slots": true
+            },
+            "date-picker": {
+                "content": "📅 *Календарь и время*\n"
+            },
+            "tags": {
+                "content": "🏷 *Теги*\n\nТеги сейчас: *{tags}*",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+                "type": "option",
+                "scene_key": "tags"
+            },
+            "image": {
+                "content": "🖼 *Изображение*\n\nТЗ изображения сейчас: *{image}*\n\nВведите техническое задание для создания картинки (до {max_length} символов):",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                },
+                "type": "text",
+                "max_length": 256,
+                "min_length": 1,
+                "scene_key": "image",
+                "next_page": "main"
+            },
+            "files": {
+                "content": "📎 *Файлы*\n\nЗагружено файлов: *{files_count}* из {max_files}\n\n{files_list}\n\nОтправьте фото, документ или видео для добавления к задаче.",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                }
+            },
+            "editor-check": {
+                "content": "⚙️ *Проверка редактором*\n\nТекущий статус: {editor_check}\n\nЕсли проверка отключена, копирайтер сможет сразу завершить задачу без этапа проверки редактором.",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                }
+            },
+            "finish": {
+                "content": "✅ *Завершение создания*\n_Проверьте все данные задачи перед созданием_\n\n📌 Название: `{name}`\n🎯 Тип: {type}\n👤 Исполнитель: {user}\n📢 Каналы: {channels}\n📅 Дедлайн: {publish_date}\n⏰ Дата отправки: {send_date}\n🏷 Теги: {tags}\n🖼 ТЗ Изображения: {image}\n📎 Файлы: {files}\n\n```Описание {description}```\n\nОбязательные поля к заполнению: Название, описание, дедлайн.",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                }
+            },
+            "help": {
+                "content": "❓ *Помощь — создание задачи*\n\n*Кнопки и их назначение:*\n\n• 🤖 Заполнить через AI — отправьте произвольный текст, AI попытается извлечь название, описание, ТЗ изображения, хештеги, дедлайн и т.д.\n• 📌 Название — задайте название задачи.\n• 🎯 Тип — выберите *Свободное* или *Личное*.\n• 📄 Описание — основное ТЗ для копирайтера.\n• 👤 Исполнитель — назначить пользователя на задачу.\n• 📢 Каналы — выбрать каналы для публикации.\n• 📅 Дедлайн — крайний срок публикации.\n• ⏰ Дата отправки — точная дата и время отправки.\n• 🏷 Теги — добавить хештеги/теги.\n• 🖼 Изображение — ТЗ для дизайнера.\n• 📎 Файлы — прикрепить файлы (фото, документы, видео).\n• ⚙️ Проверка редактором — включить/отключить обязательную проверку редактором (только для админов).\n• 🧭 Режим — переключает режим отображения кнопок (Простой / Продвинутый).\n• ✅ Завершить — создать задачу с текущими данными.\n• ❌ Отменить создание — отменить и очистить данные.\n\nНажмите «⬅️ Назад», чтобы вернуться.",
+                "to_pages": {
+                    "main": "⬅️ Назад"
+                }
+            }
+        }
+    },
+
+    "user-task": {
+        "settings": {
+            "parse_mode": "Markdown",
+            "delete_after_send": true,
+            "start_page": "main-page"
+        },
+        "standart_data": {
+            "name": null,
+            "description": null,
+            "channels": null,
+            "publish_date": null,
+            "deadline": null,
+            "editors_check": null,
+            "status": null,
+            "tags": null,
+            "content": null,
+            "clients_list": [],
+            "tags_list": [],
+            "has_notes": false,
+            "notes_count": 0,
+            "formatted_notes": ""
+        },
+        "pages": {
+            "main-page": {
+                "content": "📋 *{name}* (до {deadline})\n\n📢 *Каналы для публикации:* {channels}\n📅 *Дата публикации:* {publish_date}\n✅ *Проверка редактором:* {editors_check}\n📊 *Статус выполнения:* {status}\n🏷 *Теги:* {tags}\n\n```Описание {description}```\n\nВыберите действие:",
+                "to_pages": {
+                    "channels-settings": "📢 Каналы публикации",
+                    "content-setter": "📝 Контент поста",
+                    "publish-date-setter": "📅 Дата публикации",
+                    "status-setter": "📊 Изменить статус",
+                    "ai-check": "🤖 Проверка AI",
+                    "tags-setter": "🏷 Теги",
+                    "files-view": "📎 Файлы и медиа",
+                    "image-prompt": "🖼 ТЗ для дизайнеров",
+                    "post-preview": "👁 Превью поста",
+                    "editor-notes": "💬 Комментарии",
+                    "client-settings-main": "⚙️ Настройки клиентов",
+                    "entities-main": "🗳 Сущности"
+                },
+                "row_width": 2
+            },
+            "channels-settings": {
+                "content": "📢 *Каналы для публикации*\n\nТекущие каналы: *{channels}*\n\nВыберите каналы для публикации:",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
+                "type": "option",
+                "scene_key": "clients_list",
+                "max_on_page": 5,
+                "row_width": 2
+            },
+            "content-setter": {
+                "content": "📝 <b>Редактирование контента поста</b>\n\n{content_block}\n\nНапоминаем, что вводить надо только контент, без тегов. В отображаемом тексте цитаты начинаются с `>`.\nОтправьте новый текст для контента (до {max_length} символов):",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
+                "type": "text",
+                "scene_key": "content",
+                "max_length": 1024,
+                "min_length": 10,
+                "next_page": "main-page",
+                "parse_mode": "HTML"
+            },
+            "publish-date-setter": {
+                "content": "📅 *Дата публикации*\n\nТекущая дата: *{publish_date}*\n\nВведите новую дату в формате:\n`ЧЧ:ММ ДД.ММ.ГГГГ` / `ЧЧ:ММ` / `ЧЧ:ММ ДД.ММ` / `ДД.ММ.ГГГГ` / `ДД.ММ`",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
+                "check_busy_slots": true
+            },
+            "date-picker": {
+                "content": " 📅 *Календарь*\n"
+            },
+            "status-setter": {
+                "content": "📊 *Изменение статуса*\n\nТекущий статус: *{status}*",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                }
+            },
+            "ai-check": {
+                "content": "🤖 *Проверка контента через AI*\n\nКонтент будет проверен на орфографические, пунктуационные и стилистические ошибки.",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                }
+            },
+            "tags-setter": {
+                "content": "🏷 *Теги*\n\nТекущие теги: *{tags}*\n\nВыберите теги для задачи:",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
+                "type": "option",
+                "scene_key": "tags_list",
+                "row_width": 3
+            },
+            "files-view": {
+                "content": "📎 *Файлы и медиа*\n\nЗдесь вы можете просмотреть прикрепленные к задаче файлы и выбрать изображение для использования в посте.\n\n{kaiten_files_list}\n\nВыберите файл или отправьте новый для добавления.",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
+                "row_width": 2
+            },
+            "image-prompt": {
+                "content": "{error_text}🖼 *ТЗ для дизайнеров*\n\n*Статус:* {status}\n\nТекущее описание: `{image_prompt}`\n\nВведите описание картинки для дизайнеров длинной не более чем 1024 символа.",
+                "to_pages": {},
+                "row_width": 1
+            },
+            "post-preview": {
+                "content": "👁 *Превью поста*\n\nПросмотреть итоговый вид поста. Данная функция лишь отображает то, как посты выглядят в итоговом виде.\n\nВыберите клиента для просмотра:",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
+                "row_width": 1
+            },
+            "editor-notes": {
+                "content": "💬 *Комментарии редакторов*\n_Напишите сообщение, чтобы добавить комментарий._\n\n{formatted_notes}",
+                "to_pages": {},
+                "row_width": 1
+            },
+            "client-settings-main": {
+                "content": "⚙️ *Настройки клиентов*\n\n📍 *Режим:* {client_mode}\n\n*Доступные настройки:*\n{settings_list}\n\nВыберите настройку для изменения:",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
+                "row_width": 1
+            },
+            "client-settings-image-view": {
+                "content": "🖼 *Отображение изображений*\n\n📍 *Канал:* {client_name}\n⚙️ *Текущая настройка:* {current_setting}\n\nℹ️ *Описание:*\n{setting_description}\n\nВыберите тип отображения:",
+                "to_pages": {
+                    "client-settings-main": "⬅️ Назад"
+                },
+                "row_width": 1
+            },
+            "entities-main": {
+                "content": "🗳 *Сущности*\n📍 Канал: {client_name}\n\n*Существующие:*\n{entities_list}\n\nВыберите действие:",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
+                "row_width": 2
+            },
+            "entities-poll-create": {
+                "content": "🗳 *Создание опроса*\n\n{content}",
+                "row_width": 4
+            },
+            "entities-keyboard-create": {
+                "content": "⌨️ *Создание клавиатуры ссылок*\n\n{content}",
+                "row_width": 4
+            },
+            "entities-view": {
+                "content": "🔍 *Просмотр entity*\n\n{entity_text}",
+                "to_pages": {
+                    "entities-main": "⬅️ Назад"
+                }
+            },
+            "client-settings-entities": {
+                "content": "⚙️ *Сущности клиентов*\n\n📍 Канал: {client_name}\n\n*Существующие сущности:*\n{entities_list}\n\nВыберите действие:",
+                "to_pages": {
+                    "client-settings-main": "⬅️ Назад"
+                },
+                "row_width": 2
+            },
+            "client-settings-auto-pin": {
+                "content": "📌 *Автозакреп для Telegram*\n\n📍 *Канал:* {client_name}\n⚙️ *Текущая настройка:* {currentsetting}\n\nℹ️ **Описание:**\nАвтоматически закреплять посты в Telegram-канале.\n\nВыберите действие:",
+                "to_pages": {
+                    "client-settings-main": "⬅️ Назад"
+                },
+                "row_width": 1
+            },
+
+            "client-settings-forward-to": {
+                "content": "↪️ *Репосты (forward)*\n\n📍 *Канал:* {client_name}\n⚙️ *Текущие цели:* {forward_list}\n\nℹ️ *Описание:*\nВыберите каналы, в которые будет репоститься пост из данного клиента.",
+                "to_pages": {
+                    "client-settings-main": "⬅️ Назад"
+                },
+                "row_width": 1
+            }
+        }
+    },
+
+    "view-tasks": {
+        "settings": {
+            "parse_mode": "Markdown",
+            "delete_after_send": true,
+            "start_page": "task-list"
+        },
+        "standart_data": {
+            "user_role": null,
+            "selected_filter": null,
+            "tasks": [],
+            "current_page": 0,
+            "selected_task": null
+        },
+        "pages": {
+            "filter-selection": {
+                "content": "🔍 *Выбор фильтра задач*\n\n👤 Ваша роль: *{user_role}*\n\nВыберите категорию задач для просмотра:",
+                "to_pages": {
+                    "task-list": "⬅️ Назад"
+                },
+                "row_width": 2
+            },
+            "task-list": {
+                "content": "📋 <b>Список задач</b>\n— {selected_filter}\n\n📊 Показано: {current_range} из {total_tasks}\n\nВыберите задачу для просмотра:",
+                "to_pages": {
+                    "filter-selection": "🔍 Изменить фильтр"
+                },
+                "row_width": 2,
+                "parse_mode": "html"
+            },
+            "task-detail": {
+                "content": "📋 *{task_name}* (до {deadline})\n\n📊 *Статус выполнения:* {status}\n👤 *Исполнитель:* `{executor}`\n👤 *Заказчик:* `{customer}`\n👤 *Редактор:* `{editor}`\n⏰ *Время отправки:* {send_time}\n📢 *Каналы для публикации:* {channels}\n🏷 *Теги:* {tags}\n🔗 *Kaiten:* [Открыть задачу]({kaiten_link})\n\n```Описание {task_description}```\n\n🔧 Выберите действие с задачей:",
+                "to_pages": {
+                    "task-list": "⬅️ К списку задач"
+                },
+                "row_width": 2
+            },
+            "assign-executor": {
+                "content": "👤 *Назначение исполнителя*\n\nТекущий исполнитель: *{executor}*\n\nВыберите нового исполнителя:",
+                "to_pages": {
+                    "task-detail": "⬅️ Назад"
+                },
+                "row_width": 2
+            },
+            "editor-assigned": {
+                "content": ""
+            },
+            "change-deadline": {
+                "content": "⏰ *Изменение дедлайна*\n\nТекущий дедлайн: *{deadline}*\n\nВведите новый дедлайн в формате:\n`ЧЧ:ММ ДД.ММ.ГГГГ` / `ЧЧ:ММ` / `ЧЧ:ММ ДД.ММ` / `ДД.ММ.ГГГГ` / `ДД.ММ`",
+                "to_pages": {
+                    "task-detail": "⬅️ Назад"
+                },
+                "check_busy_slots": false
+            },
+            "date-picker": {
+                "content": " 📅 *Календарь*\n"
+            },
+            "add-comment": {
+                "content": "💬 *Комментарии к задаче*\n\n📜 *История:*\n{comments_history}\n\n✏️ *Ваш комментарий:*\n{comment}\n\n_Введите или измените текст:_",
+                "to_pages": {
+                    "task-detail": "⬅️ Назад"
+                }
+            },
+            "change-name": {
+                "content": "✏️ *Изменение названия*\n\nТекущее название: *{task_name}*\n\nВведите новое название задачи:",
+                "to_pages": {
+                    "task-detail": "⬅️ Назад"
+                }
+            },
+            "change-description": {
+                "content": "📝 *Изменение описания*\n\nОписание сейчас\n`{task_description}`\n\nВведите новое описание задачи:",
+                "to_pages": {
+                    "task-detail": "⬅️ Назад"
+                }
+            },
+            "select-user-filter": {
+                "content": "👤 Выберите пользователя для фильтрации задач:\n\n_📃 {start}-{end} из {total}_",
+                "to_pages": {
+                    "filter-selection": "⬅️ Назад"
+                },
+                "row_width": 2
+            },
+            "select-department-filter": {
+                "content": "🏢 Выберите отдел для фильтрации задач:",
+                "to_pages": {},
+                "row_width": 2
+            },
+            "post-preview": {
+                "content": "👁 *Превью поста*\n\nПросмотреть итоговый вид поста.\n\nВыберите клиента для просмотра:",
+                "to_pages": {
+                    "task-detail": "⬅️ Назад"
+                },
+                "row_width": 1
+            },
+            "files-view": {
+                "content": "📎 *Файлы и медиа*\n\nЗдесь вы можете просмотреть прикрепленные к задаче файлы и выбрать изображение для использования в посте.\n\n{kaiten_files_list}\n\nВыберите файл или отправьте новый для добавления.",
+                "to_pages": {
+                    "task-detail": "⬅️ Назад"
+                },
+                "row_width": 2
+            }
+        }
+    },
+    "users": {
+        "settings": {
+            "parse_mode": "Markdown",
+            "delete_after_send": true,
+            "start_page": "users-list"
+        },
+        "standart_data": {
+            "selected_user": null,
+            "new_user_id": null,
+            "new_user_role": null,
+            "edit_mode": false,
+            "selected_department": null
+        },
+        "pages": {
+            "users-list": {
+                "content": "👥 *Управление пользователями*\n\nВыберите пользователя для редактирования или добавьте нового.",
+                "row_width": 2
+            },
+            "user-detail": {
+                "content": "*👤 Имя*: {name}\n🧪 *Телеграм ID:* `{telegram_id}`\n🎭 *Роль:* {role}\n🆔 *Kaiten ID:* {tasker_id}\n🏢 *Департамент:* {department}\n📝 *Описание:* {about}\n\n*🍿 Выполнено задач*\n- Всё время: {tasks}\n- Год: {tasks_year}\n- Месяц: {tasks_month}\n\n*🍢 Иная статистика*\n- Создано: {created}\n- Проверено: {checked}",
+                "row_width": 2
+            },
+            "add-user": {
+                "content": "Введите Telegram ID нового пользователя:"
+            },
+            "select-role": {
+                "content": "Выберите роль пользователя:"
+            },
+            "select-kaiten-user": {
+                "content": "Выберите пользователя Kaiten для привязки:",
+                "row_width": 2
+            },
+            "select-department": {
+                "content": "Выберите департамент пользователя:",
+                "row_width": 2
+            },
+            "edit-about": {
+                "content": "Введите описание пользователя:\n\n*Текущее:* {about_text}",
+                "max_length": 256
+            },
+            "filter-users-by-role": {
+                "content": "🎭 *Выберите роль для фильтрации:*",
+                "row_width": 2
+            },
+            "filter-users-by-department": {
+                "content": "🏢 *Выберите отдел для фильтрации:*",
+                "row_width": 2
+            }
+        }
+    }
+
+}

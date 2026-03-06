@@ -1,0 +1,241 @@
+{
+    "properties": {
+        "tags": {
+            "id": 496994,
+            "name": "Теги",
+            "type": "select",
+            "multi_select": true,
+            "values_creatable_by_users": false,
+            "show_on_facade": true,
+            "values": {
+                "content": {
+                    "id": 16250862,
+                    "name": "Контент",
+                    "tag": "Content",
+                    "forward_to_topic": 3144
+                },
+                "news": {
+                    "id": 16248105,
+                    "name": "Новости | События",
+                    "tag": "News"
+                },
+                "tournaments": {
+                    "id": 16248106,
+                    "name": "Турниры",
+                    "tag": "Tournaments"
+                },
+                "stream": {
+                    "id": 16248107,
+                    "name": "Прямые трансляции",
+                    "tag": "Stream"
+                },
+                "loot": {
+                    "id": 16248108,
+                    "name": "Лут",
+                    "tag": "Loot"
+                },
+                "video": {
+                    "id": 16248109,
+                    "name": "Видео",
+                    "tag": "Video"
+                },
+                "hobbygames": {
+                    "id": 16248110,
+                    "name": "Hobby Games",
+                    "tag": "HobbyGames"
+                },
+                "dota2": {
+                    "id": 16248111,
+                    "name": "Dota 2",
+                    "tag": "Dota2"
+                },
+                "cs2": {
+                    "id": 16248112,
+                    "name": "Counter-Strike 2",
+                    "tag": "CS2",
+                    "forward_to_topic": 3142
+                },
+                "hearthstone": {
+                    "id": 16248113,
+                    "name": "Hearthstone",
+                    "tag": "Hearthstone"
+                },
+                "clashroyale": {
+                    "id": 16248114,
+                    "name": "Clash Royale",
+                    "tag": "ClashRoyale"
+                },
+                "starcraft2": {
+                    "id": 16248115,
+                    "name": "StarCraft",
+                    "tag": "StarCraft2"
+                },
+                "valorant": {
+                    "id": 16248116,
+                    "name": "Valorant",
+                    "tag": "Valorant"
+                },
+                "rocketleague": {
+                    "id": 16248117,
+                    "name": "Rocket League",
+                    "tag": "RocketLeague"
+                },
+                "r6s": {
+                    "id": 16248118,
+                    "name": "Rainbow Six Siege",
+                    "tag": "R6S"
+                },
+                "osu": {
+                    "id": 16248119,
+                    "name": "osu!",
+                    "tag": "Osu"
+                },
+                "minecraft": {
+                    "id": 16248120,
+                    "name": "Minecraft",
+                    "tag": "Minecraft"
+                },
+                "tekken8": {
+                    "id": 16248121,
+                    "name": "Tekken 8",
+                    "tag": "Tekken8"
+                },
+                "warface": {
+                    "id": 16248122,
+                    "name": "Warface",
+                    "tag": "Warface"
+                },
+                "mlbb": {
+                    "id": 16248123,
+                    "name": "MLBB",
+                    "tag": "MLBB"
+                },
+                "overwatch": {
+                    "id": 16248124,
+                    "name": "Overwatch",
+                    "tag": "Overwatch"
+                },
+                "lol": {
+                    "id": 16248125,
+                    "name": "League of Legends",
+                    "tag": "LOL"
+                },
+                "apex": {
+                    "id": 16248126,
+                    "name": "Apex",
+                    "tag": "Apex"
+                },
+                "fortnite": {
+                    "id": 16248127,
+                    "name": "Fortnite",
+                    "tag": "Fortnite"
+                },
+                "shedule": {
+                    "id": 16248128,
+                    "name": "Schedule",
+                    "tag": "Shedule"
+                }
+            }
+        },
+        "channels": {
+            "id": 496988,
+            "name": "Каналы для отправки",
+            "type": "select",
+            "multi_select": true,
+            "values_creatable_by_users": false,
+            "show_on_facade": true,
+            "values": {
+                "tg_main": {
+                    "id": 16234560,
+                    "name": "Киберкужочек"
+                },
+                "vk_main": {
+                    "id": 16231059,
+                    "name": "ВК Сообщество"
+                },
+                "tg_comps": {
+                    "id": 16231057,
+                    "name": "Что по компам?"
+                },
+                "tg_tablegames": {
+                    "id": 16231058,
+                    "name": "ТГ Настолки"
+                }
+            }
+        },
+        "editor_check": {
+            "id": 501052,
+            "name": "Проверка редактором",
+            "type": "checkbox",
+            "show_on_facade": false
+        },
+        "image_prompt": {
+            "id": 500387,
+            "name": "Описание картинки",
+            "type": "string",
+            "data": {
+                "restrictions": {
+                    "maxLength": 1024
+                }
+            },
+            "multiline": true
+        }
+    },
+    "space": {
+        "id": 667420,
+        "title": "Копирайт",
+        "boards": {
+            "queue": {
+                "id": 1514980,
+                "title": "Очередь",
+                "columns": [
+                    {
+                        "id": 5504326,
+                        "title": "Форум",
+                        "type": 1
+                    }
+                ]
+            },
+            "in_progress": {
+                "id": 1514984,
+                "title": "В работе",
+                "columns": [
+                    {
+                        "id": 5504327,
+                        "title": "Начато",
+                        "type": 1
+                    },
+                    {
+                        "id": 5251678,
+                        "title": "На проверке",
+                        "type": 2
+                    },
+                    {
+                        "id": 5508542,
+                        "title": "Готово",
+                        "type": 3
+                    }
+                ]
+            }
+        }
+    },
+    "card_types": {
+        "public": {
+            "id": 576243,
+            "name": "Личное задание",
+            "letter": "😎",
+            "color": 25
+        },
+        "private": {
+            "id": 576244,
+            "name": "Свободное задание",
+            "letter": "🕊",
+            "color": 2
+        }
+    },
+    "group_forum": -1001670342796,
+    "forum_topic": 2315,
+    "complete_topic": 2442,
+    "design_group": -1001670342796,
+    "community_forum": -1001670342796
+}

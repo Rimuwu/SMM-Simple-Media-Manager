@@ -57,205 +57,45 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
-  
-  brain:
-    build: 
+
+  app:
+    build:
       context: .
-      dockerfile: brain-api/Dockerfile.brain
+      dockerfile: app/Dockerfile
     environment:
       - VAULT_ADDR=http://vault:8200
       - TZ=Europe/Moscow
     secrets:
       - vault_token
-    ports:
-      - "127.0.0.1:8000:8000"
     depends_on:
       vault:
         condition: service_healthy
       postgres:
         condition: service_healthy
     entrypoint: ["sh", "/entrypoint.sh"]
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-    restart: unless-stopped
-    volumes:
-      - ./logs:/logs:rw
-      - ./json:/json:rw
-      - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
-    networks:
-      - smm_network
-    healthcheck:
-      test: [
-        "CMD", "python", "-c", 
-        "import urllib.request; urllib.request.urlopen('http://localhost:8000')"]
-      interval: 5s
-      timeout: 1s
-      retries: 10
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
-
-  calendar:
-    build: 
-      context: .
-      dockerfile: calendar-api/Dockerfile.calendar
-    environment:
-      - VAULT_ADDR=http://vault:8200
-    secrets:
-      - vault_token
-    ports:
-      - "127.0.0.1:8001:8001"
-    depends_on:
-      vault:
-        condition: service_healthy
-      brain:
-        condition: service_healthy
-    entrypoint: ["sh", "/entrypoint.sh"]
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
-    restart: unless-stopped
-    volumes:
-      - ./logs:/logs:rw
-      - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
-    networks:
-      - smm_network
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001')"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-
-  executors:
-    build: 
-      context: .
-      dockerfile: executors/Dockerfile.executors
-    environment:
-      - VAULT_ADDR=http://vault:8200
-    secrets:
-      - vault_token
-    ports:
-      - "127.0.0.1:8003:8003"
-    depends_on:
-      vault:
-        condition: service_healthy
-      brain:
-        condition: service_healthy
-    entrypoint: ["sh", "/entrypoint.sh"]
     command: ["python", "main.py"]
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
+      - ./json:/json:rw
+      - ./storage_data:/storage:rw
       - ./sessions:/sessions:rw
       - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
     networks:
       - smm_network
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003')"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 40s
     deploy:
       resources:
         limits:
-          cpus: '1.0'
+          cpus: '2.0'
           memory: 1G
         reservations:
-          cpus: '0.25'
-          memory: 256M
-
-  storage:
-    build:
-      context: .
-      dockerfile: storage-api/Dockerfile.storage
-    environment:
-      - VAULT_ADDR=http://vault:8200
-      - TZ=Europe/Moscow
-    secrets:
-      - vault_token
-    ports:
-      - "127.0.0.1:8002:8002"
-    depends_on:
-      vault:
-        condition: service_healthy
-    entrypoint: ["sh", "/entrypoint.sh"]
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
-    restart: unless-stopped
-    volumes:
-      - ./storage_data:/storage:rw
-      - ./logs:/logs:rw
-      - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
-    networks:
-      - smm_network
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/')"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
           cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-
-  # backup:
-  #   image: postgres:15-alpine
-  #   environment:
-  #     - POSTGRES_HOST=postgres
-  #     - POSTGRES_PORT=5432
-  #     - VAULT_ADDR=http://vault:8200
-  #     - BACKUP_RETENTION_DAYS=7
-  #     - BACKUP_COMPRESS=true
-  #     - TZ=Europe/Moscow
-  #   secrets:
-  #     - vault_token
-  #   volumes:
-  #     - ./backups:/backups:rw
-  #     - ./scripts/backup_postgres.py:/backup_postgres.py:ro
-  #     - ./scripts/backup_vault_entrypoint.sh:/backup_vault_entrypoint.sh:ro
-  #   depends_on:
-  #     vault:
-  #       condition: service_healthy
-  #     postgres:
-  #       condition: service_healthy
-  #   networks:
-  #     - smm_network
-  #   restart: unless-stopped
-  #   entrypoint: ["sh", "/backup_vault_entrypoint.sh"]
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '0.25'
-  #         memory: 256M
-  #       reservations:
-  #         cpus: '0.1'
-  #         memory: 64M
+          memory: 256M
 
 volumes:
   postgres_data:
     driver: local
     name: smm_manager_postgres_data
-
-  storage_data:
-    driver: local
-    name: smm_manager_storage_data
 
   vault_data:
     driver: local
@@ -269,4 +109,3 @@ secrets:
 
 networks:
   smm_network:
-    driver: bridge

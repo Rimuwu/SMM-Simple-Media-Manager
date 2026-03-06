@@ -1,0 +1,102 @@
+from aiogram import Bot, Dispatcher
+from aiogram.types import Message
+from global_modules import brain_client
+from modules.executors_manager import manager
+from aiogram import F
+from aiogram.filters import Command
+from tg.oms import scene_manager
+from tg.scenes.create.create_scene import CreateTaskScene
+from tg.filters.role_filter import RoleFilter
+from tg.filters.authorize import Authorize
+from tg.filters.in_dm import InDMorWorkGroup
+
+client_executor = manager.get("telegram_executor")
+dp: Dispatcher = client_executor.dp
+bot: Bot = client_executor.bot
+
+
+@dp.message(Command("create"), RoleFilter('admin'), InDMorWorkGroup())
+async def cmd_create(message: Message):
+
+    try:
+        sc = scene_manager.create_scene(
+            message.from_user.id,
+            CreateTaskScene,
+            bot
+        )
+        await sc.start()
+    except ValueError as e:
+        n_s = scene_manager.get_scene(message.from_user.id)
+        if n_s:
+            await n_s.end()
+
+        sc = scene_manager.create_scene(
+            message.from_user.id,
+            CreateTaskScene,
+            bot
+        )
+        await sc.start()
+
+@dp.message(Command("create"), RoleFilter('customer'), InDMorWorkGroup())
+async def cmd_create_customer(message: Message):
+    await cmd_create(message)
+
+@dp.message(Command("create"), RoleFilter('copywriter'), InDMorWorkGroup())
+async def cmd_create_copywriter(message: Message):
+    n_s = scene_manager.get_scene(message.from_user.id)
+    if n_s:
+        await n_s.end()
+    
+    user = await brain_client.get_user(telegram_id=message.from_user.id)
+    if not user:
+        await message.answer("❌ Ошибка: пользователь не найден в базе данных.")
+        return
+
+    sc = scene_manager.create_scene(
+        message.from_user.id,
+        CreateTaskScene,
+        bot
+    )
+    sc.data['scene']['copywriter_selfcreate'] = True
+    sc.data['scene']['user'] = user['user_id']
+    sc.data['scene']['type'] = 'private'
+
+    await sc.start()
+
+@dp.message(Command("create"), RoleFilter('editor'), InDMorWorkGroup())
+async def cmd_create_editor(message: Message):
+    n_s = scene_manager.get_scene(message.from_user.id)
+    if n_s:
+        await n_s.end()
+    
+    user = await brain_client.get_user(telegram_id=message.from_user.id)
+    if not user:
+        await message.answer("❌ Ошибка: пользователь не найден в базе данных.")
+        return
+
+    sc = scene_manager.create_scene(
+        message.from_user.id,
+        CreateTaskScene,
+        bot
+    )
+    sc.data['scene']['copywriter_selfcreate'] = True
+    sc.data['scene']['user'] = user['user_id']
+    sc.data['scene']['type'] = 'private'
+
+    await sc.start()
+
+@dp.message(Command("create"), InDMorWorkGroup())
+async def not_authorized_create(message: Message):
+    await message.answer("У вас нет прав для использования этой команды.")
+
+@dp.message(Command("cancel"), Authorize(), InDMorWorkGroup())
+async def cancel(message: Message):
+
+    ss = scene_manager.get_scene(message.from_user.id)
+    if ss:
+        await ss.end()
+        await message.answer("Вы вышли из текущей сцены.")
+
+@dp.message(Command("cancel"), InDMorWorkGroup())
+async def cancel_na(message: Message):
+    await message.answer("У вас нет прав для использования этой команды.")
