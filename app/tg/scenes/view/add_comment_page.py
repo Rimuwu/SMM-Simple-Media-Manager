@@ -25,11 +25,10 @@ class AddCommentPage(TextTypeScene):
                 editor_notes = card.get('editor_notes', [])
 
                 if editor_notes:
-                    # Получаем всех пользователей для отображения имен
+                    # Получаем всех пользователей для отображения имен (один запрос вместо N)
                     users = await brain_client.get_users()
                     users_dict = {str(u['user_id']): u for u in users} if users else {}
 
-                    
                     # Форматируем комментарии с учетом лимита символов
                     formatted_notes = []
                     total_length = 0
@@ -44,9 +43,8 @@ class AddCommentPage(TextTypeScene):
                         
                         author_name = 'Неизвестный'
                         if author_id:
-                            author_users = await brain_client.get_users(user_id=author_id)
-                            if author_users:
-                                user_data = author_users[0]
+                            user_data = users_dict.get(author_id)
+                            if user_data:
                                 author_name = await get_display_name(
                                     user_data['telegram_id'],
                                     self.scene.__bot__
@@ -144,7 +142,7 @@ class AddCommentPage(TextTypeScene):
         user_id = user.get('user_id')
 
         # Добавляем комментарий через API
-        result, status = await brain_client.add_editor_note(
+        result = await brain_client.add_editor_note(
             card_id=str(card_id),
             content=comment_text,
             author_user_id=str(user_id)

@@ -2,14 +2,13 @@ from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms.utils import callback_generator
 from global_modules.brain_client import get_users
 from typing import Optional, Callable
-from modules.utils import get_display_name
+from modules.utils import get_user_display_name
 
 class UserSelectorPage(RadioTypeScene):
     """
     Базовый класс для страниц выбора пользователя/исполнителя.
     
     Загружает пользователей из БД и получает их имена:
-    - Если нет tasker_id - использует telegram_id как имя
     
     Attributes:
         update_to_db: Если True, обновляет данные через API после выбора
@@ -67,15 +66,7 @@ class UserSelectorPage(RadioTypeScene):
         self.options = {}
         for user in self.filtered_users:
             user_id = str(user['user_id'])
-            if user.get('name'):
-                self.options[user_id] = user['name']
-            else:
-                display_name = await get_display_name(
-                    user['telegram_id'],
-                    self.scene.__bot__,
-                    short=True
-                )
-                self.options[user_id] = display_name
+            self.options[user_id] = get_user_display_name(user)
 
     async def content_worker(self) -> str:
         """Формирует контент с отображением текущего пользователя"""
@@ -86,10 +77,7 @@ class UserSelectorPage(RadioTypeScene):
             # Ищем пользователя в загруженных данных
             user_data = next((u for u in self.users_data if str(u.get('user_id')) == str(current_user_id)), None)
             if user_data:
-                current_user_name = await get_display_name(
-                    user_data['telegram_id'],
-                    self.scene.__bot__
-                )
+                current_user_name = get_user_display_name(user_data)
 
         page = self.scene.get_key(self.__page_name__, 'current_page') or 0
         total = len(self.filtered_users) if hasattr(self, 'filtered_users') else len(self.users_data)

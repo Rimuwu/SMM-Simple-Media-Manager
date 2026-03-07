@@ -62,13 +62,11 @@ class EditAboutPage(TextTypeScene):
             # Создаем пользователя со всеми данными
             telegram_id = self.scene.data['scene'].get('new_user_id')
             role = self.scene.data['scene'].get('new_user_role')
-            tasker_id = self.scene.data['scene'].get('new_user_tasker_id')
             department = self.scene.data['scene'].get('new_user_department')
-            
+
             result = await brain_client.create_user(
                 telegram_id=telegram_id,
                 role=role,
-                tasker_id=tasker_id,
                 department=department,
                 about=about_text,
                 name=self.scene.data['scene'].get('user_name') or None

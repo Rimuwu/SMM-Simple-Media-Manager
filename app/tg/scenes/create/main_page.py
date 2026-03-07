@@ -1,10 +1,10 @@
 from datetime import datetime
 from global_modules.vault.vault_client import vault_getenv as getenv
-from modules.utils import get_display_name
+from modules.utils import get_user_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.constants import SETTINGS
 from global_modules.brain_client import brain_client
+from tg.scenes.constants import format_channels, format_tags
 
 debug = getenv('DEBUG', 'False') == 'True'
 
@@ -31,30 +31,10 @@ class MainPage(Page):
 
         # Channels
         channels = data.get('channels', [])
-        if channels:
-            channel_names = []
-            for ch_key in channels:
-                ch_info = SETTINGS['properties']['channels']['values'].get(ch_key)
-                if ch_info:
-                    channel_names.append(ch_info['name'])
-                else:
-                    channel_names.append(ch_key)
-            add_vars['channels'] = ', '.join(channel_names)
-        else:
-            add_vars['channels'] = '⭕'
+        add_vars['channels'] = format_channels(channels) if channels else '⭕'
 
         tags = data.get('tags')
-        if not tags:
-            add_vars['tags'] = '⭕'
-        else:
-            tag_names = []
-            for tag_key in tags:
-                tag_info = SETTINGS['properties']['tags']['values'].get(tag_key)
-                if tag_info:
-                    tag_names.append(tag_info['name'])
-                else:
-                    tag_names.append(tag_key)
-            add_vars['tags'] = ', '.join(tag_names)
+        add_vars['tags'] = format_tags(tags) if tags else '⭕'
         
         # Date
         if data.get('publish_date'):
@@ -79,16 +59,12 @@ class MainPage(Page):
         # Executor
         user_id = data.get('user')
         if user_id:
-            # Получаем информацию о пользователе
-            users = await brain_client.get_users()
-            user_data = next((u for u in users if str(u['user_id']) == str(user_id)), None) if users else None
+            # Получаем конкретного пользователя по user_id
+            users = await brain_client.get_users(user_id=str(user_id))
+            user_data = users[0] if users else None
 
             if user_data:
-                display_name = await get_display_name(
-                    user_data['telegram_id'],
-                    self.scene.__bot__
-                )
-                add_vars['user'] = display_name
+                add_vars['user'] = get_user_display_name(user_data)
             else:
                 add_vars['user'] = f"ID: {user_id}"
         else:

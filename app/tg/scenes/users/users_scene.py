@@ -21,7 +21,7 @@ class UsersScene(Scene):
         EditNamePage,
         EditAboutPage,
         FilterUsersByRolePage,
-        FilterUsersByDepartmentPage
+        FilterUsersByDepartmentPage,
     ]
 
 

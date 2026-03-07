@@ -195,6 +195,14 @@ class DatePickerPage(Page):
 
             # show calendar grid
             self.row_width = 7
+            
+            for day_name in ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС']:
+                buttons.append({
+                    'text': day_name,
+                    'callback_data': ' ',
+                    'style': 'primary'
+                })
+
             for week in weeks:
                 for day in week:
                     if day == 0:
@@ -217,44 +225,48 @@ class DatePickerPage(Page):
 
                     if day_end < (now + timedelta(seconds=min_delta)):
                         buttons.append({
-                            'text': f'{day} ❌',
-                            'callback_data': ' '
+                            'text': f'{day}',
+                            'callback_data': ' ',
+                            'style': 'danger'
                         })
                     elif full_day:
                         buttons.append({
-                            'text': f'{day} ⭕',
-                            'callback_data': ' '
+                            'text': f'{day}',
+                            'callback_data': ' ',
+                            'style': 'danger'
                         })
                     else:
                         # Определим степень заполненности дня (в минутах)
                         day_busy_minutes = sum(1 for dt in busy if dt.date() == day_dt.date())
                         # Цветовой квадрат в зависимости от степени занятости дня
                         if day_busy_minutes == 0:
-                            emoji = '🟩'
-                        elif day_busy_minutes <= 24 * 60 * 0.25:
-                            emoji = '🟨'
-                        elif day_busy_minutes <= 24 * 60 * 0.5:
-                            emoji = '🟧'
+                            style = 'success'
+                        elif day_busy_minutes <= 24 * 60 * 0.75:
+                            style = ' '
                         else:
-                            emoji = '🟥'
+                            style = 'danger'
 
                         buttons.append({
-                            'text': f'{day} {emoji}',
-                            'callback_data': callback_generator(self.scene.__scene_name__, 'pick_date', f"{year}-{month:02d}-{day:02d}")
+                            'text': f'{day}',
+                            'callback_data': callback_generator(self.scene.__scene_name__, 'pick_date', f"{year}-{month:02d}-{day:02d}"),
+                            'style': style
                         })
 
             back_page = self.get_data('back_page') or 'main'
             buttons.append({
                 'text': '⬅️',
-                'callback_data': callback_generator(self.scene.__scene_name__, 'prev_month')
+                'callback_data': callback_generator(self.scene.__scene_name__, 'prev_month'),
+                'style': 'primary'
             })
             buttons.append({
                 'text': self._format_date(datetime.now()),
-                'callback_data': callback_generator(self.scene.__scene_name__, 'now')
+                'callback_data': callback_generator(self.scene.__scene_name__, 'now'),
+                'style': 'primary'
             })
             buttons.append({
                 'text': '➡️',
-                'callback_data': callback_generator(self.scene.__scene_name__, 'next_month')
+                'callback_data': callback_generator(self.scene.__scene_name__, 'next_month'),
+                'style': 'primary'
             })
             buttons.append({
                 'text': '⬅️ Назад',
@@ -262,7 +274,8 @@ class DatePickerPage(Page):
                         self.scene.__scene_name__, 
                         'to_page', back_page
                     ),
-                'ignore_row': True
+                'ignore_row': True,
+                'style': 'primary'
             })
 
             return buttons
@@ -287,15 +300,17 @@ class DatePickerPage(Page):
                 hour_busy = sum(1 for dt in busy_day if dt.hour == hour)
                 full_hour = hour_busy >= 60
 
-                if hour_start < (now + timedelta(seconds=min_delta)):
+                if hour_start < (now - timedelta(hours=1) + timedelta(seconds=min_delta)):
                     buttons.append({
-                        'text': f'{hour:02d} ❌',
-                        'callback_data': ' '
+                        'text': f'{hour:02d}',
+                        'callback_data': ' ',
+                        'style': 'danger'
                     })
                 elif full_hour:
                     buttons.append({
-                        'text': f'{hour:02d} ⬜',
-                        'callback_data': ' '
+                        'text': f'{hour:02d}',
+                        'callback_data': ' ',
+                        'style': 'danger'
                     })
                 else:
                     # Цветовой квадрат в зависимости от степени занятости часа
@@ -339,8 +354,9 @@ class DatePickerPage(Page):
                 candidate = datetime(day_dt.year, day_dt.month, day_dt.day, hour_sel, m)
                 if candidate < (now + timedelta(seconds=min_delta)):
                     buttons.append({
-                        'text': f'⬜ {m:02d}',
-                        'callback_data': ' '
+                        'text': f'{m:02d}',
+                        'callback_data': ' ',
+                        'style': 'danger'
                     })
                 elif m in busy_minutes:
                     buttons.append({

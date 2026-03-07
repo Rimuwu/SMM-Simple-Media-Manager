@@ -8,7 +8,15 @@ from datetime import datetime, timedelta
 class StatusSetterPage(Page):
     
     __page_name__ = 'status-setter'
-    
+    _card_cache: dict | None = None
+
+    async def data_preparate(self):
+        """Загружаем и кешируем данные карточки один раз за цикл рендера"""
+        task_id = self.scene.data['scene'].get('task_id')
+        self._card_cache = None
+        if task_id:
+            cards = await brain_client.get_cards(card_id=task_id)
+            self._card_cache = cards[0] if cards else None
     async def can_complete(self) -> bool:
         publish_date = self.scene.data['scene'].get('publish_date')
         content = self.scene.data['scene'].get('content', None)
@@ -35,13 +43,9 @@ class StatusSetterPage(Page):
                 self.content += "\n\n❌ Нельзя отправить на проверку пост без контента или каналов."
 
         # Дополнительные предупреждения: время отправки, фото, теги
-        task_id = self.scene.data['scene'].get('task_id')
         warnings = []
-        if task_id:
-            cards = await brain_client.get_cards(card_id=task_id)
-            if cards:
-                card = cards[0]
-                # Проверка времени отправки
+        card = self._card_cache
+        if card:
                 send_time = card.get('send_time')
                 if send_time:
                     try:
@@ -77,16 +81,10 @@ class StatusSetterPage(Page):
     async def buttons_worker(self):
         buttons = await super().buttons_worker()
 
-        # Получаем текущий статус задачи
-        task_id = self.scene.data['scene'].get('task_id')
-        if not task_id:
+        card = self._card_cache
+        if not card:
             return buttons
 
-        cards = await brain_client.get_cards(card_id=task_id)
-        if not cards:
-            return buttons
-
-        card = cards[0]
         status = card.get('status')
         need_check = card.get('need_check', True)
         executor_id = card.get('executor_id')

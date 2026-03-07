@@ -1,7 +1,6 @@
 """
 Страница выбора пользователя для фильтрации задач (только для админов)
 """
-from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from global_modules.brain_client import brain_client

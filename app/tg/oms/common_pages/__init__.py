@@ -7,5 +7,6 @@ from .user_selector_page import UserSelectorPage
 from .channels_selector_page import ChannelsSelectorPage
 from .update_text_page import UpdateTextPage
 from .date_picker_pages import DatePickerPage
+from .contact_page import ContactPage
 
-__all__ = ['DateInputPage', 'TagsSelectorPage', 'UserSelectorPage', 'ChannelsSelectorPage', 'UpdateTextPage', 'DatePickerPage']
+__all__ = ['DateInputPage', 'TagsSelectorPage', 'UserSelectorPage', 'ChannelsSelectorPage', 'UpdateTextPage', 'DatePickerPage', 'ContactPage']

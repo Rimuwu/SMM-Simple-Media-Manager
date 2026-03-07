@@ -1,4 +1,4 @@
-from modules.utils import get_display_name
+from modules.utils import get_user_display_name
 from tg.oms.common_pages import UserSelectorPage
 from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus
@@ -73,18 +73,11 @@ class AssignExecutorPage(UserSelectorPage):
                     None
                 )
                 if selected_user and isinstance(selected_user, dict):
-                    # Получаем отображаемое имя пользователя
-                    display_name = await get_display_name(
-                        selected_user['telegram_id'],
-                        self.scene.__bot__
-                    )
-
                     telegram_id = selected_user.get('telegram_id')
-
                     task['executor'] = {
                         'user_id': str(user_id),
                         'telegram_id': telegram_id,
-                        'full_name': display_name
+                        'full_name': get_user_display_name(selected_user)
                     }
             else:
                 task['executor'] = None

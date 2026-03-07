@@ -203,7 +203,7 @@ async def send_leaderboard(
         return False
 
     from global_modules.brain_client import get_users as _get_users
-    from modules.utils import get_display_name
+    from modules.utils import get_user_display_name
 
     users = await _get_users() or []
 
@@ -230,7 +230,7 @@ async def send_leaderboard(
             continue
         idx += 1
         telegram_id = user.get('telegram_id')
-        name = await get_display_name(int(telegram_id), short=True) if telegram_id else 'Неизвестный'
+        name = get_user_display_name(user) if telegram_id else 'Неизвестный'
         position = medals[idx] if idx < 3 else f" {idx + 1}."
         text_lines.append(f"• {position} <b>{name}</b> — {tasks_count} задач")
 

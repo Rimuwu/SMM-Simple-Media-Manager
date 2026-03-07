@@ -13,10 +13,12 @@ class PreviewPage(Page):
     
     # Кэш скачанных файлов (для одной сессии страницы)
     _cached_files: dict = {}
+    _card_cache: dict | None = None
 
     async def data_preparate(self):
         """Подготовка данных перед отображением"""
         card = await self.scene.get_card_data()
+        self._card_cache = card
 
         if not card:
             await self.scene.update_key(self.__page_name__, 'clients', [])
@@ -38,7 +40,7 @@ class PreviewPage(Page):
     
     async def content_worker(self) -> str:
         """Возвращает текст сообщения"""
-        card = await self.scene.get_card_data()
+        card = self._card_cache
         clients = self.scene.get_key(self.__page_name__, 'clients') or []
         content_dict = card.get('content') if card else None
 
@@ -70,7 +72,7 @@ class PreviewPage(Page):
     async def buttons_worker(self) -> list[dict]:
         """Создает кнопки с клиентами"""
         buttons = []
-        card = await self.scene.get_card_data()
+        card = self._card_cache
         clients = self.scene.get_key(self.__page_name__, 'clients') or []
         content_dict = card.get('content') if card else None
 

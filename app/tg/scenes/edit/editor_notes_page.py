@@ -8,18 +8,25 @@ from global_modules.brain_client import add_editor_note
 class EditorNotesPage(Page):
     
     __page_name__ = 'editor-notes'
+    _card_cache: dict | None = None
     
     async def data_preparate(self):
         """Загружаем комментарии и форматируем их"""
         task_id = self.scene.data['scene'].get('task_id')
+        self._card_cache = None
         
         if task_id:
             cards = await brain_client.get_cards(card_id=task_id)
             if cards:
                 card = cards[0]
+                self._card_cache = card
                 editor_notes = card.get('editor_notes', [])
 
                 if editor_notes:
+                    # Загружаем всех пользователей единым запросом
+                    all_users = await brain_client.get_users()
+                    users_dict = {str(u['user_id']): u for u in all_users} if all_users else {}
+
                     # Форматируем комментарии с учетом лимита символов
                     formatted_notes = []
                     total_length = 0
@@ -34,9 +41,8 @@ class EditorNotesPage(Page):
                         
                         author_name = 'Неизвестный'
                         if author_id:
-                            author_users = await brain_client.get_users(user_id=author_id)
-                            if author_users:
-                                user_data = author_users[0]
+                            user_data = users_dict.get(author_id)
+                            if user_data:
                                 author_name = await get_display_name(
                                         user_data['telegram_id'], 
                                         self.scene.__bot__,
@@ -74,16 +80,12 @@ class EditorNotesPage(Page):
         """Формируем кнопки"""
         buttons = []
         
-        # Проверяем статус задачи
-        task_id = self.scene.data['scene'].get('task_id')
-        if task_id:
-            cards = await brain_client.get_cards(card_id=task_id)
-            if cards:
-                card = cards[0]
-                status = card.get('status')
-                
-                # Если статус "На проверке", добавляем кнопку "Вернуть в работу"
-                if status == CardStatus.review.value:
+        # Используем кеш из data_preparate
+        card = self._card_cache
+        if card:
+            status = card.get('status')
+            # Если статус "На проверке", добавляем кнопку "Вернуть в работу"
+            if status == CardStatus.review.value:
                     buttons.append({
                         'text': '🔙 Вернуть в работу',
                         'callback_data': callback_generator(

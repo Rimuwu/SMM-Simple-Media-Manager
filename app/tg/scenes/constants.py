@@ -2,6 +2,7 @@
 Общие константы для сцен: маппинги отделов, ролей и статусов.
 """
 from global_modules.classes.enums import Department, CardStatus
+from modules.constants import SETTINGS
 
 # Маппинг значений отделов на читаемые имена
 DEPARTMENT_NAMES: dict[str, str] = {
@@ -41,3 +42,19 @@ CARD_STATUS_NAMES: dict[str, str] = {
     CardStatus.ready.value: "✅ Готова",
     CardStatus.sent.value: "🚀 Отправлено",
 }
+
+
+def format_channels(channels: list) -> str:
+    """Форматирует список ключей каналов в строку с именами."""
+    if not channels:
+        return 'Не указаны'
+    ch_values = SETTINGS['properties']['channels']['values']
+    return ', '.join(ch_values.get(ch, {}).get('name', ch) for ch in channels)
+
+
+def format_tags(tags: list) -> str:
+    """Форматирует список ключей тегов в строку с именами."""
+    if not tags:
+        return 'Не указаны'
+    tag_values = SETTINGS['properties']['tags']['values']
+    return ', '.join(tag_values.get(tag, {}).get('name', tag) for tag in tags)

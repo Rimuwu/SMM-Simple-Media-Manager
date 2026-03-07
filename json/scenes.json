@@ -209,7 +209,7 @@
                     "files-view": "📎 Файлы и медиа",
                     "image-prompt": "🖼 ТЗ для дизайнеров",
                     "post-preview": "👁 Превью поста",
-                    "editor-notes": "💬 Комментарии",
+                    "contact": "📬 Связь",
                     "client-settings-main": "⚙️ Настройки клиентов",
                     "entities-main": "🗳 Сущности"
                 },
@@ -287,9 +287,11 @@
                 },
                 "row_width": 1
             },
-            "editor-notes": {
-                "content": "💬 *Комментарии редакторов*\n_Напишите сообщение, чтобы добавить комментарий._\n\n{formatted_notes}",
-                "to_pages": {},
+            "contact": {
+                "content": "📬 *Связь с участниками задачи*",
+                "to_pages": {
+                    "main-page": "⬅️ Назад"
+                },
                 "row_width": 1
             },
             "client-settings-main": {
@@ -408,11 +410,15 @@
             "date-picker": {
                 "content": " 📅 *Календарь*\n"
             },
-            "add-comment": {
-                "content": "💬 *Комментарии к задаче*\n\n📜 *История:*\n{comments_history}\n\n✏️ *Ваш комментарий:*\n{comment}\n\n_Введите или измените текст:_",
+            "contact": {
+                "content": "📬 *Связь с участниками задачи*",
                 "to_pages": {
                     "task-detail": "⬅️ Назад"
                 }
+            },
+            "delete-confirm": {
+                "content": "🗑️ *Удаление задачи*\n\nВы уверены, что хотите удалить задачу *{task_name}*? Это действие нельзя будет отменить.",
+                "to_pages": {}
             },
             "change-name": {
                 "content": "✏️ *Изменение названия*\n\nТекущее название: *{task_name}*\n\nВведите новое название задачи:",
@@ -484,8 +490,11 @@
                 "row_width": 3
             },
             "select-department": {
-                "content": "Выберите департамент пользователя:",
+                "content": "Выберите департамент пользователя: {user_name}",
                 "row_width": 2
+            },
+            "edit-name": {
+                "content": "Введите имя пользователя:\n\n*Текущее:* {user_name}"
             },
             "edit-about": {
                 "content": "Введите описание пользователя:\n\n*Текущее:* {about_text}",

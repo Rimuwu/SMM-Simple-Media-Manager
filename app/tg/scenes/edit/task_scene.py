@@ -10,11 +10,10 @@ from .tags_page import TagsSetterPage
 from .main_page import MainPage
 from .files_page import FilesPage
 from .preview_page import PreviewPage
-from .editor_notes_page import EditorNotesPage
 from .image_prompt_page import ImagePromptPage
 from .client_settings_page import ClientSettingsPage
 from .image_view_setting_page import ImageViewSettingPage
-from tg.oms.common_pages import DatePickerPage
+from tg.oms.common_pages import DatePickerPage, ContactPage
 from tg.scenes.edit.entities import poll, view, keyboard
 from tg.scenes.edit.entities_main import EntitiesMainPage
 from .auto_pin_setting_page import AutoPinSettingPage
@@ -34,7 +33,7 @@ class TaskScene(Scene):
         TagsSetterPage,
         FilesPage,
         PreviewPage,
-        EditorNotesPage,
+        ContactPage,
         ImagePromptPage,
         ClientSettingsPage,
         ImageViewSettingPage,

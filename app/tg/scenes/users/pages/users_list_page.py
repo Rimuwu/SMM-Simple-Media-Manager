@@ -1,4 +1,3 @@
-from modules.utils import get_display_name
 from tg.oms.common_pages.user_selector_page import UserSelectorPage
 from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
@@ -118,7 +117,6 @@ class UsersListPage(UserSelectorPage):
             {
                 'new_user_id': None,
                 'new_user_role': None,
-                'new_user_tasker_id': None,
                 'new_user_department': None,
                 'about_text': '',
                 'selected_role': None,

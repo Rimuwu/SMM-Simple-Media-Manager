@@ -43,8 +43,8 @@ class FilesPage(Page):
 
         try:
             resp = await brain_client.list_files(card_id=str(card.get('card_id')))
-            files = resp.get('files') if resp else []
-            await self.scene.update_key(self.__page_name__, 'files', files or [])
+            files = resp if resp else []
+            await self.scene.update_key(self.__page_name__, 'files', files)
 
             # Normalize selected -> ids
             id_by_name = {

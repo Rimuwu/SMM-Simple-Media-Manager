@@ -2,14 +2,15 @@ from datetime import datetime
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from global_modules.brain_client import brain_client
-from modules.constants import SETTINGS
 from global_modules.classes.enums import CardStatus
 from modules.logs import logger
-from tg.scenes.constants import CARD_STATUS_NAMES
+from tg.scenes.constants import CARD_STATUS_NAMES, format_channels, format_tags
 
 class MainPage(Page):
     
     __page_name__ = 'main-page'
+    _card_status_cache: str | None = None
+    _card_role_cache: str | None = None
     
     async def data_preparate(self):
         """Загружаем данные задачи"""
@@ -20,19 +21,12 @@ class MainPage(Page):
             if cards:
                 card = cards[0]
 
-                # Форматируем каналы - преобразуем ключи в имена из настроек
+                # Форматируем каналы и теги
                 channels = card.get('clients', [])
-                channels_text = ', '.join(
-                    SETTINGS['properties']['channels']['values'].get(ch, {}).get('name', ch)
-                    for ch in channels
-                ) if channels else 'Не указаны'
+                channels_text = format_channels(channels)
                 
-                # Форматируем теги - преобразуем ключи в имена из настроек
                 tags = card.get('tags', [])
-                tags_text = ', '.join(
-                    SETTINGS['properties']['tags']['values'].get(tag, {}).get('name', tag)
-                    for tag in tags
-                ) if tags else 'Не указаны'
+                tags_text = format_tags(tags)
                 
                 # Форматируем даты
                 publish_date = card.get('send_time')
@@ -91,28 +85,27 @@ class MainPage(Page):
                     'has_notes': has_notes,
                     'notes_count': len(editor_notes)
                 })
+                self._card_status_cache = card.get('status')
                 await self.scene.save_to_db()
     
     async def to_page_preworker(self, to_page_buttons: dict) -> dict:
         """Фильтруем кнопки в зависимости от роли и статуса"""
-        task_id = self.scene.data['scene'].get('task_id')
-        
-        if task_id:
-            cards = await brain_client.get_cards(card_id=task_id)
-            if cards:
-                card = cards[0]
-                status = card.get('status')
-                
-                # Проверяем роль пользователя
+        # Используем статус из кеша data_preparate, иначе из scene.data
+        status = self._card_status_cache or self.scene.data['scene'].get('status')
+
+        if status:
+            user_role = self._card_role_cache
+            if user_role is None:
                 user_role = await brain_client.get_user_role(self.scene.user_id)
+                self._card_role_cache = user_role
 
-                # Если статус "На проверке" или "Готов" и роль "копирайтер" - оставляем только комментарии и превью
-                if status in [CardStatus.review.value, CardStatus.ready.value] and user_role == 'copywriter':
-                    allowed_pages = ['editor-notes', 'post-preview']
-                    return {k: v for k, v in to_page_buttons.items() if k in allowed_pages}
+            # Если статус "На проверке" или "Готов" и роль "копирайтер" - оставляем только комментарии и превью
+            if status in [CardStatus.review.value, CardStatus.ready.value] and user_role == 'copywriter':
+                allowed_pages = ['editor-notes', 'post-preview']
+                return {k: v for k, v in to_page_buttons.items() if k in allowed_pages}
 
-                if status == CardStatus.sent.value and user_role == 'copywriter':
-                    return {}
+            if status == CardStatus.sent.value and user_role == 'copywriter':
+                return {}
 
         return to_page_buttons
     

@@ -27,8 +27,17 @@ async def get_cards(task_id=None, card_id=None, status=None, customer_id=None, e
 
 async def update_card(card_id: str, **kwargs) -> dict | None:
     from models.Card import Card
+    from datetime import datetime as _dt
     _NOTHING = "__nothing__"
+    _DATETIME_FIELDS = {"deadline", "send_time"}
     updates = {k: v for k, v in kwargs.items() if v != _NOTHING}
+    # Конвертируем ISO-строки в datetime для полей типа DateTime
+    for field in _DATETIME_FIELDS:
+        if field in updates and isinstance(updates[field], str):
+            try:
+                updates[field] = _dt.fromisoformat(updates[field])
+            except ValueError:
+                pass
     try:
         card = await Card.get_by_id(_UUID(str(card_id)))
         if not card: return None
@@ -104,11 +113,10 @@ async def clear_content(card_id: str, client_key=None) -> bool:
     return await set_content(card_id, "", client_key)
 
 
-async def get_users(telegram_id=None, tasker_id=None, role=None, user_id=None, department=None) -> list[dict]:
+async def get_users(telegram_id=None, role=None, user_id=None, department=None) -> list[dict]:
     from models.User import User
     kwargs = {}
     if telegram_id is not None: kwargs["telegram_id"] = telegram_id
-    if tasker_id is not None: kwargs["tasker_id"] = tasker_id
     if role is not None: kwargs["role"] = role
     if user_id is not None: kwargs["user_id"] = _UUID(str(user_id))
     if department is not None: kwargs["department"] = department
@@ -116,8 +124,8 @@ async def get_users(telegram_id=None, tasker_id=None, role=None, user_id=None, d
     return [u.to_dict() for u in users]
 
 
-async def get_user(telegram_id=None, tasker_id=None, role=None, user_id=None, department=None) -> dict | None:
-    users = await get_users(telegram_id, tasker_id, role, user_id, department)
+async def get_user(telegram_id=None, role=None, user_id=None, department=None) -> dict | None:
+    users = await get_users(telegram_id, role, user_id, department)
     return users[0] if users else None
 
 
@@ -126,23 +134,23 @@ async def get_user_role(telegram_id: int) -> str | None:
     return user.get("role") if user else None
 
 
-async def create_user(telegram_id: int, role: str, tasker_id=None, department=None, about=None, name=None) -> dict | None:
+async def create_user(telegram_id: int, role: str, department=None, about=None, name=None) -> dict | None:
     from models.User import User
     try:
         existing = await User.get_by_key("telegram_id", telegram_id)
         if existing: return {"error": "User already exists"}
-        user = await User.create(telegram_id=telegram_id, role=role, tasker_id=tasker_id, department=department, about=about, name=name, task_per_year=0, task_per_month=0, tasks=0, tasks_checked=0, tasks_created=0)
+        user = await User.create(telegram_id=telegram_id, role=role, department=department, about=about, name=name, task_per_year=0, task_per_month=0, tasks=0, tasks_checked=0, tasks_created=0)
         return user.to_dict()
     except Exception as e:
         print(f"create_user error: {e}"); return None
 
 
-async def update_user(telegram_id: int, role=None, tasker_id=None, department=None, about=None, name=None) -> dict | None:
+async def update_user(telegram_id: int, role=None, department=None, about=None, name=None) -> dict | None:
     from models.User import User
     try:
         user = await User.get_by_key("telegram_id", telegram_id)
         if not user: return None
-        updates = {k: v for k, v in [("role", role), ("tasker_id", tasker_id), ("about", about), ("name", name)] if v is not None}
+        updates = {k: v for k, v in [("role", role), ("about", about), ("name", name)] if v is not None}
         if department is not None: updates["department"] = department.value if hasattr(department, "value") else department
         if updates: await user.update(**updates)
         return user.to_dict()
@@ -268,6 +276,27 @@ async def upload_file(card_id: str, file_data: bytes, filename: str, content_typ
         return cf.to_dict()
     except Exception as e:
         print(f"upload_file error: {e}"); return None
+
+
+async def upload_files_to_card(card_id: str, files: list[dict], bot) -> int:
+    """Загружает список файлов (из Telegram) к карточке. Возвращает количество успешно загруженных файлов."""
+    from modules.file_utils import download_telegram_file
+    uploaded = 0
+    for file_info in files:
+        try:
+            file_id = file_info.get('file_id')
+            filename = file_info.get('name', 'file')
+            if not file_id:
+                continue
+            file_data = await download_telegram_file(bot, file_id)
+            if not file_data:
+                continue
+            result = await upload_file(card_id=card_id, file_data=file_data, filename=filename)
+            if result:
+                uploaded += 1
+        except Exception as e:
+            print(f"upload_files_to_card error for {file_info.get('name')}: {e}")
+    return uploaded
 
 
 async def add_entity(card_id: str, client_id: str, entity_type: str, data: dict, name=None) -> dict | None:
@@ -545,45 +574,10 @@ class _BrainClientCompat:
     update_entity = staticmethod(update_entity)
     delete_entity_by_id = staticmethod(delete_entity_by_id)
     get_busy_slots = staticmethod(get_busy_slots)
+    upload_files_to_card = staticmethod(upload_files_to_card)
     get_tags = staticmethod(get_tags)
     create_tag = staticmethod(create_tag)
     update_tag = staticmethod(update_tag)
     delete_tag = staticmethod(delete_tag)
-
-    get_cards = staticmethod(get_cards)
-    update_card = staticmethod(update_card)
-    change_card_status = staticmethod(change_card_status)
-    add_editor_note = staticmethod(add_editor_note)
-    get_messages = staticmethod(get_messages)
-    set_content = staticmethod(set_content)
-    clear_content = staticmethod(clear_content)
-    get_users = staticmethod(get_users)
-    get_user = staticmethod(get_user)
-    get_user_role = staticmethod(get_user_role)
-    create_user = staticmethod(create_user)
-    update_user = staticmethod(update_user)
-    delete_user = staticmethod(delete_user)
-    insert_scene = staticmethod(insert_scene)
-    load_scene = staticmethod(load_scene)
-    update_scene = staticmethod(update_scene)
-    delete_scene = staticmethod(delete_scene)
-    get_all_scenes = staticmethod(get_all_scenes)
-    download_file = staticmethod(download_file)
-    get_file_info = staticmethod(get_file_info)
-    list_files = staticmethod(list_files)
-    delete_file = staticmethod(delete_file)
-    upload_file = staticmethod(upload_file)
-    add_entity = staticmethod(add_entity)
-    get_entities = staticmethod(get_entities)
-    notify_executor = staticmethod(notify_executor)
-    get_card_by_message_id = staticmethod(get_card_by_message_id)
-    create_card = staticmethod(create_card)
-    delete_card = staticmethod(delete_card)
-    send_now = staticmethod(send_now)
-    set_client_settings = staticmethod(set_client_settings)
-    get_entity = staticmethod(get_entity)
-    update_entity = staticmethod(update_entity)
-    delete_entity_by_id = staticmethod(delete_entity_by_id)
-    get_busy_slots = staticmethod(get_busy_slots)
 
 brain_client = _BrainClientCompat()

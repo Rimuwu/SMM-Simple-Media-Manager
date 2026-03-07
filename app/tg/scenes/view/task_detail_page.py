@@ -1,14 +1,13 @@
-from modules.utils import get_display_name
+from modules.utils import get_user_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
-from modules.constants import SETTINGS
 from modules.logs import logger
 from datetime import datetime
-from tg.scenes.constants import CARD_STATUS_NAMES
+from tg.scenes.constants import CARD_STATUS_NAMES, format_channels, format_tags
 
 
 class TaskDetailPage(Page):
@@ -22,16 +21,10 @@ class TaskDetailPage(Page):
         if role is None:
             telegram_id = self.scene.user_id
             user = await brain_client.get_user(telegram_id=telegram_id)
-
             if user:
-                user_role = user.get('role')
                 self.user = user
-
-            await self.scene.update_key('scene', 
-                                        'user_role', 
-                                        user_role or None)
-
-        if not self.user:
+                await self.scene.update_key('scene', 'user_role', user.get('role'))
+        else:
             telegram_id = self.scene.user_id
             user = await brain_client.get_user(telegram_id=telegram_id)
             if user:
@@ -60,10 +53,7 @@ class TaskDetailPage(Page):
         if executor_id:
             user_data = await brain_client.get_user(user_id=executor_id)
             if user_data:
-                executor_name = await get_display_name(
-                    user_data['telegram_id'],
-                    self.scene.__bot__
-                )
+                executor_name = get_user_display_name(user_data)
 
         # Форматируем заказчика
         customer_id = task.get('customer_id')
@@ -71,20 +61,14 @@ class TaskDetailPage(Page):
         if customer_id:
             user_data = await brain_client.get_user(user_id=customer_id)
             if user_data:
-                customer_name = await get_display_name(
-                    user_data['telegram_id'],
-                    self.scene.__bot__
-                )
+                customer_name = get_user_display_name(user_data)
         # Форматируем редактора
         editor_id = task.get('editor_id')
         editor_name = 'Не указан'
         if editor_id:
             user_data = await brain_client.get_user(user_id=editor_id)
             if user_data:
-                editor_name = await get_display_name(
-                    user_data['telegram_id'],
-                    self.scene.__bot__
-                )
+                editor_name = get_user_display_name(user_data)
 
         # Форматируем дедлайн
         deadline = task.get('deadline')
@@ -109,32 +93,10 @@ class TaskDetailPage(Page):
             send_time_str = 'Не установлено'
         
         # Форматируем каналы
-        channels = task.get('clients', [])
-        if channels:
-            channel_names = []
-            for ch_key in channels:
-                ch_info = SETTINGS['properties']['channels']['values'].get(ch_key)
-                if ch_info:
-                    channel_names.append(ch_info['name'])
-                else:
-                    channel_names.append(ch_key)
-            channels_str = ', '.join(channel_names)
-        else:
-            channels_str = 'Не указаны'
+        channels_str = format_channels(task.get('clients', []))
 
         # Форматируем теги
-        tags = task.get('tags', [])
-        if tags:
-            tag_names = []
-            for tag_key in tags:
-                tag_info = SETTINGS['properties']['tags']['values'].get(tag_key)
-                if tag_info:
-                    tag_names.append(tag_info['name'])
-                else:
-                    tag_names.append(tag_key)
-            tags_str = ', '.join(tag_names)
-        else:
-            tags_str = 'Не указаны'
+        tags_str = format_tags(task.get('tags', []))
 
         add_vars = {
             'task_name': task.get(
@@ -177,15 +139,14 @@ class TaskDetailPage(Page):
         is_executor = current_task.get('executor_id', 0) == user_id
         is_admin = role == UserRole.admin
 
-        if is_admin:
-            action_buttons.extend([
-                ('assign_executor', '👷 Исполнитель'),
-                ('delete', '🗑️ Удалить задачу')
-            ])
-
         if is_executor or is_admin or is_editor:
             action_buttons.extend([
-                ('open_task', '📂 Открыть задачу')
+                ('open_task', '📂 Открыть задачу', 'primary')
+            ])
+
+        if is_admin:
+            action_buttons.extend([
+                ('assign_executor', '👷 Исполнитель')
             ])
 
         if editor_id is None:
@@ -236,8 +197,9 @@ class TaskDetailPage(Page):
                 ])
             action_buttons.extend([
                 ('change_deadline', '⏰ Изменить дедлайн'),
-                ('add_comment', '💬 Добавить комментарий'),
+                ('contact', '📬 Связь'),
                 ('files-view', '📁 Файлы'),
+                ('delete', '🗑️ Удалить задачу', 'danger'),
                 ('change_description', '📝 Изменить описание')
             ])
 
@@ -247,14 +209,18 @@ class TaskDetailPage(Page):
                 ])
 
         # Добавляем кнопки действий
-        for action_key, action_name in action_buttons:
+        for action in action_buttons:
+            if len(action) != 3: action = (*action, None)
+            action_key, action_name, style = action
+
             result.append({
                 'text': action_name,
                 'callback_data': callback_generator(
                     self.scene.__scene_name__, 
                     'task_action',
                     action_key
-                )
+                ),
+                'style': style
             })
 
         return result
@@ -293,10 +259,9 @@ class TaskDetailPage(Page):
             await self.scene.update_page('files-view')
             return
 
-        elif action == 'add_comment':
-            # Переход на страницу добавления комментария
-            await self.scene.update_key('scene', 'comment_text', '')
-            await self.scene.update_page('add-comment')
+        elif action == 'contact':
+            # Переход на страницу связи с участниками
+            await self.scene.update_page('contact')
             return
 
         elif action == 'open_task':
@@ -344,31 +309,9 @@ class TaskDetailPage(Page):
                 await callback.answer("Ошибка при назначении редактора.", show_alert=True)
 
         elif action == 'delete':
-            # Удаляем задачу
-            task = self.scene.data['scene'].get('current_task_data')
-            if not task:
-                return
-
-            card_id = task.get('card_id')
-            if not card_id:
-                return
-            
-            logger.info(f"Пользователь {self.scene.user_id} запросил удаление задачи {card_id}")
-
-            result = await brain_client.delete_card(card_id)
-            status = result.get('status', 200) if isinstance(result, dict) else 200
-
-            if status == 200:
-                logger.info(f"Задача {card_id} успешно удалена пользователем {self.scene.user_id}")
-                await self.scene.update_key(
-                    'scene', 'selected_task', None)
-                await self.scene.update_page('task-list')
-
-                await callback.answer("Задача успешно удалена.", show_alert=True)
-
-            else:
-                logger.error(f"Ошибка при удалении задачи {card_id} пользователем {self.scene.user_id}: {res}")
-                await callback.answer("Ошибка при удалении задачи.", show_alert=True)
+            # Переход на страницу подтверждения удаления
+            await self.scene.update_page('delete-confirm')
+            return
         
         elif action == 'return_to_work':
             task = self.scene.data['scene'].get('current_task_data')

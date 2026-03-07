@@ -3,7 +3,7 @@ from tg.oms import Page
 from tg.oms.utils import callback_generator
 from global_modules.brain_client import brain_client
 from global_modules.classes.enums import UserRole, CardStatus, Department
-from modules.utils import get_display_name
+from modules.utils import get_user_display_name
 from tg.scenes.constants import DEPARTMENT_NAMES
 
 filter_names = {
@@ -70,10 +70,7 @@ class TaskListPage(Page):
             if filter_user_id:
                 user = await brain_client.get_user(user_id=filter_user_id)
                 if user:
-                    display_name = await get_display_name(
-                        user.get('telegram_id'), self.scene.__bot__
-                    )
-                    selected_filter_text = f"{filter_names.get(selected_filter)}: {display_name}"
+                    selected_filter_text = f"{filter_names.get(selected_filter)}: {get_user_display_name(user)}"
                 else:
                     selected_filter_text = f"{filter_names.get(selected_filter)}: ID {filter_user_id}"
             else:

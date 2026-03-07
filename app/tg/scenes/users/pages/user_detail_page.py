@@ -1,4 +1,4 @@
-from modules.utils import get_display_name
+from modules.utils import get_user_display_name
 from tg.oms import Page
 from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
@@ -31,16 +31,11 @@ class UserDetailPage(Page):
         department_value = self.user.get('department', 'Не указан')
         department_display = department_names.get(department_value, department_value)
 
-        # Получаем имя через get_display_name
-        display_name = await get_display_name(
-            self.user['telegram_id'],
-            self.scene.__bot__
-        )
+        display_name = get_user_display_name(self.user)
 
         return self.content.format(
             telegram_id=self.user['telegram_id'],
             role=self.selected_role,
-            tasker_id=self.user.get('tasker_id', 'Не привязан'),
             department=department_display,
             about=self.user.get('about', 'Не указано'),
             tasks=self.user.get('tasks', 0),

@@ -7,7 +7,7 @@ from modules.executors_manager import manager
 from global_modules.brain_client import get_users
 from modules.logs import logger
 from tg.filters.authorize import Authorize
-from modules.utils import get_display_name
+from modules.utils import get_user_display_name
 from tg.filters.in_dm import InDMorWorkGroup
 
 client_executor = manager.get("telegram_executor")
@@ -62,16 +62,8 @@ async def get_leaderboard_text(period: str = 'all') -> str:
             else:
                 idx += 1
 
-            # Получаем имя пользователя через Telegram API
             telegram_id = user.get('telegram_id')
-            if telegram_id:
-                name = await get_display_name(
-                    telegram_id=int(telegram_id), 
-                    bot=bot,
-                    short=True
-                )
-            else:
-                name = "Неизвестный"
+            name = get_user_display_name(user) if telegram_id else "Неизвестный"
 
             # Определяем эмодзи позиции
             if idx < 3:

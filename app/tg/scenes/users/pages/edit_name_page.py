@@ -32,15 +32,6 @@ class EditNamePage(TextTypeScene):
         })
 
         buttons.append({
-            "text": "⏭ Пропустить",
-            "callback_data": callback_generator(
-                self.scene.__scene_name__,
-                'skip-name'
-            ),
-            "ignore_row": True
-        })
-
-        buttons.append({
             "text": "🔙 Назад",
             "callback_data": callback_generator(
                 self.scene.__scene_name__,

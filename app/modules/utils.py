@@ -41,3 +41,13 @@ async def get_display_name(
             return f"{chat.full_name} (@{chat.username})" if chat.username else chat.full_name
 
     return f"user_{telegram_id}"
+
+
+def get_user_display_name(user: dict) -> str:
+    """Получить отображаемое имя пользователя из словаря данных БД."""
+    if not user:
+        return "Неизвестный"
+    name = user.get('name')
+    if name:
+        return name
+    return f"user_{user.get('telegram_id', '?')}"

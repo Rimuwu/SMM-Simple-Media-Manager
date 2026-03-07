@@ -9,7 +9,6 @@ class OptionTypeScene(Page):
 
     __page_name__: str = ''
     __options__: dict = {} # 'key': 'text'
-    __select_icon__: str = '✅'
     __scene_key__: str = 'option-type'
     __default_values__: Optional[list] = None
     __max_select__: int = 0  # 0 - неограниченно
@@ -21,12 +20,11 @@ class OptionTypeScene(Page):
     __json_args__ = [
         'options', 'scene_key', 'default_values',
         'max_on_page', 'prev_page_icon', 'next_page_icon',
-        'select_icon', 'max_select', 'separator'
+        'max_select', 'separator'
     ]
 
     def __after_init__(self):
         self.options = self.__options__
-        self.select_icon = self.__select_icon__
         self.max_on_page = self.__max_on_page__
         self.default_values = self.__default_values__
         self.scene_key = self.__scene_key__
@@ -94,19 +92,18 @@ class OptionTypeScene(Page):
             
             # Получаем опции для текущей страницы
             page_options = options_list[start_idx:end_idx]
-            
+
             # Создаем кнопки для опций текущей страницы
             for key, text in page_options:
-                if key in selected:
-                    text = f"{self.select_icon} {text}"
 
                 buttons.append({
                     'text': text,
                     'callback_data': callback_generator(
                         self.scene.__scene_name__,
-                        'option', key)
+                        'option', key),
+                    'style': 'success' if  key in selected else None
                 })
-            
+
             # Добавляем кнопки навигации, если страниц больше одной
             if total_pages > 1:
                 nav_buttons = []
@@ -140,14 +137,13 @@ class OptionTypeScene(Page):
         else:
             # Без пагинации - показываем все опции
             for key, text in self.options.items():
-                if key in selected:
-                    text = f"{self.select_icon} {text}"
 
                 buttons.append({
                     'text': text,
                     'callback_data': callback_generator(
                         self.scene.__scene_name__,
-                        'option', key)
+                        'option', key),
+                    'style': 'success' if  key in selected else None
                 })
 
         return buttons

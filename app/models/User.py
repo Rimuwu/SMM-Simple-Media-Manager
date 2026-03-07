@@ -13,8 +13,9 @@ class User(Base, AsyncCRUDMixin):
     __tablename__ = "users"
 
     user_id: Mapped[uuidPK]
+    name: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
-    tasker_id: Mapped[int] = mapped_column(Integer, nullable=True, default=None)
     role: Mapped[UserRole] = mapped_column(nullable=False, default=UserRole.copywriter)
 
     task_per_year: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -28,13 +29,8 @@ class User(Base, AsyncCRUDMixin):
     about: Mapped[str] = mapped_column(String, nullable=True, default=None)
 
     can_pick: Mapped[bool] = mapped_column(nullable=False, default=False)
-    name: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
 
     # Связи
     cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer", foreign_keys="Card.customer_id")
     executed_cards: Mapped[list["Card"]] = relationship("Card", back_populates="executor", foreign_keys="Card.executor_id")
     edited_cards: Mapped[list["Card"]] = relationship("Card", back_populates="editor", foreign_keys="Card.editor_id")
-
-    async def name(self) -> str:
-        """Возвращает имя пользователя для отображения."""
-        return f"Пользователь {self.telegram_id}"

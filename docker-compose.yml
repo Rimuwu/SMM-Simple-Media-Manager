@@ -77,7 +77,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
-      - ./json:/json:rw
+      - ./json:/app/json:rw
       - ./storage_data:/storage:rw
       - ./sessions:/sessions:rw
       - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
