@@ -23,7 +23,18 @@ async def get_cards(task_id=None, card_id=None, status=None, customer_id=None, e
         if executor_id is not None: query = query.where(Card.executor_id == _UUID(str(executor_id)))
         if need_check is not None: query = query.where(Card.need_check == need_check)
         result = await session.execute(query)
-        return [c.to_dict() for c in result.scalars().all()]
+        cards = result.scalars().all()
+        # Преобразуем модели в словари и добавим содержимое (content) для удобства
+        out: list[dict] = []
+        for c in cards:
+            d = c.to_dict()
+            try:
+                # свойство .content возвращает словарь client_key -> text
+                d['content'] = c.content
+            except Exception:
+                d['content'] = {}
+            out.append(d)
+        return out
 
 
 async def update_card(card_id: str, **kwargs) -> dict | None:
@@ -111,7 +122,25 @@ async def set_content(card_id: str, content: str, client_key=None) -> bool:
 
 
 async def clear_content(card_id: str, client_key=None) -> bool:
-    return await set_content(card_id, "", client_key)
+    """Удаляет запись с контентом для карточки (по ключу клиента или общую)."""
+    from models.CardContent import CardContent
+    from sqlalchemy import select, delete
+    from database.connection import session_factory
+    try:
+        async with session_factory() as session:
+            q = select(CardContent).where(CardContent.card_id == _UUID(str(card_id)))
+            if client_key is not None:
+                q = q.where(CardContent.client_key == client_key)
+            result = await session.execute(q)
+            existing = result.scalar_one_or_none()
+            if existing:
+                # можно удалить запись
+                await session.delete(existing)
+                await session.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка очистки контента карточки {card_id}: {e}")
+        return False
 
 
 async def get_users(telegram_id=None, role=None, user_id=None, department=None) -> list[dict]:

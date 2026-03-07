@@ -1,46 +1,17 @@
 services:
 
-  vault:
-    image: hashicorp/vault:latest
-    environment:
-      VAULT_ADDR: http://0.0.0.0:8200
-    ports:
-      - "127.0.0.1:8200:8200"
-    cap_add:
-      - IPC_LOCK
-    entrypoint: ["sh", "/vault_prod_init.sh"]
-    volumes:
-      - vault_data:/vault/file
-      - ./secrets:/vault/secrets
-      - ./vault/config:/vault/config:ro
-      - ./scripts/vault_prod_init.sh:/vault_prod_init.sh:ro
-    networks:
-      - smm_network
-    healthcheck:
-      test: ["CMD", "vault", "status"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-
   postgres:
     image: postgres:15-alpine
+    env_file:
+      - .env
     environment:
-      VAULT_ADDR: http://vault:8200
       TZ: Europe/Moscow
-    secrets:
-      - vault_token
-    entrypoint: ["sh", "/postgres_vault_entrypoint.sh"]
     command: ["postgres"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/postgres_vault_entrypoint.sh:/postgres_vault_entrypoint.sh:ro
     ports:
       - "5432:5432"
     restart: unless-stopped
-    depends_on:
-      vault:
-        condition: service_healthy
     networks:
       - smm_network
     healthcheck:
@@ -62,17 +33,13 @@ services:
     build:
       context: .
       dockerfile: app/Dockerfile
+    env_file:
+      - .env
     environment:
-      - VAULT_ADDR=http://vault:8200
       - TZ=Europe/Moscow
-    secrets:
-      - vault_token
     depends_on:
-      vault:
-        condition: service_healthy
       postgres:
         condition: service_healthy
-    entrypoint: ["sh", "/entrypoint.sh"]
     command: ["python", "main.py"]
     restart: unless-stopped
     volumes:
@@ -80,7 +47,6 @@ services:
       - ./json:/app/json:rw
       - ./storage_data:/storage:rw
       - ./sessions:/sessions:rw
-      - ./scripts/vault_entrypoint.sh:/entrypoint.sh:ro
     networks:
       - smm_network
     deploy:
@@ -96,16 +62,6 @@ volumes:
   postgres_data:
     driver: local
     name: smm_manager_postgres_data
-
-  vault_data:
-    driver: local
-    name: smm_manager_vault_data
-
-secrets:
-  vault_token:
-    file: ./secrets/vault_token.txt
-  vault_unseal_key:
-    file: ./secrets/vault_unseal_key.txt
 
 networks:
   smm_network:

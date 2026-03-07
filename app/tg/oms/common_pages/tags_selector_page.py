@@ -1,22 +1,15 @@
 from tg.oms.models.option_page import OptionTypeScene
-from modules.constants import SETTINGS
 from typing import Optional, Callable
 
 
 async def _get_tags_options() -> dict:
     """Загружает теги из БД, при отсутствии — из settings.json."""
-    try:
-        from global_modules.brain_client import get_tags
-        db_tags = await get_tags()
-        if db_tags:
-            return {t['key']: t['name'] for t in db_tags}
-    except Exception:
-        pass
-    # fallback к settings.json
-    return {
-        key: tag['name']
-        for key, tag in SETTINGS['properties']['tags']['values'].items()
-    }
+
+    from global_modules.brain_client import get_tags
+    db_tags = await get_tags()
+
+    return {t['key']: t['name'] for t in db_tags}
+
 
 
 class TagsSelectorPage(OptionTypeScene):

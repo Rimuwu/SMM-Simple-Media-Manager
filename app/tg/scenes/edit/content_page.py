@@ -328,6 +328,7 @@ class ContentSetterPage(TextTypeScene):
                 content=html_text,
                 client_key=client_key
             )
+            print(f"Контент обновлен для task_id={task_id}, client_key={client_key}")
 
         self.clear_content()
         await self.scene.update_message()
