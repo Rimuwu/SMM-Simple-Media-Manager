@@ -3,7 +3,6 @@ from tg.oms.models.text_page import TextTypeScene
 from tg.oms.utils import callback_generator
 from aiogram.types import Message
 import re
-from modules.api_client import brain_api
 
 class ContentSetterPage(TextTypeScene):
     
@@ -249,15 +248,9 @@ class ContentSetterPage(TextTypeScene):
         client_key = None if self.content_mode == 'all' else self.content_mode
         
         # Отправляем запрос на очистку контента
-        response, status = await brain_api.post(
-            '/card/clear-content',
-            data={
-                'card_id': task_id,
-                'client_key': client_key
-            }
-        )
+        ok = await brain_client.clear_content(task_id, client_key)
         
-        if status == 200 and response.get('success'):
+        if ok:
             # Обновляем отображение
             self.clear_content()
             # await self.content_worker()

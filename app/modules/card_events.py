@@ -1,21 +1,17 @@
 import asyncio
 from datetime import datetime, timedelta
-from typing import Literal, Optional
+from typing import Optional
 from uuid import UUID as _UUID
-from sqlalchemy.ext.asyncio import AsyncSession
 from global_modules.classes.enums import CardStatus
 from models.Card import Card
 from models.User import User
 from database.connection import session_factory
-from global_modules.json_get import open_properties
-from modules.kaiten import update_kaiten_card_field, kaiten, add_kaiten_comment
 from modules.executors_client import (
     notify_users, update_scenes, update_forum_message,
     send_complete_preview, update_complete_preview, 
     delete_complete_preview, delete_all_complete_previews
 )
-from modules.constants import SceneNames, PropertyNames
-from modules.properties import multi_properties
+from modules.constants import SceneNames
 from modules.scheduler import reschedule_post_tasks, reschedule_card_notifications
 from modules.calendar import update_calendar_event
 from modules.status_changers import to_edited
@@ -74,11 +70,6 @@ async def on_name(
 
     new_name = new_name.strip()
     comment = f"✏️ Название изменено:\n{card.name} → {new_name}"
-
-    await update_kaiten_card_field(
-        card.task_id, 'title', 
-        new_name, comment
-    )
     await card.update(name=new_name)
 
     listeners = [
@@ -137,12 +128,6 @@ async def on_description(
     if len(new_description) > 200:
         comment += "..."
 
-    if card.task_id and card.task_id != 0:
-        await update_kaiten_card_field(
-            card.task_id, 'description', 
-            new_description, comment
-        )
-
     await card.update(description=new_description)
 
     if card.calendar_id:
@@ -194,14 +179,6 @@ async def on_deadline(
         comment = f"⏰ Дедлайн изменен: {old_deadline.strftime('%d.%m.%Y %H:%M')} → {new_deadline.strftime('%d.%m.%Y %H:%M')}"
     else:
         comment = f"⏰ Дедлайн установлен: {new_deadline.strftime('%d.%m.%Y %H:%M')}"
-
-    # Обновляем в Kaiten
-    if card.task_id and card.task_id != 0:
-        await update_kaiten_card_field(
-            card.task_id, 'due_date',
-            new_deadline.strftime('%Y-%m-%d'),
-            comment
-        )
 
     # Обновляем в календаре
     if card.calendar_id and card.send_time is None:
@@ -329,46 +306,25 @@ async def on_executor(
                 from modules.executors_client import close_user_scene
                 await close_user_scene(old_user.telegram_id)
             
-            # Удаляем из Kaiten
-            if card.task_id and card.task_id != 0 and old_user.tasker_id:
-                async with kaiten as client:
-                    await client.remove_card_member(card.task_id, old_user.tasker_id)
+
     
     # Обновляем исполнителя в БД
     await card.update(executor_id=new_executor_id)
     
     # Обрабатываем нового исполнителя
-    kaiten_comment = None
     if new_executor_id is None:
-        kaiten_comment = "❌ Исполнитель удален"
+        pass
     else:
         new_user = await User.get_by_key('user_id', new_executor_id)
         if new_user:
-            # Добавляем в Kaiten
-            if card.task_id and card.task_id != 0 and new_user.tasker_id:
-                async with kaiten as client:
-                    card_k = await client.get_card(card.task_id)
-                    if card_k:
-                        members = await card_k.get_members()
-                        member_ids = [m['id'] for m in members]
-                        
-                        if new_user.tasker_id not in member_ids:
-                            await client.add_card_member(card.task_id, new_user.tasker_id)
-
             # Уведомляем нового исполнителя
             await notify_users([new_executor_id], 
                 f"📝 Вы назначены исполнителем задачи: {card.name}",
                 'assign-executor')
 
-            kaiten_comment = f"👤 Исполнитель назначен: {await new_user.name() if await new_user.name() else 'Неизвестный'}"
-
             if card.status == CardStatus.pass_:
                 forum_upd = True
                 await to_edited(card)
-
-    # Добавляем комментарий в Kaiten
-    if kaiten_comment and card.task_id and card.task_id != 0:
-        await add_kaiten_comment(card.task_id, kaiten_comment)
 
     # Обновляем форум
     if await card.get_forum_message() and not forum_upd:
@@ -402,13 +358,6 @@ async def on_editor(
     
     # Обновляем редактора
     await card.update(editor_id=new_editor_id)
-    
-    # Комментарий в Kaiten
-    if card.task_id and card.task_id != 0 and new_editor_id:
-        editor = await User.get_by_key('user_id', new_editor_id)
-        editor_name = await editor.name() if editor else "Неизвестный"
-        comment = f"✏️ Редактор назначен: {editor_name}"
-        await add_kaiten_comment(card.task_id, comment)
 
     # Уведомляем нового редактора
     if new_editor_id:
@@ -497,27 +446,6 @@ async def on_clients(
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
     
-    # Обновляем в Kaiten
-    if card.task_id and card.task_id != 0:
-        props = open_properties() or {}
-        new_channels = []
-        for channel in new_clients:
-            if str(channel).isdigit():
-                new_channels.append(int(channel))
-            else:
-                new_channels.append(
-                    props[PropertyNames.CHANNELS]['values'][channel]['id']
-                )
-
-        try:
-            async with kaiten as client:
-                await client.update_card(
-                    card.task_id,
-                    properties=multi_properties(channels=new_channels)
-                )
-        except Exception as e:
-            print(f"Error updating channels in Kaiten: {e}")
-
     # Обновляем карточку
     old_clients = set(card.clients or [])
     removed_clients = old_clients - set(new_clients)
@@ -587,17 +515,6 @@ async def on_need_check(
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
     
-    # Обновляем в Kaiten
-    if card.task_id and card.task_id != 0:
-        try:
-            async with kaiten as client:
-                await client.update_card(
-                    card.task_id,
-                    properties=multi_properties(editor_check=need_check)
-                )
-        except Exception as e:
-            print(f"Error updating need_check in Kaiten: {e}")
-    
     # Обновляем карточку
     await card.update(need_check=need_check)
     
@@ -630,27 +547,6 @@ async def on_tags(
         card = await Card.get_by_key('card_id', str(card_id))
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
-    
-    # Обновляем в Kaiten
-    if card.task_id and card.task_id != 0:
-        props = open_properties() or {}
-        kaiten_tags = []
-        for tag in new_tags:
-            if str(tag).isdigit():
-                kaiten_tags.append(int(tag))
-            else:
-                kaiten_tags.append(
-                    props[PropertyNames.TAGS]['values'][tag]['id']
-                )
-        
-        try:
-            async with kaiten as client:
-                await client.update_card(
-                    card.task_id,
-                    properties=multi_properties(tags=kaiten_tags)
-                )
-        except Exception as e:
-            print(f"Error updating tags in Kaiten: {e}")
     
     # Обновляем карточку
     await card.update(tags=new_tags)

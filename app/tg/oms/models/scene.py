@@ -390,7 +390,6 @@ class Scene:
         parse_type = await page.text_handler(message)
 
         if self.scene.settings.delete_after_send and parse_type not in ['not_handled', 'error']:
-            print("Delete message after send")
             try:
                 await self.__bot__.delete_message(
                     self.user_id, message.message_id

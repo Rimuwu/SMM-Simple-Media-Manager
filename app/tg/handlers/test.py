@@ -5,7 +5,7 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from tg.filters.authorize import Authorize
 from tg.filters.role_filter import RoleFilter
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 from modules.executors_manager import manager
 from global_modules.brain_client import brain_client
 

@@ -26,9 +26,6 @@ class EditorNotesPage(Page):
                     max_length = 800
                     displayed_count = 0
                     
-                    # Получаем kaiten_users один раз
-                    kaiten_users = await brain_client.get_kaiten_users_dict()
-                    
                     # Идем от последнего к первому (новые комментарии первыми)
                     for i, note in enumerate(reversed(editor_notes), 1):
                         content = note.get('content', 'Пусто')
@@ -42,9 +39,7 @@ class EditorNotesPage(Page):
                                 user_data = author_users[0]
                                 author_name = await get_display_name(
                                         user_data['telegram_id'], 
-                                        kaiten_users, 
-                                        self.scene.__bot__, 
-                                        user_data.get('tasker_id'),
+                                        self.scene.__bot__,
                                         short=True
                                     )
 

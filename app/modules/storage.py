@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from global_modules.vault.vault_client import vault_getenv
-from modules.logs import brain_logger as logger
+from modules.logs import logger
 
 # Путь к директории хранения файлов
 STORAGE_PATH = Path(vault_getenv("STORAGE_PATH", "./storage_data"))

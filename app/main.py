@@ -34,9 +34,6 @@ async def main():
     scheduler_task = asyncio.create_task(scheduler.start())
 
     all_tasks = executor_tasks + [scheduler_task]
-    if not all_tasks:
-        print("Нет активных задач. Проверьте конфигурацию исполнителей.")
-        return
 
     await asyncio.gather(*all_tasks, return_exceptions=True)
 

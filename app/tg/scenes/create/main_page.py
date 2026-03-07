@@ -4,7 +4,7 @@ from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import SETTINGS
-from global_modules.brain_client import brain_client, get_kaiten_users_dict
+from global_modules.brain_client import brain_client
 
 debug = getenv('DEBUG', 'False') == 'True'
 
@@ -84,13 +84,9 @@ class MainPage(Page):
             user_data = next((u for u in users if str(u['user_id']) == str(user_id)), None) if users else None
 
             if user_data:
-                kaiten_users = await get_kaiten_users_dict() if user_data.get('tasker_id') else {}
-                
                 display_name = await get_display_name(
                     user_data['telegram_id'],
-                    kaiten_users,
-                    self.scene.__bot__,
-                    user_data.get('tasker_id')
+                    self.scene.__bot__
                 )
                 add_vars['user'] = display_name
             else:

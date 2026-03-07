@@ -1,7 +1,6 @@
 import asyncio
 from tg.oms import Page
-from modules.api_client import brain_api
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 from tg.oms.utils import callback_generator
 
 class AICheckPage(Page):
@@ -88,16 +87,8 @@ class AICheckPage(Page):
 
         try:
             # Отправляем запрос и логируем, но не блокируем основной flow (это фоновой таск)
-            response, status = await brain_api.post('/ai/send', data=payload)
-            if status != 200:
-                logger.error(f"Failed to send AI request for user {self.scene.user_id}: status={status} response={response}")
-                # Сразу возвращаем ошибку пользователю
-                try:
-                    await self.scene.update_key(self.__page_name__, 'ai_response', '❌ **Ошибка при отправке запроса в AI. Попробуйте позже.**')
-                    await self.scene.update_key(self.__page_name__, 'is_loading', False)
-                    await self.scene.update_page(self.__page_name__)
-                except Exception as e:
-                    logger.error(f"Error updating scene after failed AI send: {e}")
+            from modules import ai as ai_module
+            await ai_module.send(payload)
         except Exception as e:
             logger.error(f"Exception while sending AI request for user {self.scene.user_id}: {e}")
             try:

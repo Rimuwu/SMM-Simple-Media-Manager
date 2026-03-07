@@ -16,7 +16,7 @@ from aiogram.types import (
 from modules.entities_sender import get_entities_for_client, send_poll_preview
 from global_modules.brain_client import brain_client
 from modules.post_generator import generate_post
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 
 
 def detect_media_type(file_data: bytes, file_name: str = '') -> str:

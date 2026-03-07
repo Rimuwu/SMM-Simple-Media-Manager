@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import brain_api
+from global_modules import brain_client
 
 types = {
     'poll': 'Опрос',
@@ -19,9 +19,9 @@ class EntityViewPage(Page):
         if not selected_client:
             return
 
-        resp, status = await brain_api.get(f'/card/entity?card_id={task_id}&client_id={selected_client}&entity_id={eid}')
-        if status == 200 and resp:
-            await self.scene.update_key(self.__page_name__, 'entity', resp)
+        entity = await brain_client.get_entity(entity_id=eid)
+        if entity:
+            await self.scene.update_key(self.__page_name__, 'entity', entity)
 
     async def content_worker(self) -> str:
         e = self.scene.data.get(self.__page_name__, {}).get('entity')
@@ -81,13 +81,9 @@ class EntityViewPage(Page):
             return
 
         selected_client = self.scene.data.get('entities-main', {}).get('selected_client')
-        resp, status = await brain_api.post('/card/delete-entity', data={
-            'card_id': task_id,
-            'client_id': selected_client,
-            'entity_id': e.get('id')
-        })
+        ok = await brain_client.delete_entity_by_id(e.get('id'))
 
-        if status == 200:
+        if ok:
             await callback.answer('✅ Entity удалён')
             await self.scene.update_page('entities-main')
             await self.scene.update_message()

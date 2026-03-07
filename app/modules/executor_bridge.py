@@ -6,6 +6,8 @@
 """
 from typing import Optional, TYPE_CHECKING
 
+from tg.main import TelegramExecutor
+
 if TYPE_CHECKING:
     from modules.executors_manager import ExecutorManager
 
@@ -117,18 +119,51 @@ async def delete_complete_preview(
     return await _delete(info_ids=info_ids, post_ids=post_ids, entities=entities)
 
 
-async def forward_first_by_tags(tags: list[str]) -> dict:
+async def forward_first_by_tags(
+    source_chat_id: int,
+    message_id: int,
+    tags: list[str],
+    source_client_key: Optional[str] = None
+) -> dict:
     """
-    Переслать первое сообщение по тегам.
+    Переслать сообщение в каналы, соответствующие заданным тегам.
     Заменяет: executors_api.post(ApiEndpoints.FORUM_FORWARD_FIRST_BY_TAGS, ...)
     """
-    from modules.text_generators import forward_first_by_tags as _forward
-    return await _forward(tags)
+    manager = get_manager()
+    if not manager:
+        return {"success": False, "error": "ExecutorManager not initialized"}
+
+    tg: TelegramExecutor = manager.get("telegram_executor")
+    if not tg:
+        return {"success": False, "error": "telegram_executor not found"}
+
+    from modules.constants import CLIENTS
+    forwarded = 0
+    for client_key, client_cfg in CLIENTS.items():
+        if source_client_key and client_key == source_client_key:
+            continue
+        client_tags = client_cfg.get('tags', [])
+        if not any(t in tags for t in client_tags):
+            continue
+        target_chat = client_cfg.get('chat_id') or client_cfg.get('channel_id')
+        if not target_chat:
+            continue
+        try:
+            await tg.bot.forward_message(
+                chat_id=target_chat,
+                from_chat_id=source_chat_id,
+                message_id=message_id
+            )
+            forwarded += 1
+        except Exception:
+            pass
+
+    return {"success": True, "forwarded": forwarded}
 
 
 # ==================== Notifications ====================
 
-async def notify_user(user_id: int, message: str) -> bool:
+async def notify_user(user_id: int, message: str, reply_to: Optional[int] = None, parse_mode: Optional[str] = None) -> bool:
     """
     Отправить уведомление пользователю.
     Заменяет: executors_api.post(ApiEndpoints.NOTIFY_USER, data={"user_id": user_id, "message": message})
@@ -141,17 +176,77 @@ async def notify_user(user_id: int, message: str) -> bool:
     if not tg:
         return False
 
-    result = await tg.send_message(chat_id=str(user_id), text=message)
+    result = await tg.send_message(
+        chat_id=str(user_id), text=message,
+        reply_to_message_id=reply_to,
+        parse_mode=parse_mode
+    )
     return result.get("success", False)
 
 
-async def send_leaderboard(users_data: list) -> bool:
+async def send_leaderboard(
+    chat_id: int,
+    period: str = 'all',
+    reply_to: Optional[int] = None,
+    extra_text: Optional[str] = None
+) -> bool:
     """
-    Отправить таблицу лидеров.
+    Сгенерировать и отправить таблицу лидеров.
     Заменяет: executors_api.post(ApiEndpoints.SEND_LEADERBOARD, ...)
     """
-    from modules.text_generators import send_leaderboard as _send
-    return await _send(users_data)
+    manager = get_manager()
+    if not manager:
+        return False
+
+    tg = manager.get("telegram_executor")
+    if not tg:
+        return False
+
+    from global_modules.brain_client import get_users as _get_users
+    from modules.utils import get_display_name
+
+    users = await _get_users() or []
+
+    if period == 'month':
+        field = 'task_per_month'
+        period_name = 'месяц'
+        emoji = '📅'
+    elif period == 'year':
+        field = 'task_per_year'
+        period_name = 'год'
+        emoji = '📆'
+    else:
+        field = 'tasks'
+        period_name = 'всё время'
+        emoji = '🏆'
+
+    sorted_users = sorted(users, key=lambda u: u.get(field, 0), reverse=True)
+    text_lines = [f"{emoji} <b>Лидерборд за {period_name}</b>\n"]
+    medals = ['🥇', '🥈', '🥉']
+    idx = -1
+    for user in sorted_users[:10]:
+        tasks_count = user.get(field, 0)
+        if tasks_count == 0:
+            continue
+        idx += 1
+        telegram_id = user.get('telegram_id')
+        name = await get_display_name(int(telegram_id), short=True) if telegram_id else 'Неизвестный'
+        position = medals[idx] if idx < 3 else f" {idx + 1}."
+        text_lines.append(f"• {position} <b>{name}</b> — {tasks_count} задач")
+
+    if len(text_lines) == 1:
+        text_lines.append("\n<i>Пока нет данных для отображения.</i>")
+
+    text = "\n".join(text_lines)
+    if extra_text:
+        text += f"\n\n{extra_text}"
+
+    result = await tg.send_message(
+        chat_id=str(chat_id), text=text,
+        reply_to_message_id=reply_to,
+        parse_mode='HTML'
+    )
+    return result.get("success", False)
 
 
 # ==================== Scenes ====================

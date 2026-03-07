@@ -2,8 +2,7 @@ from datetime import datetime
 from uuid import uuid4
 from models.ScheduledTask import ScheduledTask
 from global_modules.timezone import now_naive as moscow_now
-from modules.logs import brain_logger as logger
-from sqlalchemy import select
+from modules.logs import logger
 
 
 async def get_next_month_start() -> datetime:

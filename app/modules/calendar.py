@@ -7,7 +7,7 @@ import asyncio
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from modules.logs import brain_logger as logger
+from modules.logs import logger
 
 # Ленивая инициализация - calendar_manager создаётся только если Google Calendar настроен
 _calendar_manager = None

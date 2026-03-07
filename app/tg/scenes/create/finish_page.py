@@ -2,7 +2,7 @@ from datetime import datetime
 from modules.utils import get_display_name
 from tg.oms.utils import callback_generator
 from tg.oms import Page
-from modules.api_client import brain_api
+from global_modules.brain_client import brain_client
 from modules.constants import SETTINGS
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -100,8 +100,6 @@ class FinishPage(Page):
             add_vars['send_date'] = '➖'
 
         # Executor
-        from global_modules.brain_client import brain_client
-        
         user_id = data.get('user')
         if user_id:
             # Получаем информацию о пользователе
@@ -110,13 +108,9 @@ class FinishPage(Page):
 
             if users:
                 user_data = users[0]
-                kaiten_users = await brain_client.get_kaiten_users_dict() if user_data.get('tasker_id') else {}
-                
                 display_name = await get_display_name(
                     user_data['telegram_id'],
-                    kaiten_users,
-                    self.scene.__bot__,
-                    user_data.get('tasker_id')
+                    self.scene.__bot__
                 )
                 add_vars['user'] = display_name
             else:
@@ -163,8 +157,6 @@ class FinishPage(Page):
             data['type'] = 'private'
 
         # Получаем customer_id (заказчик - текущий пользователь)
-        from global_modules.brain_client import brain_client
-        
         customers = await brain_client.get_users(telegram_id=self.scene.user_id)
         customer_id = customers[0]['user_id'] if customers else None
 
@@ -172,49 +164,30 @@ class FinishPage(Page):
         executor_id = None
         user_value = self.scene.data['scene'].get('user')
         if user_value:
-            # user может быть либо user_id (UUID), либо tasker_id (int)
-            # Сначала пробуем как user_id
             try:
                 executors = await brain_client.get_users(user_id=str(user_value))
                 if executors:
                     executor_id = executors[0]['user_id']
                     print(f"Найден исполнитель по user_id {user_value}: {executor_id}")
             except Exception as e:
-                print(f"Ошибка получения исполнителя по user_id: {e}")
-            
-            # Если не нашли, пробуем как tasker_id (только если это число)
-            if not executor_id:
-                try:
-                    # Проверяем, является ли значение числом
-                    tasker_id = int(user_value)
-                    executors = await brain_client.get_users(tasker_id=tasker_id)
-                    if executors:
-                        executor_id = executors[0]['user_id']
-                        print(f"Найден исполнитель по tasker_id {tasker_id}: {executor_id}")
-                except (ValueError, TypeError):
-                    print(f"Значение {user_value} не является числом, пропускаем поиск по tasker_id")
-                except Exception as e:
-                    print(f"Ошибка получения исполнителя по tasker_id: {e}")
+                print(f"Ошибка получения исполнителя: {e}")
 
         try:
-            res, status = await brain_api.post(
-                '/card/create',
-                data={
-                    'title': data['name'],
-                    'description': data['description'],
-                    'deadline': data['publish_date'],
-                    'send_time': data['send_date'],
-                    'channels': data['channels'],
-                    'need_check': data.get('editor_check', True),
-                    'image_prompt': data['image'],
-                    'tags': data['tags'],
-                    'type_id': data['type'],
-                    'executor_id': executor_id,
-                    'customer_id': customer_id
-                }
+            res = await brain_client.create_card(
+                title=data['name'],
+                description=data['description'],
+                deadline=data['publish_date'],
+                send_time=data['send_date'],
+                channels=data['channels'],
+                need_check=data.get('editor_check', True),
+                image_prompt=data['image'],
+                tags=data['tags'],
+                type_id=data['type'],
+                executor_id=executor_id,
+                customer_id=customer_id
             )
 
-            if status and status == 200 and 'card_id' in res:
+            if res and 'card_id' in res:
                 card_id = res['card_id']
                 files = data.get('files', [])
                 uploaded_count = 0

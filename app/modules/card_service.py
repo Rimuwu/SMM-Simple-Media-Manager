@@ -2,9 +2,8 @@
 from typing import Optional
 from models.User import User
 from models.Card import Card
-from modules.api_client import executors_api
-from modules.constants import ApiEndpoints
-from modules.logs import brain_logger as logger
+from modules import executor_bridge
+from modules.logs import logger
 
 
 async def increment_reviewers_tasks(card: Card):
@@ -70,14 +69,6 @@ async def notify_executor(
                 "user_id": executor.telegram_id,
                 "message": message
             }
-            if task_id:
-                data["task_id"] = task_id
-            if skip_if_page:
-                data["skip_if_page"] = skip_if_page
-
-            await executors_api.post(
-                ApiEndpoints.NOTIFY_USER,
-                data=data
-            )
+            await executor_bridge.notify_user(executor.telegram_id, message)
     except Exception as e:
         print(f"Error notifying executor {executor_id}: {e}")

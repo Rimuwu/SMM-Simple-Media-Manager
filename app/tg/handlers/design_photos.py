@@ -2,9 +2,8 @@ from typing import Optional
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
 from modules.executors_manager import manager
-from modules.api_client import brain_api
 from modules.constants import SETTINGS
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension
 from global_modules.brain_client import brain_client
 
@@ -16,11 +15,11 @@ bot: Bot = client_executor.bot  # type: ignore
 async def find_card_by_reply(reply_message_id: int) -> Optional[dict]:
     """Ищет карточку по ID сообщения, на которое ответили"""
     try:
-        response, status = await brain_api.get('/card/get', params={})
-        if status != 200:
+        cards = await brain_client.get_cards()
+        if not cards:
             return None
 
-        for c in response:
+        for c in cards:
             if isinstance(c, dict) and c.get('prompt_message') == reply_message_id:
                 return c
         return None
@@ -29,11 +28,7 @@ async def find_card_by_reply(reply_message_id: int) -> Optional[dict]:
         return None
 
 
-async def upload_image_to_kaiten(card_id: str, file_data: bytes, file_name: str) -> bool:
-    """
-    Загружает изображение в Kaiten и уведомляет исполнителя.
-    Использует общий метод из brain_client.
-    """
+async def upload_image_for_card(card_id: str, file_data: bytes, file_name: str) -> bool:
     try:
         # Конвертируем картинку в PNG если нужно
         try:
@@ -118,7 +113,7 @@ async def handle_design_photo_reply(message: Message):
             await message.reply("⚠️ Ошибка: не найден ID задачи.", parse_mode="Markdown")
             return
 
-        success = await upload_image_to_kaiten(str(card_id), file_data, file_name)
+        success = await upload_image_for_card(str(card_id), file_data, file_name)
 
         if success:
             await message.reply("✅ Фото добавлено к задаче!", parse_mode="Markdown")
@@ -190,7 +185,7 @@ async def handle_design_document_reply(message: Message):
             await message.reply("⚠️ Ошибка: не найден ID задачи.", parse_mode="Markdown")
             return
 
-        success = await upload_image_to_kaiten(str(card_id), file_data, file_name)
+        success = await upload_image_for_card(str(card_id), file_data, file_name)
 
         if success:
             await message.reply("✅ Изображение добавлено к задаче!", parse_mode="Markdown")

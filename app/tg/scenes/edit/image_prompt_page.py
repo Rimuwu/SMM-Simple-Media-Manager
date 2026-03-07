@@ -144,16 +144,13 @@ class ImagePromptPage(Page):
                 pass
         
         # Получаем имена исполнителя и заказчика
-        kaiten_users = await brain_client.get_kaiten_users_dict()
-
         executor_name = "Не назначен"
         if card.get('executor_id'):
             executor_users = await brain_client.get_users(user_id=card['executor_id'])
             if executor_users and isinstance(executor_users[0], dict):
                 executor_name = await get_display_name(
                     executor_users[0]['telegram_id'], 
-                    kaiten_users, self.scene.__bot__, 
-                    executor_users[0].get('tasker_id')
+                    self.scene.__bot__
                 )
 
         customer_name = "Не указан"
@@ -162,8 +159,7 @@ class ImagePromptPage(Page):
             if customer_users and isinstance(customer_users[0], dict):
                 customer_name = await get_display_name(
                     customer_users[0]['telegram_id'], 
-                    kaiten_users, self.scene.__bot__, 
-                    customer_users[0].get('tasker_id')
+                    self.scene.__bot__
                 )
 
         # Формируем сообщение (HTML)

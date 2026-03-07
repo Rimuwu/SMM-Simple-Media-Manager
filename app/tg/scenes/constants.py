@@ -19,10 +19,10 @@ DEPARTMENT_NAMES: dict[str, str] = {
 
 # Читаемые имена ролей
 ROLE_NAMES: dict[str, str] = {
-    'admin': 'Админы',
-    'customer': 'Заказчики',
-    'copywriter': 'Копирайтеры',
-    'editor': 'Редакторы',
+    'admin': 'Админ',
+    'customer': 'Заказчик',
+    'copywriter': 'Копирайтер',
+    'editor': 'Редактор',
 }
 
 # Иконки ролей

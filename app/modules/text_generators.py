@@ -5,7 +5,7 @@ from modules.post_sender import download_files
 from tg.main import TelegramExecutor
 from modules.executors_manager import manager
 from modules.constants import SETTINGS, CLIENTS
-from modules.api_client import brain_api, get_cards, update_card, get_users
+from modules.api_client import get_cards, update_card, get_users
 from modules.post_generator import generate_post
 from global_modules.classes.enums import CardStatus
 from modules.utils import get_telegram_user

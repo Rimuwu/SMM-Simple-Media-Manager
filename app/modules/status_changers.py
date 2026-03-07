@@ -3,16 +3,12 @@ from typing import Literal, Optional
 from uuid import UUID as _UUID
 from database.connection import session_factory
 from global_modules.classes.enums import UserRole
-from modules.kaiten import kaiten
 from global_modules.json_get import open_clients, open_settings
 
 from models.Card import Card, CardStatus
 from models.User import User
 from modules.scheduler import schedule_card_notifications, cancel_card_tasks, schedule_post_tasks
-from modules.constants import (
-    KaitenBoardNames, 
-    SceneNames, Messages
-)
+
 from modules.card_service import increment_reviewers_tasks
 from modules.executors_client import (
     send_forum_message, update_forum_message, delete_forum_message, delete_forum_message_by_id,
@@ -20,19 +16,10 @@ from modules.executors_client import (
     close_user_scene, update_task_scenes, close_card_related_scenes,
     notify_user, notify_users
 )
-from modules.logs import brain_logger as logger
+from modules.logs import logger
 from models.CardMessage import CardMessage
 
 settings = open_settings() or {}
-
-# Константы для Kaiten
-BOARD_QUEUE_ID = settings['space']['boards'][KaitenBoardNames.QUEUE]['id']
-COLUMN_QUEUE_FORUM_ID = settings['space']['boards'][KaitenBoardNames.QUEUE]['columns'][0]['id']
-
-BOARD_IN_PROGRESS_ID = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['id']
-COLUMN_IN_PROGRESS_EDITED_ID = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][0]['id']
-COLUMN_IN_PROGRESS_REVIEW_ID = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][1]['id']
-COLUMN_IN_PROGRESS_READY_ID = settings['space']['boards'][KaitenBoardNames.IN_PROGRESS]['columns'][2]['id']
 
 async def to_pass(
           card: Optional[Card] = None,
@@ -86,14 +73,6 @@ async def to_pass(
         executor = await User.get_by_key('user_id', card.executor_id)
         if executor:
 
-            # Удалить исполнителя из карточки
-            if executor.tasker_id and card.task_id:
-                async with kaiten as kc:
-                    await kc.remove_card_member(
-                        card_id=card.task_id,
-                        user_id=executor.tasker_id
-                    )
-
             # Уведомление исполнителю и закрытие сцен
             if executor.telegram_id:
                 if who_changed == 'admin':
@@ -133,24 +112,8 @@ async def to_pass(
         if complete_messages:
             await delete_all_complete_previews(complete_messages)
 
-    # Комментарий и обновление колонки 
-    async with kaiten as kc:
-        await kc.add_comment(
-            card_id=card.task_id,
-            text="📤 Задача возвращена на форум задач."
-        )
-
-        await kc.update_card(
-            card.task_id,
-            board_id=BOARD_QUEUE_ID,
-            column_id=COLUMN_QUEUE_FORUM_ID
-        )
-
     # Обновление сцены просмотра задачи
-    await update_task_scenes(
-        card_id=str(card.card_id),
-        scene_name=SceneNames.VIEW_TASK
-    )
+    await update_task_scenes(str(card.card_id))
 
     if await card.get_forum_message():
         await delete_forum_message(str(card.card_id))
@@ -242,25 +205,8 @@ async def to_edited(
     # Обновление карточки в базе
     await card.update(status=CardStatus.edited)
 
-    # Комментарий и обновление колонки в кайтене
-    if card.task_id and card.task_id != 0:
-        async with kaiten as kc:
-            await kc.add_comment(
-                card_id=card.task_id,
-                text=Messages.TASK_TAKEN
-            )
-
-            await kc.update_card(
-                card.task_id,
-                board_id=BOARD_IN_PROGRESS_ID,
-                column_id=COLUMN_IN_PROGRESS_EDITED_ID
-            )
-
     # Обновление сцены просмотра задачи
-    await update_task_scenes(
-        card_id=str(card.card_id),
-        scene_name=SceneNames.VIEW_TASK
-    )
+    await update_task_scenes(str(card.card_id))
 
     # Обновление сообщения на форуме для public задач
     if await card.get_forum_message():
@@ -335,25 +281,8 @@ async def to_review(
     # Обновление карточки в базе
     await card.update(status=CardStatus.review)
 
-    # Комментарий и обновление колонки в кайтене
-    if card.task_id and card.task_id != 0:
-        async with kaiten as kc:
-            await kc.add_comment(
-                card_id=card.task_id,
-                text="🔍 Задача отправлена на проверку"
-            )
-
-            await kc.update_card(
-                card.task_id,
-                board_id=BOARD_IN_PROGRESS_ID,
-                column_id=COLUMN_IN_PROGRESS_REVIEW_ID
-            )
-
     # Обновление сцены просмотра задачи
-    await update_task_scenes(
-        card_id=str(card.card_id),
-        scene_name=SceneNames.VIEW_TASK
-    )
+    await update_task_scenes(str(card.card_id))
 
     # Удаление старого сообщения с форума
     if await card.get_forum_message():
@@ -447,20 +376,6 @@ async def to_ready(
     # Обновление карточки в базе
     await card.update(status=CardStatus.ready)
 
-    # Комментарий и обновление колонки в кайтене
-    if card.task_id and card.task_id != 0:
-        async with kaiten as kc:
-            await kc.add_comment(
-                card_id=card.task_id,
-                text="✅ Задача готова к публикации"
-            )
-
-            await kc.update_card(
-                card.task_id,
-                board_id=BOARD_IN_PROGRESS_ID,
-                column_id=COLUMN_IN_PROGRESS_READY_ID
-            )
-
     # Закрытие сцены редактирования у исполнителя
     if card.executor_id:
         executor = await User.get_by_key('user_id', card.executor_id)
@@ -487,10 +402,7 @@ async def to_ready(
         await session.commit()
 
     # Обновление сцены просмотра задачи
-    await update_task_scenes(
-        card_id=str(card.card_id),
-        scene_name=SceneNames.VIEW_TASK
-    )
+    await update_task_scenes(str(card.card_id))
 
     # Обновление сообщения на форуме
     await card.refresh()
@@ -587,14 +499,6 @@ async def to_sent(
 
     # Обновление карточки в базе
     await card.update(status=CardStatus.sent)
-
-    # Комментарий в кайтене
-    if card.task_id and card.task_id != 0:
-        async with kaiten as kc:
-            await kc.add_comment(
-                card_id=card.task_id,
-                text="🚀 Задача выполнена и отправлена!"
-            )
 
     # Удаление сообщения с форума
     if await card.get_forum_message():

@@ -1,14 +1,11 @@
 from models.Card import Card, CardStatus
 from models.User import User
 from global_modules.classes.enums import UserRole
-from modules.api_client import executors_api
-from modules.constants import ApiEndpoints
+from modules import executor_bridge
 from datetime import datetime
 import html
 from global_modules.json_get import open_settings, open_clients
-from modules.logs import brain_logger as logger
-
-# logger = logging.getLogger(__name__)
+from modules.logs import logger
 
 
 async def send_card_deadline_reminder(card: Card, **kwargs):
@@ -46,13 +43,7 @@ async def send_card_deadline_reminder(card: Card, **kwargs):
         message_text = f"⏰ Напоминание о дедлайне\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\nОсталось 2 дня!"
 
         # Отправляем уведомление
-        await executors_api.post(
-            ApiEndpoints.NOTIFY_USER,
-            data={
-                "user_id": executor.telegram_id,
-                "message": message_text
-            }
-        )
+        await executor_bridge.notify_user(executor.telegram_id, message_text)
         
         logger.info(f"Напоминание для карточки {card.card_id} отправлено исполнителю {executor.telegram_id}")
         
@@ -81,13 +72,8 @@ async def send_forum_deadline_passed(card: Card, **kwargs):
         # Формируем сообщение
         message_text = f"⏰ Дедлайн прошел!\n📝 Задача: {card.name}\n\nЗадача просрочена!"
 
-        await executors_api.post(
-            ApiEndpoints.NOTIFY_USER,
-            data={
-                "user_id": group_forum,
-                "message": message_text,
-                "reply_to": await card.get_forum_message()
-            }
+        await executor_bridge.notify_user(
+            group_forum, message_text, reply_to=await card.get_forum_message()
         )
         
         logger.info(f"Сообщение о просроченном дедлайне для карточки {card.card_id} отправлено на форум")
@@ -119,13 +105,8 @@ async def send_forum_no_executor_alert(card: Card, **kwargs):
         # Формируем сообщение
         message_text = f"⚠️ Внимание! Карточка без исполнителя\n\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\n❗ До дедлайна остался 1 день, но исполнитель не назначен!"
 
-        await executors_api.post(
-            ApiEndpoints.NOTIFY_USER,
-            data={
-                "user_id": group_forum,
-                "message": message_text,
-                "reply_to": await card.get_forum_message()
-            }
+        await executor_bridge.notify_user(
+            group_forum, message_text, reply_to=await card.get_forum_message()
         )
 
         logger.info(f"Уведомление об отсутствии исполнителя для карточки {card.card_id} отправлено на форум")
@@ -171,15 +152,7 @@ async def send_admin_no_executor_alert(card: Card, **kwargs):
         # Отправляем уведомление каждому админу
         for admin in admins:
             try:
-                await executors_api.post(
-                    ApiEndpoints.NOTIFY_USER,
-                    data={
-                        "user_id": admin.telegram_id,
-                        "message": message_text
-                    }
-                )
-                logger.info(f"Уведомление о карточке {card.card_id} отправлено админу {admin.telegram_id}")
-            except Exception as e:
+                    await executor_bridge.notify_user(admin.telegram_id, message_text)
                 logger.error(f"Ошибка отправки уведомления админу {admin.telegram_id}: {e}")
         
         # Также отправляем на форум
@@ -248,21 +221,18 @@ async def send_post_now(card_id: str, client_key: str, **kwargs):
                 if ent.client_key == client_key or ent.client_key is None:
                     entities_for_client.append(ent.to_dict())
 
-        # Отправляем запрос на немедленную публикацию - всю логику выполняет executors API
-        response, status = await executors_api.post(
-            "/post/send",
-            data={
-                "card_id": str(card.card_id),
-                "client_key": client_key,
-                "content": content,
-                "tags": card.tags,
-                "post_images": card.post_images or [],  # Имена файлов из Kaiten
-                "settings": clients_settings,  # Дополнительные настройки для отправки
-                "entities": entities_for_client  # Entities для отправки (опросы и т.д.)
-            }
+        # Отправляем запрос на немедленную публикацию
+        response = await executor_bridge.send_post(
+            card_id=str(card.card_id),
+            client_key=client_key,
+            content=content,
+            tags=card.tags,
+            post_images=card.post_images or [],
+            settings=clients_settings,
+            entities=entities_for_client
         )
         
-        if status == 200 and response.get('success'):
+        if response.get('success'):
             logger.info(f"Пост для карточки {card.card_id} отправлен, клиент: {client_key}")
 
             # Save sent message ids returned by executor (categorize and persist as CardMessage)
@@ -383,14 +353,7 @@ async def notify_admins_about_post_failure(
 
         for admin in admins:
             try:
-                await executors_api.post(
-                    ApiEndpoints.NOTIFY_USER,
-                    data={
-                        "user_id": admin.telegram_id,
-                        "message": message_text,
-                        "parse_mode": "HTML"
-                    }
-                )
+                await executor_bridge.notify_user(admin.telegram_id, message_text, parse_mode='HTML')
             except Exception as e:
                 logger.error(f"Ошибка уведомления админа {admin.telegram_id}: {e}")
                 
@@ -528,16 +491,13 @@ async def finalize_card_publication(card_id: str, **kwargs):
 
                     if source_chat and card.tags:
                         try:
-                            resp, status = await executors_api.post(
-                                ApiEndpoints.FORUM_FORWARD_FIRST_BY_TAGS,
-                                data={
-                                    "source_chat_id": source_chat,
-                                    "message_id": src_msg_id,
-                                    "tags": card.tags,
-                                    "source_client_key": src_client_key
-                                }
+                            await executor_bridge.forward_first_by_tags(
+                                source_chat_id=source_chat,
+                                message_id=src_msg_id,
+                                tags=card.tags,
+                                source_client_key=src_client_key
                             )
-                            logger.info(f"forward-first-by-tags called during finalize for card {card.card_id}: {resp}")
+                            logger.info(f"forward-first-by-tags called during finalize for card {card.card_id}")
                         except Exception as e:
                             logger.error(f"Error calling forward-first-by-tags during finalize for card {card.card_id}: {e}", exc_info=True)
                 else:
@@ -563,14 +523,7 @@ async def finalize_card_publication(card_id: str, **kwargs):
             
             for admin in admins:
                 try:
-                    await executors_api.post(
-                        ApiEndpoints.NOTIFY_USER,
-                        data={
-                            "user_id": admin.telegram_id,
-                            "message": message_text,
-                            "parse_mode": "HTML"
-                        }
-                    )
+                    await executor_bridge.notify_user(admin.telegram_id, message_text, parse_mode='HTML')
                 except Exception as e:
                     logger.error(f"Ошибка уведомления админа {admin.telegram_id}: {e}")
         
@@ -578,7 +531,7 @@ async def finalize_card_publication(card_id: str, **kwargs):
         logger.error(f"Ошибка финализации публикации карточки {card.card_id}: {e}", exc_info=True)
 
 # Логика генерации лидерборда перемещена в исполнителя (executors).
-# Brain API теперь только запрашивает у исполнителя отправку лидерборда через ApiEndpoints.SEND_LEADERBOARD.
+# Логика лидерборда: executor_bridge.send_leaderboard вызывается перед сбросом счётчика.
 
 
 async def reset_monthly_tasks():
@@ -595,13 +548,10 @@ async def reset_monthly_tasks():
         group_forum = settings.get('group_forum')
 
         if group_forum:
-            await executors_api.post(
-                ApiEndpoints.SEND_LEADERBOARD,
-                data={
-                    "chat_id": group_forum,
-                    "period": "month",
-                    "reply_to": settings.get('forum_topic')
-                }
+            await executor_bridge.send_leaderboard(
+                chat_id=group_forum,
+                period="month",
+                reply_to=settings.get('forum_topic')
             )
             logger.info("Запрошена отправка лидерборда месяца исполнителем")
 
@@ -634,14 +584,11 @@ async def reset_yearly_tasks():
         group_forum = settings.get('group_forum')
         
         if group_forum:
-            await executors_api.post(
-                ApiEndpoints.SEND_LEADERBOARD,
-                data={
-                    "chat_id": group_forum,
-                    "period": "year",
-                    "extra_text": "С новым годом дизановры!",
-                    "reply_to": settings.get('forum_topic')
-                }
+            await executor_bridge.send_leaderboard(
+                chat_id=group_forum,
+                period="year",
+                extra_text="С новым годом дизановры!",
+                reply_to=settings.get('forum_topic')
             )
             logger.info("Запрошена отправка лидерборда года исполнителем")
 

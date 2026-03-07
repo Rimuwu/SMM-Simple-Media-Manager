@@ -1,9 +1,8 @@
 from tg.oms import Page
-from modules.api_client import brain_api
 from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus
 from tg.oms.utils import callback_generator
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 from datetime import datetime, timedelta
 
 class StatusSetterPage(Page):

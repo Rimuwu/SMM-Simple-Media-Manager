@@ -65,7 +65,7 @@ class Card(Base, AsyncCRUDMixin):
     image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     prompt_message: Mapped[int] = mapped_column(BigInteger, nullable=True, default=None)
 
-    # Список имён файлов из Kaiten для публикации
+    # Список имён файлов
     post_images: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)

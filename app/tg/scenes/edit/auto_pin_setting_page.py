@@ -1,7 +1,7 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
-from modules.api_client import brain_api
+from global_modules import brain_client
 
 
 class AutoPinSettingPage(Page):
@@ -88,22 +88,18 @@ class AutoPinSettingPage(Page):
         if not task_id:
             return await callback.answer('❌ Задача не найдена')
 
-        # Сохраняем настройку через brain-api
-        response, status = await brain_api.post(
-            '/card/set-client_settings',
-            data={
-                'card_id': task_id,
-                'client_id': selected_client,
-                'setting_type': 'auto_pin',
-                'data': {'enabled': enabled}
-            }
+        result = await brain_client.set_client_settings(
+            card_id=task_id,
+            client_id=selected_client,
+            setting_type='auto_pin',
+            data={'enabled': enabled}
         )
 
-        if status == 200 and response:
+        if result and result.get('status', 200) == 200:
             await callback.answer('✅ Автозакреп обновлён')
             await self.scene.update_message()
         else:
-            err = response.get('detail', 'Неизвестная ошибка') if isinstance(response, dict) else 'Ошибка сервера'
+            err = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else 'Ошибка сервера'
             await callback.answer(f'❌ Ошибка: {err}', show_alert=True)
 
     @Page.on_callback('back')

@@ -3,9 +3,8 @@ import asyncio
 from datetime import datetime
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import brain_api
 from modules.constants import SETTINGS
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 
 
 class AIParserPage(Page):
@@ -124,12 +123,8 @@ class AIParserPage(Page):
         }
 
         try:
-            resp, status = await brain_api.post('/ai/send', data=payload)
-            if status != 200:
-                logger.error(f"Failed to send AI parse request for user {self.scene.user_id}: status={status} resp={resp}")
-                await self.update_data('parse_error', '❌ **Ошибка при отправке запроса в AI. Попробуйте позже.**')
-                await self.update_data('is_loading', False)
-                await self.scene.update_message()
+            from modules import ai as ai_module
+            await ai_module.send(payload)
         except Exception as e:
             logger.error(f"Exception while sending AI parse request for user {self.scene.user_id}: {e}")
             await self.update_data('parse_error', '❌ **Ошибка при отправке запроса в AI. Попробуйте позже.**')

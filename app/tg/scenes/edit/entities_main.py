@@ -1,7 +1,7 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
-from modules.api_client import brain_api
+from global_modules import brain_client
 
 
 class EntitiesMainPage(Page):
@@ -40,25 +40,23 @@ class EntitiesMainPage(Page):
         if not task_id:
             return '❌ Задача не найдена'
         
-        resp, status = await brain_api.get(f'/card/entities?card_id={task_id}&client_id={self.selected_client}')
+        entities = await brain_client.get_entities(card_id=task_id, client_id=self.selected_client)
 
         types = {
             'poll': 'Опрос',
             'inline_keyboard': 'Клавиатура ссылок',
         }
 
-        if status != 200 or not resp:
+        if entities is None:
             entities_list = '_Ошибка загрузки_'
+        elif not entities:
+            entities_list = '_Нет entities для этого канала_'
         else:
-            entities = resp.get('entities', [])
-            if not entities:
-                entities_list = '_Нет entities для этого канала_'
-            else:
-                lines = []
-                for e in entities:
-                    title = e.get('data', {}).get('name') or e.get('type')
-                    lines.append(f"• {types.get(e.get('type'), e.get('type'))} - {title}")
-                entities_list = "\n".join(lines)
+            lines = []
+            for e in entities:
+                title = e.get('data', {}).get('name') or e.get('type')
+                lines.append(f"• {types.get(e.get('type'), e.get('type'))} - {title}")
+            entities_list = "\n".join(lines)
         
         return self.append_variables(
             client_name=client_name,
@@ -104,10 +102,8 @@ class EntitiesMainPage(Page):
 
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            resp, status = await brain_api.get(
-                f'/card/entities?card_id={task_id}&client_id={self.selected_client}')
-            if status == 200 and resp:
-                entities = resp.get('entities', [])
+            entities = await brain_client.get_entities(card_id=task_id, client_id=self.selected_client)
+            if entities:
                 for e in entities:
                     eid = e.get('id')
                     title = e.get('data', {}).get('name') or e.get('type') or e.get('type')
@@ -178,13 +174,9 @@ class EntitiesMainPage(Page):
             await callback.answer('❌ Задача не найдена')
             return
         
-        resp, status = await brain_api.post('/card/delete-entity', data={
-            'card_id': task_id,
-            'client_id': self.selected_client,
-            'entity_id': eid
-        })
+        ok = await brain_client.delete_entity_by_id(eid)
         
-        if status == 200:
+        if ok:
             await callback.answer('✅ Удалено')
             await self.scene.update_message()
         else:

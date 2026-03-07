@@ -1,6 +1,6 @@
 from aiogram import F, Bot, Dispatcher
 from aiogram.types import Message
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 from modules.executors_manager import manager
 
 client_executor = manager.get("telegram_executor")

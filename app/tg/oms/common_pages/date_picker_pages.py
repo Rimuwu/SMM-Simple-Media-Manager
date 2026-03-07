@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import brain_api
+from global_modules import brain_client
 from datetime import datetime, timedelta
 import calendar
  
@@ -81,14 +81,13 @@ class DatePickerPage(Page):
 
                 busy = set()
                 if check_busy:
-                    res, status = await brain_api.get('/time/busy-slots', params={'start': first_day.isoformat(), 'end': last_day.isoformat()})
-                    if status == 200 and isinstance(res, dict):
-                        for item in res.get('busy_slots', []):
-                            try:
-                                busy_dt = datetime.fromisoformat(item['send_time'])
-                                busy.add(busy_dt)
-                            except Exception:
-                                pass
+                    slots = await brain_client.get_busy_slots(start=first_day.isoformat(), end=last_day.isoformat())
+                    for item in (slots or []):
+                        try:
+                            busy_dt = datetime.fromisoformat(item['send_time'])
+                            busy.add(busy_dt)
+                        except Exception:
+                            pass
 
                 cal = calendar.Calendar()
                 weeks = list(cal.monthdayscalendar(year, month))
@@ -106,14 +105,13 @@ class DatePickerPage(Page):
                 end = datetime(day_dt.year, day_dt.month, day_dt.day, 23, 59, 59)
                 busy_day = set()
                 if check_busy:
-                    res2, status2 = await brain_api.get('/time/busy-slots', params={'start': start.isoformat(), 'end': end.isoformat()})
-                    if status2 == 200 and isinstance(res2, dict):
-                        for item in res2.get('busy_slots', []):
-                            try:
-                                busy_dt = datetime.fromisoformat(item['send_time'])
-                                busy_day.add(busy_dt)
-                            except Exception:
-                                pass
+                    slots2 = await brain_client.get_busy_slots(start=start.isoformat(), end=end.isoformat())
+                    for item in (slots2 or []):
+                        try:
+                            busy_dt = datetime.fromisoformat(item['send_time'])
+                            busy_day.add(busy_dt)
+                        except Exception:
+                            pass
 
                 self._cache['busy_day_date'] = (sel, check_busy)
                 self._cache['busy_day'] = busy_day
@@ -127,14 +125,13 @@ class DatePickerPage(Page):
                 end_h = datetime(day_dt.year, day_dt.month, day_dt.day, hour_sel, 59, 59)
                 busy_minutes = set()
                 if check_busy:
-                    res3, status3 = await brain_api.get('/time/busy-slots', params={'start': start_h.isoformat(), 'end': end_h.isoformat()})
-                    if status3 == 200 and isinstance(res3, dict):
-                        for item in res3.get('busy_slots', []):
-                            try:
-                                busy_dt = datetime.fromisoformat(item['send_time'])
-                                busy_minutes.add(busy_dt.minute)
-                            except Exception:
-                                pass
+                    slots3 = await brain_client.get_busy_slots(start=start_h.isoformat(), end=end_h.isoformat())
+                    for item in (slots3 or []):
+                        try:
+                            busy_dt = datetime.fromisoformat(item['send_time'])
+                            busy_minutes.add(busy_dt.minute)
+                        except Exception:
+                            pass
 
                 self._cache['busy_hour'] = (cache_tag, check_busy)
                 self._cache['busy_minutes'] = busy_minutes

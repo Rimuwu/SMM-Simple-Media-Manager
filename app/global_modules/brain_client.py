@@ -204,29 +204,6 @@ async def get_all_scenes() -> list[dict]:
     return [s.to_dict() for s in scenes]
 
 
-async def get_kaiten_users(only_virtual: bool = True) -> list[dict]:
-    from modules.kaiten import kaiten
-    try:
-        async with kaiten as client:
-            return await client.get_members(only_virtual=only_virtual) or []
-    except Exception as e:
-        print(f"get_kaiten_users error: {e}"); return []
-
-
-async def get_kaiten_users_dict(only_virtual: bool = True) -> dict:
-    users = await get_kaiten_users(only_virtual)
-    return {u["id"]: u["full_name"] for u in users if "id" in u and "full_name" in u}
-
-
-async def get_kaiten_files(task_id: str) -> dict | None:
-    from modules.kaiten import kaiten
-    try:
-        async with kaiten as client:
-            return await client.get_card_files(task_id)
-    except Exception as e:
-        print(f"get_kaiten_files error: {e}"); return None
-
-
 async def download_file(file_id: str) -> tuple[bytes | None, int | None]:
     from models.CardFile import CardFile
     from modules.storage import download_file as _dl
@@ -490,9 +467,6 @@ class _BrainClientCompat:
     update_scene = staticmethod(update_scene)
     delete_scene = staticmethod(delete_scene)
     get_all_scenes = staticmethod(get_all_scenes)
-    get_kaiten_users = staticmethod(get_kaiten_users)
-    get_kaiten_users_dict = staticmethod(get_kaiten_users_dict)
-    get_kaiten_files = staticmethod(get_kaiten_files)
     download_file = staticmethod(download_file)
     get_file_info = staticmethod(get_file_info)
     list_files = staticmethod(list_files)

@@ -3,7 +3,7 @@ Module for sending and managing entities (polls, etc) in previews and messages
 """
 from aiogram import Bot
 from aiogram.types import InputPollOption
-from modules.api_client import brain_api
+from global_modules import brain_client
 
 
 async def send_poll_preview(
@@ -87,15 +87,12 @@ async def get_entities_for_client(
         {'success': bool, 'entities': list, 'error': str|None}
     """
     try:
-        resp, status = await brain_api.get(
-            f'/card/entities?card_id={card_id}&client_id={client_id}'
-        )
+        entities = await brain_client.get_entities(card_id=card_id, client_id=client_id)
         
-        if status == 200 and resp:
-            entities = resp.get('entities', [])
+        if entities is not None:
             return {'success': True, 'entities': entities, 'error': None}
         else:
-            return {'success': False, 'entities': [], 'error': f'API error {status}'}
+            return {'success': False, 'entities': [], 'error': 'API error'}
     
     except Exception as e:
         return {'success': False, 'entities': [], 'error': str(e)[:100]}

@@ -4,7 +4,7 @@ from modules.executors_manager import manager
 from aiogram.filters import Command
 
 from tg.oms.manager import scene_manager
-from tg.scenes.admin.users_scene import UsersScene
+from tg.scenes.users.users_scene import UsersScene
 from tg.filters.role_filter import RoleFilter
 from tg.filters.in_dm import InDMorWorkGroup
 

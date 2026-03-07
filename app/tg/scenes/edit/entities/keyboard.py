@@ -1,7 +1,7 @@
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import brain_api
+from global_modules import brain_client
 
 
 class KeyboardCreatePage(TextTypeScene):
@@ -402,19 +402,24 @@ class KeyboardCreatePage(TextTypeScene):
                 'name': payload.get('name')
             }
 
-            resp, status = await brain_api.post('/card/update-entity', data=up_payload)
-            if status == 200 and resp:
+            result = await brain_client.update_entity(entity_id=entity_id, data=up_payload['data'])
+            if result:
                 await self.scene.update_key(self.__page_name__, 'data', {})
                 await self.scene.update_key(self.__page_name__, 'entity_id', None)
                 await self.scene.update_page('entities-main')
                 await callback.answer('✅ Клавиатура обновлена')
             else:
-                await callback.answer(f'❌ Ошибка обновления {resp.get("detail", "")}', show_alert=True)
+                await callback.answer(f'❌ Ошибка обновления', show_alert=True)
             return
 
         # Создание новой сущности
-        resp, status = await brain_api.post('/card/add-entity', data=payload)
-        if status == 200 and resp:
+        result = await brain_client.add_entity(
+            card_id=task_id, client_id=selected_client,
+            entity_type='inline_keyboard',
+            data=payload['data'],
+            name=payload['name']
+        )
+        if result:
             await self.scene.update_key(self.__page_name__, 'data', {})
             await self.scene.update_page('entities-main')
             await callback.answer('✅ Клавиатура создана')

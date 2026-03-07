@@ -382,7 +382,7 @@
                 "parse_mode": "html"
             },
             "task-detail": {
-                "content": "📋 *{task_name}* (до {deadline})\n\n📊 *Статус выполнения:* {status}\n👤 *Исполнитель:* `{executor}`\n👤 *Заказчик:* `{customer}`\n👤 *Редактор:* `{editor}`\n⏰ *Время отправки:* {send_time}\n📢 *Каналы для публикации:* {channels}\n🏷 *Теги:* {tags}\n🔗 *Kaiten:* [Открыть задачу]({kaiten_link})\n\n```Описание {task_description}```\n\n🔧 Выберите действие с задачей:",
+                "content": "📋 *{task_name}* (до {deadline})\n\n📊 *Статус выполнения:* {status}\n👤 *Исполнитель:* `{executor}`\n👤 *Заказчик:* `{customer}`\n👤 *Редактор:* `{editor}`\n⏰ *Время отправки:* {send_time}\n📢 *Каналы для публикации:* {channels}\n🏷 *Теги:* {tags}\n\n```Описание {task_description}```\n\n🔧 Выберите действие с задачей:",
                 "to_pages": {
                     "task-list": "⬅️ К списку задач"
                 },
@@ -473,18 +473,15 @@
                 "row_width": 2
             },
             "user-detail": {
-                "content": "*👤 Имя*: {name}\n🧪 *Телеграм ID:* `{telegram_id}`\n🎭 *Роль:* {role}\n🆔 *Kaiten ID:* {tasker_id}\n🏢 *Департамент:* {department}\n📝 *Описание:* {about}\n\n*🍿 Выполнено задач*\n- Всё время: {tasks}\n- Год: {tasks_year}\n- Месяц: {tasks_month}\n\n*🍢 Иная статистика*\n- Создано: {created}\n- Проверено: {checked}",
+                "content": "*👤 Имя*: {name}\n🧪 *Телеграм ID:* `{telegram_id}`\n🎭 *Роль:* {role}\n🏢 *Департамент:* {department}\n📝 *Описание:* {about}\n\n*🍿 Выполнено задач*\n- Всё время: {tasks}\n- Год: {tasks_year}\n- Месяц: {tasks_month}\n\n*🍢 Иная статистика*\n- Создано: {created}\n- Проверено: {checked}",
                 "row_width": 2
             },
             "add-user": {
                 "content": "Введите Telegram ID нового пользователя:"
             },
             "select-role": {
-                "content": "Выберите роль пользователя:"
-            },
-            "select-kaiten-user": {
-                "content": "Выберите пользователя Kaiten для привязки:",
-                "row_width": 2
+                "content": "Выберите роль пользователя:",
+                "row_width": 3
             },
             "select-department": {
                 "content": "Выберите департамент пользователя:",
@@ -496,11 +493,11 @@
             },
             "filter-users-by-role": {
                 "content": "🎭 *Выберите роль для фильтрации:*",
-                "row_width": 2
+                "row_width": 3
             },
             "filter-users-by-department": {
                 "content": "🏢 *Выберите отдел для фильтрации:*",
-                "row_width": 2
+                "row_width": 3
             }
         }
     }

@@ -4,7 +4,7 @@ from tg.oms.utils import callback_generator
 from global_modules.brain_client import brain_client
 from modules.constants import SETTINGS
 from global_modules.classes.enums import CardStatus
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 from tg.scenes.constants import CARD_STATUS_NAMES
 
 class MainPage(Page):

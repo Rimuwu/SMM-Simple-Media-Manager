@@ -1,7 +1,7 @@
 from tg.oms import Page
 from global_modules.brain_client import brain_client
 from tg.oms.utils import callback_generator
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 
 
 class EditorCheckPage(Page):

@@ -1,7 +1,7 @@
 import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 from modules.executors_manager import manager
 from aiogram.filters import Command
 from tg.filters.authorize import Authorize

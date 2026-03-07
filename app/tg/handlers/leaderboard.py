@@ -4,8 +4,8 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.exceptions import TelegramBadRequest
 from modules.executors_manager import manager
-from modules.api_client import brain_api, get_kaiten_users_dict
-from modules.logs import executors_logger as logger
+from global_modules.brain_client import get_users
+from modules.logs import logger
 from tg.filters.authorize import Authorize
 from modules.utils import get_display_name
 from tg.filters.in_dm import InDMorWorkGroup
@@ -21,12 +21,12 @@ async def get_leaderboard_text(period: str = 'all') -> str:
     """
     try:
         # Получаем всех пользователей
-        response, status = await brain_api.get('/user/get', params={})
+        users = await get_users()
         
-        if status != 200 or not response:
+        if not users:
             return "❌ Не удалось загрузить данные лидерборда."
         
-        users = [u for u in response if isinstance(u, dict)]
+        users = [u for u in users if isinstance(u, dict)]
         
         # Выбираем поле в зависимости от периода
         if period == 'month':
@@ -53,8 +53,6 @@ async def get_leaderboard_text(period: str = 'all') -> str:
 
         medals = ['🥇', '🥈', '🥉']
 
-        kaiten_users = await get_kaiten_users_dict()
-
         idx = -1
         for user in sorted_users[:10]:  # Топ 10
             tasks_count = user.get(field, 0)
@@ -69,9 +67,7 @@ async def get_leaderboard_text(period: str = 'all') -> str:
             if telegram_id:
                 name = await get_display_name(
                     telegram_id=int(telegram_id), 
-                    kaiten_users=kaiten_users,
                     bot=bot,
-                    tasker_id=user.get('tasker_id'),
                     short=True
                 )
             else:

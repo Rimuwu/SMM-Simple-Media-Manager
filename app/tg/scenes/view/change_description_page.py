@@ -1,6 +1,5 @@
 from global_modules import brain_client
 from tg.oms.common_pages.update_text_page import UpdateTextPage
-from modules.api_client import brain_api
 from global_modules.classes.enums import ChangeType
 
 

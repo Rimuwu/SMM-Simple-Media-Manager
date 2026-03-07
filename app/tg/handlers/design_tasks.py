@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from modules.executors_manager import manager
 from modules.constants import SETTINGS
 from global_modules.brain_client import brain_client, get_user_role
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp  # type: ignore

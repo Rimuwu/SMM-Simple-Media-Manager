@@ -2,7 +2,6 @@ from global_modules import brain_client
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
-from modules.api_client import brain_api
 
 
 class ImageViewSettingPage(Page):
@@ -120,22 +119,18 @@ class ImageViewSettingPage(Page):
             return
         
         # Отправляем запрос на обновление настройки
-        response, status = await brain_api.post(
-            '/card/set-client_settings',
-            data={
-                'card_id': task_id,
-                'client_id': selected_client,
-                'setting_type': 'image_view',
-                'data': {'type': view_type}
-            }
+        result = await brain_client.set_client_settings(
+            card_id=task_id, client_id=selected_client,
+            setting_type='image_view',
+            data={'type': view_type}
         )
-        
-        if status == 200 and response:
+
+        if result and result.get('status', 200) == 200:
             view_name = "сетка" if view_type == 'grid' else "карусель"
             await callback.answer(f"✅ Настройка изменена: {view_name}")
-            
+
             # Обновляем отображение
             await self.scene.update_message()
         else:
-            error_msg = response.get('detail', 'Неизвестная ошибка') if isinstance(response, dict) else 'Ошибка сервера'
+            error_msg = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else 'Ошибка сервера'
             await callback.answer(f"❌ Ошибка: {error_msg}")

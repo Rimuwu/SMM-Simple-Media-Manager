@@ -22,32 +22,18 @@ async def get_telegram_user(bot: Bot, telegram_id: int):
 
 async def get_display_name(
                     telegram_id: int,
-                    kaiten_users: dict, 
                     bot=None,
-                    tasker_id: Optional[str] = None,
                     short: bool = False
                 ) -> str:
     """
-    Получить отображаемое имя пользователя.
+    Получить отображаемое имя пользователя через Telegram API.
 
     Args:
         telegram_id: ID пользователя в Telegram
-        tasker_id: ID пользователя в Kaiten
-        kaiten_users: Словарь пользователей Kaiten {id: name}
         bot: Экземпляр бота для получения имени из Telegram
+        short: Если True — только полное имя без username
     """
-
-    if tasker_id and tasker_id in kaiten_users:
-        if bot and telegram_id:
-            chat = await get_telegram_user(bot, telegram_id)
-            if chat:
-                if short:
-                    return f"{kaiten_users[tasker_id]}"
-                return f"{kaiten_users[tasker_id]} (@{chat.username})" if chat.username else kaiten_users[tasker_id]
-        return kaiten_users[tasker_id]
-
     if bot and telegram_id:
-
         chat = await get_telegram_user(bot, telegram_id)
         if chat:
             if short:

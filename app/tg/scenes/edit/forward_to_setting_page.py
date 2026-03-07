@@ -1,7 +1,7 @@
+from global_modules import brain_client
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
-from modules.api_client import brain_api
 
 
 class ForwardToSettingPage(Page):
@@ -109,21 +109,17 @@ class ForwardToSettingPage(Page):
         # берем текущее значение only_main_message из настроек (если есть)
         only_main = cur.get('only_main_message', True)
 
-        response, status = await brain_api.post(
-            '/card/set-client_settings',
-            data={
-                'card_id': task_id,
-                'client_id': selected_client,
-                'setting_type': 'forward_to',
-                'data': {'forward_to': forward_list, 'only_main_message': only_main}
-            }
+        result = await brain_client.set_client_settings(
+            card_id=task_id, client_id=selected_client,
+            setting_type='forward_to',
+            data={'forward_to': forward_list, 'only_main_message': only_main}
         )
 
-        if status == 200 and response:
+        if result and result.get('status', 200) == 200:
             await callback.answer('✅ Настройка сохранена')
             await self.scene.update_message()
         else:
-            err = response.get('detail', 'Неизвестная ошибка') if isinstance(response, dict) else 'Ошибка сервера'
+            err = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else 'Ошибка сервера'
             await callback.answer(f'❌ Ошибка: {err}', show_alert=True)
 
     @Page.on_callback('toggle_only_main')
@@ -149,21 +145,17 @@ class ForwardToSettingPage(Page):
         if not task_id:
             return await callback.answer('❌ Задача не найдена')
 
-        response, status = await brain_api.post(
-            '/card/set-client_settings',
-            data={
-                'card_id': task_id,
-                'client_id': selected_client,
-                'setting_type': 'forward_to',
-                'data': {'forward_to': forward_list, 'only_main_message': new_val}
-            }
+        result = await brain_client.set_client_settings(
+            card_id=task_id, client_id=selected_client,
+            setting_type='forward_to',
+            data={'forward_to': forward_list, 'only_main_message': new_val}
         )
 
-        if status == 200 and response:
+        if result and result.get('status', 200) == 200:
             await callback.answer('✅ Настройка сохранена')
             await self.scene.update_message()
         else:
-            err = response.get('detail', 'Неизвестная ошибка') if isinstance(response, dict) else 'Ошибка сервера'
+            err = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else 'Ошибка сервера'
             await callback.answer(f'❌ Ошибка: {err}', show_alert=True)
 
     @Page.on_callback('back')

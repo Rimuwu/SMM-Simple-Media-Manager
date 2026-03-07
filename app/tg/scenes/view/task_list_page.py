@@ -70,9 +70,8 @@ class TaskListPage(Page):
             if filter_user_id:
                 user = await brain_client.get_user(user_id=filter_user_id)
                 if user:
-                    kaiten_users = await brain_client.get_kaiten_users_dict()
                     display_name = await get_display_name(
-                        user.get('telegram_id'), kaiten_users, self.scene.__bot__, user.get('tasker_id')
+                        user.get('telegram_id'), self.scene.__bot__
                     )
                     selected_filter_text = f"{filter_names.get(selected_filter)}: {display_name}"
                 else:

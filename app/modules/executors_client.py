@@ -8,7 +8,7 @@ from uuid import UUID as _UUID
 
 from modules import executor_bridge
 from modules.constants import SceneNames
-from modules.logs import brain_logger as logger
+from modules.logs import logger
 
 from models.Card import Card
 from models.CardMessage import CardMessage

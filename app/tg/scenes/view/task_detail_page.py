@@ -1,14 +1,12 @@
-from global_modules.vault.vault_client import vault_getenv as getenv
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import brain_api
 from global_modules.brain_client import brain_client
 from global_modules.classes.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
 from modules.constants import SETTINGS
-from modules.logs import executors_logger as logger
+from modules.logs import logger
 from datetime import datetime
 from tg.scenes.constants import CARD_STATUS_NAMES
 
@@ -55,9 +53,6 @@ class TaskDetailPage(Page):
             return
         
         task = tasks[0]
-        
-        # Получаем словарь пользователей Kaiten
-        kaiten_users = await brain_client.get_kaiten_users_dict()
 
         # Форматируем исполнителя
         executor_id = task.get('executor_id')
@@ -66,9 +61,8 @@ class TaskDetailPage(Page):
             user_data = await brain_client.get_user(user_id=executor_id)
             if user_data:
                 executor_name = await get_display_name(
-                    user_data['telegram_id'], 
-                    kaiten_users, self.scene.__bot__, 
-                    user_data.get('tasker_id')
+                    user_data['telegram_id'],
+                    self.scene.__bot__
                 )
 
         # Форматируем заказчика
@@ -78,11 +72,9 @@ class TaskDetailPage(Page):
             user_data = await brain_client.get_user(user_id=customer_id)
             if user_data:
                 customer_name = await get_display_name(
-                    user_data['telegram_id'], 
-                    kaiten_users, self.scene.__bot__,
-                    user_data.get('tasker_id')
+                    user_data['telegram_id'],
+                    self.scene.__bot__
                 )
-
         # Форматируем редактора
         editor_id = task.get('editor_id')
         editor_name = 'Не указан'
@@ -90,9 +82,8 @@ class TaskDetailPage(Page):
             user_data = await brain_client.get_user(user_id=editor_id)
             if user_data:
                 editor_name = await get_display_name(
-                    user_data['telegram_id'], 
-                    kaiten_users, self.scene.__bot__,
-                    user_data.get('tasker_id')
+                    user_data['telegram_id'],
+                    self.scene.__bot__
                 )
 
         # Форматируем дедлайн
@@ -145,18 +136,6 @@ class TaskDetailPage(Page):
         else:
             tags_str = 'Не указаны'
 
-        # Ссылка на Kaiten
-        kaiten_task_id = task.get('task_id')
-        kaiten_domain = getenv('KAITEN_DOMAIN', 'demo.kaiten.ru')
-
-        if 'http' not in kaiten_domain:
-             kaiten_domain = f"https://{kaiten_domain}"
-        space = SETTINGS['space']['id']
-
-        # demo.kaiten.ru/space/667420/card/58354102
-        kaiten_link = f"{kaiten_domain}.kaiten.ru/space/{space}/card/{kaiten_task_id}" if kaiten_task_id else "Недоступно"
-
-        # Подготавливаем переменные для шаблона
         add_vars = {
             'task_name': task.get(
                 'name', 'Без названия'),
@@ -172,7 +151,6 @@ class TaskDetailPage(Page):
             'deadline': deadline_str,
             'channels': channels_str,
             'tags': tags_str,
-            'kaiten_link': kaiten_link,
             'send_time': send_time_str
         }
 
@@ -377,9 +355,8 @@ class TaskDetailPage(Page):
             
             logger.info(f"Пользователь {self.scene.user_id} запросил удаление задачи {card_id}")
 
-            res, status = await brain_api.delete(
-                f'/card/delete/{card_id}',
-            )
+            result = await brain_client.delete_card(card_id)
+            status = result.get('status', 200) if isinstance(result, dict) else 200
 
             if status == 200:
                 logger.info(f"Задача {card_id} успешно удалена пользователем {self.scene.user_id}")
@@ -419,13 +396,8 @@ class TaskDetailPage(Page):
 
             card_id = task.get('card_id')
             
-            # Вызываем специальный эндпоинт для немедленной отправки
-            res, status = await brain_api.post(
-                '/card/send-now',
-                data={
-                    'card_id': card_id
-                }
-            )
+            result = await brain_client.send_now(card_id)
+            status = result.get('status', 200) if isinstance(result, dict) else 500
             
             if status == 200:
                 await callback.answer("🚀 Задача отправлена на публикацию!", show_alert=True)
@@ -433,5 +405,5 @@ class TaskDetailPage(Page):
                 await self.scene.update_page('task-detail')
 
             else:
-                error_detail = res.get('detail', 'Неизвестная ошибка') if isinstance(res, dict) else str(res)
+                error_detail = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else str(result)
                 await callback.answer(f"Ошибка: {error_detail}", show_alert=True)

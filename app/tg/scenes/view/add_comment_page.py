@@ -2,7 +2,6 @@ from modules.utils import get_display_name
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.api_client import brain_api
 from global_modules.brain_client import brain_client
 
 class AddCommentPage(TextTypeScene):
@@ -29,7 +28,7 @@ class AddCommentPage(TextTypeScene):
                     # Получаем всех пользователей для отображения имен
                     users = await brain_client.get_users()
                     users_dict = {str(u['user_id']): u for u in users} if users else {}
-                    kaiten_users = await brain_client.get_kaiten_users_dict()
+
                     
                     # Форматируем комментарии с учетом лимита символов
                     formatted_notes = []
@@ -49,9 +48,8 @@ class AddCommentPage(TextTypeScene):
                             if author_users:
                                 user_data = author_users[0]
                                 author_name = await get_display_name(
-                                    user_data['telegram_id'], 
-                                    kaiten_users, self.scene.__bot__, 
-                                    user_data.get('tasker_id')
+                                    user_data['telegram_id'],
+                                    self.scene.__bot__
                                 )
 
                         # Формируем текст комментария с пометкой для заказчика
@@ -146,16 +144,13 @@ class AddCommentPage(TextTypeScene):
         user_id = user.get('user_id')
 
         # Добавляем комментарий через API
-        result, status = await brain_api.post(
-            "/card/add-comment",
-            data={
-                "card_id": str(card_id),
-                "content": comment_text,
-                "author": str(user_id)
-            }
+        result, status = await brain_client.add_editor_note(
+            card_id=str(card_id),
+            content=comment_text,
+            author_user_id=str(user_id)
         )
 
-        if status == 200:
+        if result:
             await self.scene.update_key('scene', 'comment_text', '')
             await self.scene.update_page('task-detail')
             await callback.answer("✅ Комментарий добавлен")
