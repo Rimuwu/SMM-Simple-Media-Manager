@@ -500,6 +500,46 @@
                 "row_width": 3
             }
         }
+    },
+
+    "tags": {
+        "settings": {
+            "parse_mode": "Markdown",
+            "delete_after_send": true,
+            "start_page": "tags-list"
+        },
+        "standart_data": {
+            "selected_tag": null,
+            "new_tag_key": null,
+            "new_tag_name": null,
+            "edit_field": null,
+            "edit_mode": false
+        },
+        "pages": {
+            "tags-list": {
+                "content": "",
+                "row_width": 2
+            },
+            "tag-detail": {
+                "content": "",
+                "row_width": 2
+            },
+            "tag-edit-text": {
+                "content": ""
+            },
+            "tag-edit-int": {
+                "content": ""
+            },
+            "tag-edit-key": {
+                "content": ""
+            },
+            "tag-create-name": {
+                "content": ""
+            },
+            "tag-create-hashtag": {
+                "content": ""
+            }
+        }
     }
 
 }

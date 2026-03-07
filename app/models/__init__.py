@@ -2,6 +2,7 @@
 from .User import User
 from .Card import Card
 from .Scene import Scene
+from .Tag import Tag
 from .ScheduledTask import ScheduledTask
 from .CardContent import CardContent
 from .CardEditorNote import CardEditorNote
@@ -16,7 +17,8 @@ from global_modules.classes.enums import UserRole, CardStatus, AutomationTypes
 
 __all__ = [
     "User", "UserRole",
-    "Card", "CardStatus", 
+    "Card", "CardStatus",
+    "Tag",
     "ScheduledTask", "TaskStatus",
     "CardContent", "CardEditorNote", "ClientSetting", "Entity",
     # "Message", "MessageType",

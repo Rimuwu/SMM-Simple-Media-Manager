@@ -126,23 +126,23 @@ async def get_user_role(telegram_id: int) -> str | None:
     return user.get("role") if user else None
 
 
-async def create_user(telegram_id: int, role: str, tasker_id=None, department=None, about=None) -> dict | None:
+async def create_user(telegram_id: int, role: str, tasker_id=None, department=None, about=None, name=None) -> dict | None:
     from models.User import User
     try:
         existing = await User.get_by_key("telegram_id", telegram_id)
         if existing: return {"error": "User already exists"}
-        user = await User.create(telegram_id=telegram_id, role=role, tasker_id=tasker_id, department=department, about=about, task_per_year=0, task_per_month=0, tasks=0, tasks_checked=0, tasks_created=0)
+        user = await User.create(telegram_id=telegram_id, role=role, tasker_id=tasker_id, department=department, about=about, name=name, task_per_year=0, task_per_month=0, tasks=0, tasks_checked=0, tasks_created=0)
         return user.to_dict()
     except Exception as e:
         print(f"create_user error: {e}"); return None
 
 
-async def update_user(telegram_id: int, role=None, tasker_id=None, department=None, about=None) -> dict | None:
+async def update_user(telegram_id: int, role=None, tasker_id=None, department=None, about=None, name=None) -> dict | None:
     from models.User import User
     try:
         user = await User.get_by_key("telegram_id", telegram_id)
         if not user: return None
-        updates = {k: v for k, v in [("role", role), ("tasker_id", tasker_id), ("about", about)] if v is not None}
+        updates = {k: v for k, v in [("role", role), ("tasker_id", tasker_id), ("about", about), ("name", name)] if v is not None}
         if department is not None: updates["department"] = department.value if hasattr(department, "value") else department
         if updates: await user.update(**updates)
         return user.to_dict()
@@ -466,8 +466,90 @@ async def notify_executor(card_id: str, message: str) -> bool:
         print(f"notify_executor error: {e}"); return False
 
 
+async def get_tags() -> list[dict]:
+    from models.Tag import Tag
+    tags = await Tag.get_all()
+    return [{"id": t.id, "key": t.key, "name": t.name, "tag": t.tag,
+             "forward_to_topic": t.forward_to_topic, "order": t.order} for t in sorted(tags, key=lambda x: x.order)]
+
+
+async def create_tag(key: str, name: str, tag: str, forward_to_topic=None, order: int = 0) -> dict | None:
+    from models.Tag import Tag
+    try:
+        existing = await Tag.get_by_key("key", key)
+        if existing: return None
+        t = await Tag.create(key=key, name=name, tag=tag, forward_to_topic=forward_to_topic, order=order)
+        return {"id": t.id, "key": t.key, "name": t.name, "tag": t.tag,
+                "forward_to_topic": t.forward_to_topic, "order": t.order}
+    except Exception as e:
+        print(f"create_tag error: {e}"); return None
+
+
+async def update_tag(key: str, name=None, tag=None, forward_to_topic=None, order=None) -> dict | None:
+    from models.Tag import Tag
+    try:
+        t = await Tag.get_by_key("key", key)
+        if not t: return None
+        updates = {k: v for k, v in [("name", name), ("tag", tag), ("forward_to_topic", forward_to_topic), ("order", order)] if v is not None}
+        if updates: await t.update(**updates)
+        return {"id": t.id, "key": t.key, "name": t.name, "tag": t.tag,
+                "forward_to_topic": t.forward_to_topic, "order": t.order}
+    except Exception as e:
+        print(f"update_tag error: {e}"); return None
+
+
+async def delete_tag(key: str) -> bool:
+    from models.Tag import Tag
+    try:
+        t = await Tag.get_by_key("key", key)
+        if t: await t.delete()
+        return True
+    except Exception as e:
+        print(f"delete_tag error: {e}"); return False
+
+
 # Обратная совместимость: brain_client.method() и module-level functions
 class _BrainClientCompat:
+    get_cards = staticmethod(get_cards)
+    update_card = staticmethod(update_card)
+    change_card_status = staticmethod(change_card_status)
+    add_editor_note = staticmethod(add_editor_note)
+    get_messages = staticmethod(get_messages)
+    set_content = staticmethod(set_content)
+    clear_content = staticmethod(clear_content)
+    get_users = staticmethod(get_users)
+    get_user = staticmethod(get_user)
+    get_user_role = staticmethod(get_user_role)
+    create_user = staticmethod(create_user)
+    update_user = staticmethod(update_user)
+    delete_user = staticmethod(delete_user)
+    insert_scene = staticmethod(insert_scene)
+    load_scene = staticmethod(load_scene)
+    update_scene = staticmethod(update_scene)
+    delete_scene = staticmethod(delete_scene)
+    get_all_scenes = staticmethod(get_all_scenes)
+    download_file = staticmethod(download_file)
+    get_file_info = staticmethod(get_file_info)
+    list_files = staticmethod(list_files)
+    delete_file = staticmethod(delete_file)
+    upload_file = staticmethod(upload_file)
+    add_entity = staticmethod(add_entity)
+    get_entities = staticmethod(get_entities)
+    notify_executor = staticmethod(notify_executor)
+    get_card_by_message_id = staticmethod(get_card_by_message_id)
+    create_card = staticmethod(create_card)
+    delete_card = staticmethod(delete_card)
+    send_now = staticmethod(send_now)
+    set_client_settings = staticmethod(set_client_settings)
+    get_entity = staticmethod(get_entity)
+    update_entity = staticmethod(update_entity)
+    delete_entity_by_id = staticmethod(delete_entity_by_id)
+    get_busy_slots = staticmethod(get_busy_slots)
+    get_tags = staticmethod(get_tags)
+    create_tag = staticmethod(create_tag)
+    update_tag = staticmethod(update_tag)
+    delete_tag = staticmethod(delete_tag)
+
     get_cards = staticmethod(get_cards)
     update_card = staticmethod(update_card)
     change_card_status = staticmethod(change_card_status)

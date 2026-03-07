@@ -4,7 +4,7 @@ from database.connection import Base
 from database.crud_mixins import AsyncCRUDMixin
 from database.annotated_types import uuidPK
 from global_modules.classes.enums import UserRole, Department
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from models.Card import Card
@@ -28,6 +28,7 @@ class User(Base, AsyncCRUDMixin):
     about: Mapped[str] = mapped_column(String, nullable=True, default=None)
 
     can_pick: Mapped[bool] = mapped_column(nullable=False, default=False)
+    name: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
 
     # Связи
     cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer", foreign_keys="Card.customer_id")

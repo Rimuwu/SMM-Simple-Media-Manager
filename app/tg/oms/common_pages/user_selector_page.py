@@ -67,12 +67,15 @@ class UserSelectorPage(RadioTypeScene):
         self.options = {}
         for user in self.filtered_users:
             user_id = str(user['user_id'])
-            display_name = await get_display_name(
-                user['telegram_id'],
-                self.scene.__bot__,
-                short=True
-            )
-            self.options[user_id] = display_name
+            if user.get('name'):
+                self.options[user_id] = user['name']
+            else:
+                display_name = await get_display_name(
+                    user['telegram_id'],
+                    self.scene.__bot__,
+                    short=True
+                )
+                self.options[user_id] = display_name
 
     async def content_worker(self) -> str:
         """Формирует контент с отображением текущего пользователя"""

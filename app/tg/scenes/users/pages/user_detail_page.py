@@ -46,7 +46,7 @@ class UserDetailPage(Page):
             tasks=self.user.get('tasks', 0),
             tasks_year=self.user.get('task_per_year', 0),
             tasks_month=self.user.get('task_per_month', 0),
-            name=display_name,
+            name=self.user.get('name') or display_name,
             created=self.user.get('tasks_created', 0),
             checked=self.user.get('tasks_checked', 0)
         )
@@ -64,6 +64,13 @@ class UserDetailPage(Page):
         if not is_self_edit or current_user_telegram_id == superuser_id:
             # Кнопки редактирования только если это не свой профиль
             buttons.extend([
+                {
+                    "text": "✏️ Изменить имя",
+                    "callback_data": callback_generator(
+                        self.scene.__scene_name__,
+                        "edit-name"
+                    )
+                },
                 {
                     "text": "🎭 Изменить роль",
                     "callback_data": callback_generator(
@@ -135,6 +142,11 @@ class UserDetailPage(Page):
 
         await callback.answer("✅ Пользователь удалён")
         await self.scene.update_page('users-list')
+
+    @Page.on_callback('edit-name')
+    async def on_edit_name(self, callback, args):
+        await self.scene.update_key('scene', 'edit_mode', True)
+        await self.scene.update_page('edit-name')
 
     @Page.on_callback('select-role')
     async def on_select_role(self, callback, args):

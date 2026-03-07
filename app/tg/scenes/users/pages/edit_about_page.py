@@ -20,7 +20,7 @@ class EditAboutPage(TextTypeScene):
         buttons = []
 
         edit_mode = self.scene.data['scene'].get('edit_mode')
-        back_page = 'user-detail' if edit_mode else 'select-department'
+        back_page = 'user-detail' if edit_mode else 'edit-name'
 
         buttons.append({
             "text": "💾 Сохранить",
@@ -70,7 +70,8 @@ class EditAboutPage(TextTypeScene):
                 role=role,
                 tasker_id=tasker_id,
                 department=department,
-                about=about_text
+                about=about_text,
+                name=self.scene.data['scene'].get('user_name') or None
             )
             
             if result:
@@ -82,6 +83,10 @@ class EditAboutPage(TextTypeScene):
     @Page.on_callback('user-detail')
     async def on_user_detail_back(self, callback, args):
         await self.scene.update_page('user-detail')
+
+    @Page.on_callback('edit-name')
+    async def on_edit_name_back(self, callback, args):
+        await self.scene.update_page('edit-name')
 
     @Page.on_callback('select-department')
     async def on_select_department_back(self, callback, args):

@@ -53,5 +53,5 @@ class SelectDepartmentPage(RadioTypeScene):
         else:
             await self.scene.update_key('scene',
                                         'new_user_department', department)
-            await self.scene.update_page('edit-about')
+            await self.scene.update_page('edit-name')
 

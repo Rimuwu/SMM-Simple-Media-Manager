@@ -1,6 +1,7 @@
 from . import events
 from . import create
 from . import manage_users
+from . import manage_tags
 from . import forum
 from . import view_tasks
 from . import start

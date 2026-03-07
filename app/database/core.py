@@ -9,6 +9,7 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
 
 from models import User
+from models.Tag import Tag
 from models.Card import Card
 from models.CardContent import CardContent
 from models.CardEditorNote import CardEditorNote

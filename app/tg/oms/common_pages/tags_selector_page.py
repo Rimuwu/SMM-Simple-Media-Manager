@@ -3,6 +3,22 @@ from modules.constants import SETTINGS
 from typing import Optional, Callable
 
 
+async def _get_tags_options() -> dict:
+    """Загружает теги из БД, при отсутствии — из settings.json."""
+    try:
+        from global_modules.brain_client import get_tags
+        db_tags = await get_tags()
+        if db_tags:
+            return {t['key']: t['name'] for t in db_tags}
+    except Exception:
+        pass
+    # fallback к settings.json
+    return {
+        key: tag['name']
+        for key, tag in SETTINGS['properties']['tags']['values'].items()
+    }
+
+
 class TagsSelectorPage(OptionTypeScene):
     """
     Базовый класс для страниц выбора тегов.
@@ -16,11 +32,8 @@ class TagsSelectorPage(OptionTypeScene):
     on_success_callback: Optional[Callable] = None
 
     async def data_preparate(self):
-        # Устанавливаем опции из настроек
-        self.options = {
-            key: tag['name'] 
-            for key, tag in SETTINGS['properties']['tags']['values'].items()
-        }
+        # Загружаем теги из БД (или fallback settings.json)
+        self.options = await _get_tags_options()
 
         # Копируем значения из сцены в страницу при первой загрузке
         tags_list = self.scene.data['scene'].get(self.scene_key, [])
@@ -34,20 +47,14 @@ class TagsSelectorPage(OptionTypeScene):
     async def content_worker(self) -> str:
         # Получаем список выбранных тегов ИЗ ДАННЫХ СТРАНИЦЫ
         tags_list = self.scene.data[self.__page_name__].get(self.scene_key, [])
-        
-        # Преобразуем ключи в имена для отображения
+
+        # Преобразуем ключи в имена для отображения через self.options
         if tags_list:
-            tag_names = []
-            for tag_key in tags_list:
-                tag_info = SETTINGS['properties']['tags']['values'].get(tag_key)
-                if tag_info:
-                    tag_names.append(tag_info['name'])
-                else:
-                    tag_names.append(tag_key)
+            tag_names = [self.options.get(key, key) for key in tags_list]
             tags_text = ', '.join(tag_names)
         else:
             tags_text = 'Не указаны'
-        
+
         return self.append_variables(tags=tags_text)
 
     @OptionTypeScene.on_callback('all')
