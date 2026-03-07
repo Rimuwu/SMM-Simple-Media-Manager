@@ -1,4 +1,5 @@
-from global_modules import brain_client
+from modules import card_events
+from uuid import UUID as _UUID
 from tg.oms.common_pages.update_text_page import UpdateTextPage
 from global_modules.classes.enums import ChangeType
 
@@ -32,18 +33,13 @@ class ChangeNamePage(UpdateTextPage):
             return False
 
         card_id = task.get('card_id')
-        old_name = task.get('name')
-        
-        # Обновляем название в карточке
-        res = await brain_client.update_card(
-            card_id=card_id,
-            name=value
-        )
 
-        if res is not None:
-            # Обновляем данные задачи
-            task['name'] = value
-            await self.scene.update_key('scene', 'current_task_data', task)
-            return True
-        
-        return False
+        try:
+            await card_events.on_name(new_name=value, card_id=_UUID(str(card_id)))
+        except Exception:
+            return False
+
+        # Обновляем локальный кэш сцены
+        task['name'] = value
+        await self.scene.update_key('scene', 'current_task_data', task)
+        return True

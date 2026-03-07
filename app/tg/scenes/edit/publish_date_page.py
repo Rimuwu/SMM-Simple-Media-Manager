@@ -1,6 +1,7 @@
 from datetime import datetime
 from tg.oms.common_pages.date_input_page import DateInputPage
-from global_modules.brain_client import brain_client
+from modules import card_events
+from uuid import UUID as _UUID
 
 class PublishDateSetterPage(DateInputPage):
 
@@ -14,17 +15,12 @@ class PublishDateSetterPage(DateInputPage):
         """Обновляем дату публикации в карточке"""
         task_id = self.scene.data['scene'].get('task_id')
 
-        # Обновляем дату публикации в карточке
-        res = await brain_client.update_card(
-            card_id=task_id,
-            send_time=publish_date.isoformat()
-        )
+        try:
+            await card_events.on_send_time(new_send_time=publish_date, card_id=_UUID(str(task_id)))
+        except Exception:
+            return False
 
-        if res is not None:
-            # Обновляем данные задачи
-            await self.scene.update_key('scene', self.__scene_key__, 
-                                        publish_date.isoformat()
-                                        )
-            return True
-
-        return False
+        await self.scene.update_key('scene', self.__scene_key__,
+                                    publish_date.isoformat()
+                                    )
+        return True

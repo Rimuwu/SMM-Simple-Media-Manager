@@ -120,9 +120,24 @@ async def notify_user(user_id: int, message: str) -> bool:
         return False
 
 
-async def notify_users(user_ids: list[int], message: str) -> None:
+async def notify_users(user_ids, message: str, action: str = None) -> None:
+    """Send notifications to multiple users. Accepts telegram_id (int) or user_id (UUID)."""
+    from global_modules.brain_client import get_user as _get_user
     for uid in user_ids:
-        await notify_user(uid, message)
+        if uid is None:
+            continue
+        try:
+            # UUID — ищем telegram_id
+            if isinstance(uid, _UUID) or (isinstance(uid, str) and '-' in str(uid)):
+                user = await _get_user(user_id=_UUID(str(uid)))
+                if user:
+                    telegram_id = user.get('telegram_id')
+                    if telegram_id:
+                        await notify_user(telegram_id, message)
+            else:
+                await notify_user(int(uid), message)
+        except Exception as e:
+            logger.error(f"Ошибка уведомления пользователя {uid}: {e}")
 
 
 async def update_task_scenes(card_id: str) -> int:
@@ -135,3 +150,28 @@ async def close_user_scene(user_id: int) -> int:
 
 async def close_card_related_scenes(card_id: str) -> int:
     return await executor_bridge.update_scenes(data_key="task_id", data_value=str(card_id), action="close")
+
+
+async def update_scenes(
+    scene_name: Optional[str] = None,
+    page_name: Optional[str] = None,
+    data_key: Optional[str] = None,
+    data_value: Optional[str] = None,
+    action: str = "update",
+    users_id: Optional[list] = None
+) -> int:
+    return await executor_bridge.update_scenes(
+        scene_name=scene_name, page_name=page_name,
+        data_key=data_key, data_value=data_value,
+        action=action, users_id=users_id
+    )
+
+
+async def delete_complete_preview(
+    info_ids: Optional[list] = None,
+    post_ids: Optional[list] = None,
+    entities: Optional[list] = None
+) -> dict:
+    return await executor_bridge.delete_complete_preview(
+        info_ids=info_ids, post_ids=post_ids, entities=entities
+    )

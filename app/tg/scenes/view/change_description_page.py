@@ -1,4 +1,5 @@
-from global_modules import brain_client
+from modules import card_events
+from uuid import UUID as _UUID
 from tg.oms.common_pages.update_text_page import UpdateTextPage
 from global_modules.classes.enums import ChangeType
 
@@ -35,16 +36,12 @@ class ChangeDescriptionPage(UpdateTextPage):
 
         card_id = task.get('card_id')
 
-        # Обновляем описание в карточке
-        res = await brain_client.update_card(
-            card_id=card_id,
-            description=value
-        )
+        try:
+            await card_events.on_description(new_description=value, card_id=_UUID(str(card_id)))
+        except Exception:
+            return False
 
-        if res is not None:
-            # Обновляем данные задачи
-            task['description'] = value
-            await self.scene.update_key('scene', 'current_task_data', task)
-            return True
-        
-        return False
+        # Обновляем локальный кэш сцены
+        task['description'] = value
+        await self.scene.update_key('scene', 'current_task_data', task)
+        return True

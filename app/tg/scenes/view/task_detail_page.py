@@ -6,6 +6,8 @@ from global_modules.classes.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
 from modules.logs import logger
+from modules import card_events
+from uuid import UUID as _UUID
 from datetime import datetime
 from tg.scenes.constants import CARD_STATUS_NAMES, format_channels, format_tags
 
@@ -296,17 +298,11 @@ class TaskDetailPage(Page):
 
                 user_id = user.get('user_id', 0)
 
-            res = await brain_client.update_card(
-                card_id=card_id,
-                editor_id=user_id
-            )
+            res = await card_events.on_editor(new_editor_id=_UUID(str(user_id)), card_id=_UUID(str(card_id)))
 
-            if res is not None:
-                await callback.answer("Вы назначены редактором задачи.", show_alert=True)
-                await self.load_task_details()
-                await self.scene.update_page('task-detail')
-            else:
-                await callback.answer("Ошибка при назначении редактора.", show_alert=True)
+            await callback.answer("Вы назначены редактором задачи.", show_alert=True)
+            await self.load_task_details()
+            await self.scene.update_page('task-detail')
 
         elif action == 'delete':
             # Переход на страницу подтверждения удаления

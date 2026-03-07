@@ -1,5 +1,6 @@
 from tg.oms.common_pages import DateInputPage
-from global_modules.brain_client import brain_client
+from modules import card_events
+from uuid import UUID as _UUID
 from datetime import datetime
 
 
@@ -35,28 +36,19 @@ class ChangeDeadlinePage(DateInputPage):
 
         card_id = task.get('card_id')
 
-        # Получаем user_id текущего пользователя
-        telegram_id = self.scene.user_id
-        users = await brain_client.get_users(telegram_id=telegram_id)
-        author_id = None
-        if users and isinstance(users, list) and len(users) > 0:
-            user = users[0]
-            if isinstance(user, dict):
-                author_id = user.get('user_id')
-        
-        # Обновляем дедлайн в карточке
-        card = await brain_client.update_card(
-            card_id=card_id,
-            deadline=value.isoformat(),
-            author_id=str(author_id) if author_id else None
-        )
-        status = card is not None
+        old_deadline_raw = task.get('deadline')
+        old_deadline = datetime.fromisoformat(old_deadline_raw) if old_deadline_raw else None
 
-        if status:
-            # Обновляем данные задачи
-            task['deadline'] = value.isoformat()
-            await self.scene.update_key(
-                'scene', 'current_task_data', task)
-            return True
-        
-        return False
+        try:
+            await card_events.on_deadline(
+                new_deadline=value,
+                old_deadline=old_deadline,
+                card_id=_UUID(str(card_id))
+            )
+        except Exception:
+            return False
+
+        # Обновляем локальный кэш сцены
+        task['deadline'] = value.isoformat()
+        await self.scene.update_key('scene', 'current_task_data', task)
+        return True

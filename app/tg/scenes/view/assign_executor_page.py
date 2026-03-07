@@ -1,6 +1,7 @@
 from modules.utils import get_user_display_name
 from tg.oms.common_pages import UserSelectorPage
-from global_modules.brain_client import brain_client
+from modules import card_events
+from uuid import UUID as _UUID
 from global_modules.classes.enums import CardStatus
 
 class AssignExecutorPage(UserSelectorPage):
@@ -40,49 +41,35 @@ class AssignExecutorPage(UserSelectorPage):
         card_id = task.get('card_id')
         current_status = task.get('status')
 
-        if user_id == None:
-            card_or_none = await brain_client.update_card(
-                card_id=card_id,
-                executor_id=None
+        new_executor_id = _UUID(str(user_id)) if user_id else None
+
+        try:
+            await card_events.on_executor(new_executor_id=new_executor_id, card_id=_UUID(str(card_id)))
+        except Exception:
+            return False
+
+        # Обновляем локальный кэш сцены
+        task['executor_id'] = user_id
+
+        # Если статус был pass_ и назначили исполнителя — отражаем смену статуса локально
+        if user_id and (current_status == CardStatus.pass_.value or current_status == CardStatus.pass_):
+            task['status'] = CardStatus.edited.value
+
+        # Обновляем информацию об исполнителе для отображения
+        if user_id:
+            selected_user = next(
+                (u for u in self.users_data if isinstance(u, dict) and str(u.get('user_id', '')) == str(user_id)),
+                None
             )
-            success = (card_or_none is not None)
-
+            if selected_user and isinstance(selected_user, dict):
+                telegram_id = selected_user.get('telegram_id')
+                task['executor'] = {
+                    'user_id': str(user_id),
+                    'telegram_id': telegram_id,
+                    'full_name': get_user_display_name(selected_user)
+                }
         else:
-            # Если статус pass_ и назначаем исполнителя - меняем статус на edited
-            update_params = {
-                'card_id': card_id,
-                'executor_id': user_id
-            }
+            task['executor'] = None
 
-            # Обновляем карточку
-            result = await brain_client.update_card(**update_params)
-            success = result is not None
-
-        if success:
-            # Обновляем данные задачи
-            task['executor_id'] = user_id
-
-            # Если статус был pass_ и назначили исполнителя - обновляем статус в локальных данных
-            if user_id and (current_status == CardStatus.pass_.value or current_status == CardStatus.pass_):
-                task['status'] = CardStatus.edited.value
-
-            # Обновляем информацию об исполнителе для отображения
-            if user_id:
-                selected_user = next(
-                    (u for u in self.users_data if isinstance(u, dict) and str(u.get('user_id', '')) == str(user_id)), 
-                    None
-                )
-                if selected_user and isinstance(selected_user, dict):
-                    telegram_id = selected_user.get('telegram_id')
-                    task['executor'] = {
-                        'user_id': str(user_id),
-                        'telegram_id': telegram_id,
-                        'full_name': get_user_display_name(selected_user)
-                    }
-            else:
-                task['executor'] = None
-
-            await self.scene.update_key('scene', 'current_task_data', task)
-            return True
-
-        return False
+        await self.scene.update_key('scene', 'current_task_data', task)
+        return True

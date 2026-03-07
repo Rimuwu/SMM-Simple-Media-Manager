@@ -16,6 +16,7 @@ from modules.scheduler import reschedule_post_tasks, reschedule_card_notificatio
 from modules.calendar import update_calendar_event
 from modules.status_changers import to_edited
 from models.CardEditorNote import CardEditorNote
+from modules.logs import logger
 
 
 def get_content_for_client(card: Card, client_key: str) -> str:
@@ -189,7 +190,7 @@ async def on_deadline(
                 end_time=new_deadline + timedelta(minutes=60)
             )
         except Exception as e:
-            print(f"Error updating calendar event: {e}")
+            logger.error(f"Ошибка обновления события календаря для карточки {card.card_id}: {e}")
 
     # Обновляем карточку
     await card.update(deadline=new_deadline)
@@ -200,7 +201,7 @@ async def on_deadline(
             await card.refresh()
             await reschedule_card_notifications(session, card)
     except Exception as e:
-        print(f"Error rescheduling card notifications: {e}")
+        logger.error(f"Ошибка перепланирования уведомлений для карточки {card.card_id}: {e}")
 
     # Уведомляем участников
     listeners = [
@@ -249,9 +250,9 @@ async def on_send_time(
         async with session_factory() as session:
             await card.refresh()
             await reschedule_post_tasks(session, card)
-            print(f"Rescheduled post tasks for card {card.card_id}")
+            logger.info(f"Задачи публикации перепланированы для карточки {card.card_id}")
     except Exception as e:
-        print(f"Error rescheduling post tasks: {e}")
+        logger.error(f"Ошибка перепланирования задач публикации для карточки {card.card_id}: {e}")
 
     # Обновляем превью если карточка готова — удаляем все и создаём новые
     from models.Card import CardStatus
@@ -259,7 +260,7 @@ async def on_send_time(
         try:
             await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error recreating complete previews: {e}")
+            logger.error(f"Ошибка пересоздания превью карточки {card.card_id}: {e}")
 
     if card.calendar_id and new_send_time:
         await update_calendar_event(
@@ -429,7 +430,7 @@ async def on_content(
         try:
             await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error recreating complete previews: {e}")
+            logger.error(f"Ошибка пересоздания превью карточки {card.card_id}: {e}")
 
 async def on_clients(
     new_clients: list[str],
@@ -475,7 +476,7 @@ async def on_clients(
             await card.refresh()
             await reschedule_post_tasks(session, card)
     except Exception as e:
-        print(f"Error rescheduling post tasks: {e}")
+        logger.error(f"Ошибка перепланирования задач публикации для карточки {card.card_id}: {e}")
 
     # Обновляем превью если карточка готова — удаляем все и создаём новые
     from models.Card import CardStatus
@@ -483,7 +484,7 @@ async def on_clients(
         try:
             await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error recreating complete previews: {e}")
+            logger.error(f"Ошибка пересоздания превью карточки {card.card_id}: {e}")
 
     # Обновляем форум
     if await card.get_forum_message():
@@ -557,7 +558,7 @@ async def on_tags(
         try:
             await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error recreating complete previews: {e}")
+            logger.error(f"Ошибка пересоздания превью карточки {card.card_id}: {e}")
     
     # Обновляем сцены
     await asyncio.create_task(
@@ -598,7 +599,7 @@ async def on_image_prompt(
         try:
             await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error recreating complete previews: {e}")
+            logger.error(f"Ошибка пересоздания превью карточки {card.card_id}: {e}")
 
 async def on_prompt_message(
     message_id: int,
@@ -677,7 +678,7 @@ async def on_clients_settings(
         try:
             await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error recreating complete previews: {e}")
+            logger.error(f"Ошибка пересоздания превью карточки {card.card_id}: {e}")
     
     # Обновляем сцены
     await asyncio.create_task(
@@ -711,7 +712,7 @@ async def on_entities(
         try:
             await delete_and_recreate_all_completes(card)
         except Exception as e:
-            print(f"Error recreating complete previews: {e}")
+            logger.error(f"Ошибка пересоздания превью карточки {card.card_id}: {e}")
 
 
 async def delete_and_recreate_all_completes(card: Card):
@@ -722,17 +723,22 @@ async def delete_and_recreate_all_completes(card: Card):
             complete_messages = await card.get_complete_preview_messages(session=s)
             if complete_messages:
                 try:
-                    await delete_all_complete_previews(complete_messages)
+                    info_ids = [m.message_id for m in complete_messages if m.message_type == 'complete_info']
+                    post_ids = [m.message_id for m in complete_messages if m.message_type == 'complete_preview']
+                    await delete_all_complete_previews(
+                        info_ids=info_ids or None,
+                        post_ids=post_ids or None
+                    )
                 except Exception as e:
-                    print(f"Error deleting old complete previews for card {card.card_id}: {e}")
+                    logger.error(f"Ошибка удаления старых превью карточки {card.card_id}: {e}")
 
             clients = card.clients or []
             for client_key in clients:
                 try:
                     await send_complete_preview(str(card.card_id), client_key, session=s)
                 except Exception as e:
-                    print(f"Error sending complete preview for card {card.card_id}, client {client_key}: {e}")
+                    logger.error(f"Ошибка отправки превью карточки {card.card_id} (клиент {client_key}): {e}")
 
             await s.commit()
     except Exception as e:
-        print(f"Error recreating complete previews for card {card.card_id}: {e}")
+        logger.error(f"Ошибка пересоздания превью карточки {card.card_id}: {e}")

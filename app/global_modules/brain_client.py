@@ -5,6 +5,7 @@
 from typing import Optional
 from uuid import UUID as _UUID
 from global_modules.classes.enums import CardStatus
+from modules.logs import logger
 
 
 async def get_cards(task_id=None, card_id=None, status=None, customer_id=None, executor_id=None, need_check=None) -> list[dict]:
@@ -44,7 +45,7 @@ async def update_card(card_id: str, **kwargs) -> dict | None:
         await card.update(**updates)
         return card.to_dict()
     except Exception as e:
-        print(f"update_card error: {e}"); return None
+        logger.error(f"Ошибка обновления карточки {card_id}: {e}"); return None
 
 
 async def change_card_status(card_id: str, status: CardStatus, who_changed: str = "admin", comment=None) -> dict | None:
@@ -65,7 +66,7 @@ async def change_card_status(card_id: str, status: CardStatus, who_changed: str 
         else: await card.update(status=status)
         return card.to_dict()
     except Exception as e:
-        print(f"change_card_status error: {e}"); return None
+        logger.error(f"Ошибка изменения статуса карточки {card_id}: {e}"); return None
 
 
 async def add_editor_note(card_id: str, content: str, author_user_id: str, is_editor_note: bool = True) -> dict | None:
@@ -74,7 +75,7 @@ async def add_editor_note(card_id: str, content: str, author_user_id: str, is_ed
         note = await CardEditorNote.create(card_id=_UUID(str(card_id)), content=content, author=str(author_user_id))
         return note.to_dict()
     except Exception as e:
-        print(f"add_editor_note error: {e}"); return None
+        logger.error(f"Ошибка добавления заметки редактора к карточке {card_id}: {e}"); return None
 
 
 async def get_messages(card_id=None, message_type=None) -> list[dict]:
@@ -106,7 +107,7 @@ async def set_content(card_id: str, content: str, client_key=None) -> bool:
             await session.commit()
             return True
     except Exception as e:
-        print(f"set_content error: {e}"); return False
+        logger.error(f"Ошибка сохранения контента карточки {card_id}: {e}"); return False
 
 
 async def clear_content(card_id: str, client_key=None) -> bool:
@@ -142,7 +143,7 @@ async def create_user(telegram_id: int, role: str, department=None, about=None, 
         user = await User.create(telegram_id=telegram_id, role=role, department=department, about=about, name=name, task_per_year=0, task_per_month=0, tasks=0, tasks_checked=0, tasks_created=0)
         return user.to_dict()
     except Exception as e:
-        print(f"create_user error: {e}"); return None
+        logger.error(f"Ошибка создания пользователя (telegram_id={telegram_id}): {e}"); return None
 
 
 async def update_user(telegram_id: int, role=None, department=None, about=None, name=None) -> dict | None:
@@ -155,7 +156,7 @@ async def update_user(telegram_id: int, role=None, department=None, about=None, 
         if updates: await user.update(**updates)
         return user.to_dict()
     except Exception as e:
-        print(f"update_user error: {e}"); return None
+        logger.error(f"Ошибка обновления пользователя (telegram_id={telegram_id}): {e}"); return None
 
 
 async def delete_user(telegram_id: int) -> bool:
@@ -165,7 +166,7 @@ async def delete_user(telegram_id: int) -> bool:
         if user: await user.delete()
         return True
     except Exception as e:
-        print(f"delete_user error: {e}"); return False
+        logger.error(f"Ошибка удаления пользователя (telegram_id={telegram_id}): {e}"); return False
 
 
 async def insert_scene(user_id: int, data: dict) -> bool:
@@ -175,7 +176,7 @@ async def insert_scene(user_id: int, data: dict) -> bool:
         await Scene.create(user_id=user_id, scene=data.get("scene",""), scene_path=data.get("scene_path",""), page=data.get("page",""), message_id=data.get("message_id",0), data=data.get("data",{}))
         return True
     except Exception as e:
-        print(f"insert_scene error: {e}"); return False
+        logger.error(f"Ошибка создания сцены для пользователя {user_id}: {e}"); return False
 
 
 async def load_scene(user_id: int) -> dict | None:
@@ -212,7 +213,7 @@ async def update_scene(user_id: int, data: dict) -> bool:
         if updates: await scene.update(**updates)
         return True
     except Exception as e:
-        print(f"update_scene error: {e}"); return False
+        logger.error(f"Ошибка обновления сцены пользователя {user_id}: {e}"); return False
 
 
 async def delete_scene(user_id: int) -> bool:
@@ -222,7 +223,7 @@ async def delete_scene(user_id: int) -> bool:
         if scene: await scene.delete()
         return True
     except Exception as e:
-        print(f"delete_scene error: {e}"); return False
+        logger.error(f"Ошибка удаления сцены пользователя {user_id}: {e}"); return False
 
 
 async def get_all_scenes() -> list[dict]:
@@ -239,7 +240,7 @@ async def download_file(file_id: str) -> tuple[bytes | None, int | None]:
         if not cf: return None, 404
         return await _dl(cf.filename)
     except Exception as e:
-        print(f"download_file error: {e}"); return None, 500
+        logger.error(f"Ошибка скачивания файла {file_id}: {e}"); return None, 500
 
 
 async def get_file_info(file_id: str) -> dict | None:
@@ -263,7 +264,7 @@ async def delete_file(file_id: str) -> bool:
         if cf: await cf.delete()
         return True
     except Exception as e:
-        print(f"delete_file error: {e}"); return False
+        logger.error(f"Ошибка удаления файла {file_id}: {e}"); return False
 
 
 async def upload_file(card_id: str, file_data: bytes, filename: str, content_type=None) -> dict | None:
@@ -275,7 +276,7 @@ async def upload_file(card_id: str, file_data: bytes, filename: str, content_typ
         cf = await CardFile.create(card_id=_UUID(str(card_id)), filename=result["filename"], original_filename=filename, size=len(file_data), data_info={"content_type": content_type or ""}, order=0)
         return cf.to_dict()
     except Exception as e:
-        print(f"upload_file error: {e}"); return None
+        logger.error(f"Ошибка загрузки файла {filename} к карточке {card_id}: {e}"); return None
 
 
 async def upload_files_to_card(card_id: str, files: list[dict], bot) -> int:
