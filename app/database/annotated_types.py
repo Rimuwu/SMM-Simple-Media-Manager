@@ -25,7 +25,7 @@ strPK = Annotated[str, mapped_column(String,
 createAT = Annotated[datetime, mapped_column(DateTime,
     server_default=text("TIMEZONE('utc', now())"),
     default=_get_utc_now)
-                     ]
+                   ]
 
 # Стандартный тип для создания поля с временем обновления (UTC)
 updateAT = Annotated[datetime, mapped_column(DateTime,

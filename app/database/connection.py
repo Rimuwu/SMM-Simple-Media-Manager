@@ -9,7 +9,7 @@ POSTGRES_DB = vault_getenv("POSTGRES_DB", "database")
 engine = create_async_engine(
     f'postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@postgres:5432/{POSTGRES_DB}', 
     future=True, 
-    echo=vault_getenv("DEBUG", 'False').lower() == 'true',
+    echo=False,  # Отключаем логирование SQL параметров
     #  pool_size=5, 
     #  max_overflow=10
     )

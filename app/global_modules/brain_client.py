@@ -176,12 +176,31 @@ async def load_scene(user_id: int) -> dict | None:
     return scene.to_dict() if scene else None
 
 
+def _serialize_for_json(obj):
+    """Рекурсивно конвертирует UUID и другие non-JSON объекты в строки"""
+    if isinstance(obj, _UUID):
+        return str(obj)
+    elif isinstance(obj, dict):
+        return {k: _serialize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_serialize_for_json(item) for item in obj]
+    elif hasattr(obj, '__dict__') and hasattr(obj, '__class__'):
+        # Enums и другие custom objects
+        return str(obj)
+    return obj
+
+
 async def update_scene(user_id: int, data: dict) -> bool:
     from models.Scene import Scene
     try:
         scene = await Scene.get_by_key("user_id", user_id)
         if not scene: return False
         updates = {k: data[k] for k in ("scene","scene_path","page","message_id","data") if k in data and data[k] is not None}
+        
+        # Сериализуем UUID и другие non-JSON объекты
+        if "data" in updates:
+            updates["data"] = _serialize_for_json(updates["data"])
+        
         if updates: await scene.update(**updates)
         return True
     except Exception as e:

@@ -2,6 +2,11 @@
 
 from database.connection import Base, engine, session_factory
 from sqlalchemy import select, text
+import logging
+
+# Отключаем логирование SQL параметров
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
 
 from models import User
 from models.Card import Card
@@ -19,18 +24,14 @@ from global_modules.vault.vault_client import vault_getenv as getenv
 async def create_tables():
     """Удалить все таблицы и пересоздать их заново."""
 
-    engine.echo = False
     async with engine.begin() as conn:
         # Удаляем все таблицы с CASCADE для обхода зависимостей
         # await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(
             text("CREATE SCHEMA IF NOT EXISTS public")
             )
-        # Создаём заново
         await conn.run_sync(Base.metadata.create_all)
 
-    engine.echo = False #getenv("DEBUG", False) == "true"
- 
 async def create_superuser():
     """Создать суперпользователя, если его нет в базе."""
 
