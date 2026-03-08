@@ -3,7 +3,7 @@
 """
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.classes.enums import Department
+from modules.enums import Department
 from tg.scenes.constants import DEPARTMENT_NAMES
 
 

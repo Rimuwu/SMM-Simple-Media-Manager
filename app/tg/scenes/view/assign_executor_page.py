@@ -1,8 +1,8 @@
 from modules.utils import get_user_display_name
 from tg.oms.common_pages import UserSelectorPage
-from modules import card_events
+from modules.card import card_events
 from uuid import UUID as _UUID
-from global_modules.classes.enums import CardStatus
+from modules.enums import CardStatus
 
 class AssignExecutorPage(UserSelectorPage):
 

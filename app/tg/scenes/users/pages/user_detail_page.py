@@ -1,8 +1,8 @@
 from modules.utils import get_user_display_name
 from tg.oms import Page
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from tg.oms.utils import callback_generator
-from global_modules.vault.vault_client import vault_getenv as getenv
+from os import getenv
 from tg.scenes.constants import ROLE_NAMES, DEPARTMENT_NAMES as department_names
 
 superuser_id = int(getenv("ADMIN_ID", 0))

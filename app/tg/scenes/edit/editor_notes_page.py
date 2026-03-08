@@ -1,9 +1,9 @@
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.brain_client import brain_client
-from global_modules.classes.enums import CardStatus
-from global_modules.brain_client import add_editor_note
+from modules.exec.brain_client import brain_client
+from modules.enums import CardStatus
+from modules.exec.brain_client import add_editor_note
 
 class EditorNotesPage(Page):
     

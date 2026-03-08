@@ -49,12 +49,21 @@ class CardFile(Base, AsyncCRUDMixin):
             from modules.storage import delete_file
             await delete_file(self.filename)
         except Exception as e:
-            from global_modules.logs import Logger
+            from modules.logs import Logger
             Logger().get_logger("storage").warning(f"Failed to delete file {self.filename} from storage: {e}")
         finally:
             await super().delete(session=session)
 
     def to_dict(self) -> dict:
+        # Convert datetime fields to strings to ensure JSON serializability.
+        created = getattr(self, "created_at", None)
+        if created is not None:
+            try:
+                created = created.isoformat()
+            except Exception:
+                # fallback to string representation if not a datetime
+                created = str(created)
+
         return {
             "id": str(self.id),
             "card_id": str(self.card_id),
@@ -64,7 +73,7 @@ class CardFile(Base, AsyncCRUDMixin):
             "data_info": self.data_info,
             "order": self.order,
             "hide": self.hide,
-            "created_at": getattr(self, "created_at", None)
+            "created_at": created
         }
 
     def __repr__(self) -> str:

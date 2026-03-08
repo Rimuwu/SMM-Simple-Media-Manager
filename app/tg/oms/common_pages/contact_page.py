@@ -1,6 +1,6 @@
 from urllib.parse import quote
 from tg.oms import Page
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from modules.utils import get_telegram_user, get_user_display_name
 
 

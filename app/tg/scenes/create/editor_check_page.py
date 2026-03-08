@@ -1,5 +1,5 @@
 from tg.oms import Page
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from tg.oms.utils import callback_generator
 from modules.logs import logger
 

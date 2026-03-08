@@ -7,7 +7,7 @@ from database.crud_mixins import AsyncCRUDMixin
 from database.annotated_types import uuidPK, strPK, createAT, updateAT
 from typing import Optional, TYPE_CHECKING, List
 from uuid import UUID as PyUUID
-from global_modules.classes.enums import CardStatus
+from modules.enums import CardStatus
 from uuid import UUID as _UUID
 
 class Preset(Base, AsyncCRUDMixin):

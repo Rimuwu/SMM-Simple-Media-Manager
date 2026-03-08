@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.brain_client import brain_client
-from global_modules.classes.enums import UserRole, CardStatus, Department
+from modules.exec.brain_client import brain_client
+from modules.enums import UserRole, CardStatus, Department
 from modules.utils import get_user_display_name
 from tg.scenes.constants import DEPARTMENT_NAMES
 

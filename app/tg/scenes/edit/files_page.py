@@ -3,7 +3,7 @@
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message, BufferedInputFile
 from tg.oms import Page
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from modules.logs import logger
 from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension, is_video_by_mime_or_extension, detect_file_type_by_bytes
 

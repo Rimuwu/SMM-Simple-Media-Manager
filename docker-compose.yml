@@ -45,7 +45,7 @@ services:
     volumes:
       - ./logs:/logs:rw
       - ./json:/app/json:rw
-      - ./storage_data:/storage:rw
+      - ./storage_data:/storage_data:rw
       - ./sessions:/sessions:rw
     networks:
       - smm_network

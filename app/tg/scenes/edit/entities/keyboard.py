@@ -1,7 +1,7 @@
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules import brain_client
+from modules.exec import brain_client
 
 
 class KeyboardCreatePage(TextTypeScene):

@@ -12,7 +12,7 @@ from .Entity import Entity
 # from .Automation import Automation, Preset
 
 # Импортируем энумы из глобального модуля
-from global_modules.classes.enums import UserRole, CardStatus, AutomationTypes
+from modules.enums import UserRole, CardStatus, AutomationTypes
 # from global_modules.classes.enums import MessageType
 
 __all__ = [

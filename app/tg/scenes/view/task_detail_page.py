@@ -1,12 +1,12 @@
 from modules.utils import get_user_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.brain_client import brain_client
-from global_modules.classes.enums import CardStatus, UserRole
+from modules.exec.brain_client import brain_client
+from modules.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
 from modules.logs import logger
-from modules import card_events
+from modules.card import card_events
 from uuid import UUID as _UUID
 from datetime import datetime
 from tg.scenes.constants import CARD_STATUS_NAMES, format_channels, format_tags

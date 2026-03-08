@@ -3,7 +3,7 @@ Module for sending and managing entities (polls, etc) in previews and messages
 """
 from aiogram import Bot
 from aiogram.types import InputPollOption
-from global_modules import brain_client
+from modules.exec import brain_client
 
 
 async def send_poll_preview(

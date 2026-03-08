@@ -3,15 +3,15 @@ from datetime import datetime
 from pprint import pprint
 from modules.post_sender import download_files
 from tg.main import TelegramExecutor
-from modules.executors_manager import manager
+from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS, CLIENTS
 from modules.api_client import get_cards, update_card, get_users
 from modules.post_generator import generate_post
-from global_modules.classes.enums import CardStatus
+from modules.enums import CardStatus
 from modules.utils import get_telegram_user
 from modules.entities_sender import send_poll_preview, get_entities_for_client
-from global_modules.brain_client import brain_client
-from global_modules.json_get import open_clients, open_settings
+from modules.exec.brain_client import brain_client
+from modules.exec.json_get import open_clients, open_settings
 
 forum_topic = SETTINGS.get('forum_topic', 0)
 group_forum = SETTINGS.get('group_forum', 0)

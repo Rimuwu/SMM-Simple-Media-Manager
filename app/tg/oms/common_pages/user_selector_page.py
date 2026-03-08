@@ -1,6 +1,6 @@
 from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms.utils import callback_generator
-from global_modules.brain_client import get_users
+from modules.exec.brain_client import get_users
 from typing import Optional, Callable
 from modules.utils import get_user_display_name
 

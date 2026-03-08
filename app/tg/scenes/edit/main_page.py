@@ -1,8 +1,8 @@
 from datetime import datetime
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.brain_client import brain_client
-from global_modules.classes.enums import CardStatus
+from modules.exec.brain_client import brain_client
+from modules.enums import CardStatus
 from modules.logs import logger
 from tg.scenes.constants import CARD_STATUS_NAMES, format_channels, format_tags
 

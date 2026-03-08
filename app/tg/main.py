@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from tg.oms.utils import list_to_inline
 from tg.oms import scene_manager
-from modules.executor import BaseExecutor
+from modules.exec.executor import BaseExecutor
 from modules.logs import logger
 from modules.api_client import get_all_scenes
 

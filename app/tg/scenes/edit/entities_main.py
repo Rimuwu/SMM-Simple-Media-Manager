@@ -1,7 +1,7 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
-from global_modules import brain_client
+from modules.exec import brain_client
 
 
 class EntitiesMainPage(Page):

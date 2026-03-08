@@ -1,8 +1,8 @@
 from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.classes.enums import UserRole
-from global_modules.brain_client import brain_client
+from modules.enums import UserRole
+from modules.exec.brain_client import brain_client
 from tg.scenes.constants import ROLE_NAMES, ROLE_ICONS
 
 class SelectRolePage(RadioTypeScene):

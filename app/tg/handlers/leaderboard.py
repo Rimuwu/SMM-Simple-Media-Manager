@@ -3,8 +3,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.exceptions import TelegramBadRequest
-from modules.executors_manager import manager
-from global_modules.brain_client import get_users
+from modules.exec.executors_manager import manager
+from modules.exec.brain_client import get_users
 from modules.logs import logger
 from tg.filters.authorize import Authorize
 from modules.utils import get_user_display_name

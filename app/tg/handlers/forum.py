@@ -1,10 +1,10 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, CallbackQuery
-from global_modules import brain_client
-from global_modules.classes.enums import CardStatus
+from modules.exec import brain_client
+from modules.enums import CardStatus
 from modules.text_generators import card_executed, forum_message
 from modules.logs import logger
-from modules.executors_manager import manager
+from modules.exec.executors_manager import manager
 from aiogram import F
 from aiogram.filters import Command
 

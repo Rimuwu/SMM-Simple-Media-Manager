@@ -3,7 +3,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.connection import Base
 from database.crud_mixins import AsyncCRUDMixin
 from database.annotated_types import uuidPK
-from global_modules.classes.enums import UserRole, Department
+from modules.enums import UserRole, Department
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:

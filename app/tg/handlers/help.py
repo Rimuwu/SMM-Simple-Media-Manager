@@ -2,7 +2,7 @@ import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from modules.logs import logger
-from modules.executors_manager import manager
+from modules.exec.executors_manager import manager
 from aiogram.filters import Command
 from tg.filters.authorize import Authorize
 from aiogram.types.bot_command_scope_chat import BotCommandScopeChat
@@ -12,7 +12,7 @@ from tg.filters.in_dm import InDMorWorkGroup
 from tg.oms import scene_manager
 from tg.scenes.view.view_tasks_scene import ViewTasksScene
 from tg.scenes.edit.task_scene import TaskScene
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from urllib.parse import unquote_plus
 import re
 

@@ -19,3 +19,4 @@ vault_token.txt
 *.pem
 *.key
 
+logs/

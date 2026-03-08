@@ -5,7 +5,7 @@ from typing import Optional, Callable
 async def _get_tags_options() -> dict:
     """Загружает теги из БД, при отсутствии — из settings.json."""
 
-    from global_modules.brain_client import get_tags
+    from modules.exec.brain_client import get_tags
     db_tags = await get_tags()
 
     return {t['key']: t['name'] for t in db_tags}

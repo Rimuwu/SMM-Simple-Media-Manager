@@ -2,9 +2,9 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command
-from modules.executors_manager import manager
+from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS
-from global_modules.brain_client import brain_client, get_user_role
+from modules.exec.brain_client import brain_client, get_user_role
 from modules.logs import logger
 
 client_executor = manager.get("telegram_executor")

@@ -1,5 +1,5 @@
 from tg.oms.common_pages import DateInputPage
-from modules import card_events
+from modules.card import card_events
 from uuid import UUID as _UUID
 from datetime import datetime
 

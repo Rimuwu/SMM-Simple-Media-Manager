@@ -1,7 +1,7 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from modules.logs import logger
-from modules.executors_manager import manager
+from modules.exec.executors_manager import manager
 from aiogram.filters import Command
 from tg.filters.authorize import Authorize
 from tg.filters.in_dm import InDMorWorkGroup

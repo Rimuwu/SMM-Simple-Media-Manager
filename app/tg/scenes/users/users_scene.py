@@ -8,7 +8,7 @@ from .pages.edit_name_page import EditNamePage
 from .pages.edit_about_page import EditAboutPage
 from .pages.filter_users_by_role_page import FilterUsersByRolePage
 from .pages.filter_users_by_department_page import FilterUsersByDepartmentPage
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 
 class UsersScene(Scene):
     __scene_name__ = 'users'

@@ -1,10 +1,10 @@
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from global_modules.vault.vault_client import vault_getenv
+from os import getenv
 
-POSTGRES_USER = vault_getenv("POSTGRES_USER", "user")
-POSTGRES_PASSWORD = vault_getenv("POSTGRES_PASSWORD", "password")
-POSTGRES_DB = vault_getenv("POSTGRES_DB", "database")
+POSTGRES_USER = getenv("POSTGRES_USER", "user")
+POSTGRES_PASSWORD = getenv("POSTGRES_PASSWORD", "password")
+POSTGRES_DB = getenv("POSTGRES_DB", "database")
 
 engine = create_async_engine(
     f'postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@postgres:5432/{POSTGRES_DB}', 

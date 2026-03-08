@@ -1,5 +1,5 @@
 from tg.oms.common_pages.user_selector_page import UserSelectorPage
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from tg.oms.utils import callback_generator
 from tg.scenes.constants import DEPARTMENT_NAMES, ROLE_NAMES, ROLE_ICONS
 

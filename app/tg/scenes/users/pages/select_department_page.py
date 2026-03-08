@@ -1,8 +1,8 @@
 from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.classes.enums import Department
-from global_modules.brain_client import brain_client
+from modules.enums import Department
+from modules.exec.brain_client import brain_client
 from tg.scenes.constants import DEPARTMENT_NAMES
 
 class SelectDepartmentPage(RadioTypeScene):

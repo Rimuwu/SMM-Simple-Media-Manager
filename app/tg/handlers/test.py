@@ -6,8 +6,8 @@ from aiogram.filters import Command
 from tg.filters.authorize import Authorize
 from tg.filters.role_filter import RoleFilter
 from modules.logs import logger
-from modules.executors_manager import manager
-from global_modules.brain_client import brain_client
+from modules.exec.executors_manager import manager
+from modules.exec.brain_client import brain_client
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp

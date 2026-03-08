@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.ScheduledTask import ScheduledTask
 from models.Card import Card
-from global_modules.timezone import now_naive as moscow_now
+from modules.timezone import now_naive as moscow_now
 from modules.logs import logger
 
 # logger = logging.getLogger(__name__)
@@ -299,7 +299,7 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
         session: Сессия БД
         card: Карточка для публикации
     """
-    from global_modules.json_get import open_clients
+    from modules.exec.json_get import open_clients
     from uuid import UUID as PyUUID
     
     if not card.send_time:
@@ -423,7 +423,7 @@ async def reschedule_post_tasks(session: AsyncSession, card: Card) -> None:
     logger.info(f"Удалено {deleted_count} старых задач публикации для карточки {card.card_id}")
     
     # Создаем новые задачи только если статус ready
-    from global_modules.classes.enums import CardStatus
+    from modules.enums import CardStatus
     if card.status == CardStatus.ready:
         await schedule_post_tasks(session, card)
         logger.info(f"Созданы новые задачи публикации для карточки {card.card_id}")

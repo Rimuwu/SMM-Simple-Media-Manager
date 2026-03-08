@@ -6,7 +6,7 @@
 from typing import Optional
 from uuid import UUID as _UUID
 
-from modules import executor_bridge
+from modules.exec import executor_bridge
 from modules.constants import SceneNames
 from modules.logs import logger
 
@@ -122,7 +122,7 @@ async def notify_user(user_id: int, message: str) -> bool:
 
 async def notify_users(user_ids, message: str, action: str = None) -> None:
     """Send notifications to multiple users. Accepts telegram_id (int) or user_id (UUID)."""
-    from global_modules.brain_client import get_user as _get_user
+    from modules.exec.brain_client import get_user as _get_user
     for uid in user_ids:
         if uid is None:
             continue

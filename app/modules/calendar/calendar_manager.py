@@ -8,8 +8,6 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from modules.logs import calendar_logger
 
-from global_modules.vault.vault_client import vault_getenv
-
 class GoogleCalendarManager:
     """Менеджер для работы с Google Calendar API"""
 
@@ -22,8 +20,8 @@ class GoogleCalendarManager:
         """Инициализация сервиса Google Calendar"""
         try:
             # Получение данных из переменных окружения
-            service_account_info = vault_getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
-            self.calendar_id = vault_getenv('GOOGLE_CALENDAR_ID')
+            service_account_info = getenv('GOOGLE_SERVICE_ACCOUNT_JSON')
+            self.calendar_id = getenv('GOOGLE_CALENDAR_ID')
 
             if not service_account_info:
                 raise ValueError("GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set")

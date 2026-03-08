@@ -1,11 +1,11 @@
 from typing import Optional
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
-from modules.executors_manager import manager
+from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS
 from modules.logs import logger
 from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp  # type: ignore

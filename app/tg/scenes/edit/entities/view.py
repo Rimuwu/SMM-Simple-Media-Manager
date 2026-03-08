@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules import brain_client
+from modules.exec import brain_client
 
 types = {
     'poll': 'Опрос',

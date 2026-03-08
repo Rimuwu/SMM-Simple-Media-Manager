@@ -1,9 +1,9 @@
 from datetime import datetime
-from global_modules.vault.vault_client import vault_getenv as getenv
+from os import getenv
 from modules.utils import get_user_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from tg.scenes.constants import format_channels, format_tags
 
 debug = getenv('DEBUG', 'False') == 'True'

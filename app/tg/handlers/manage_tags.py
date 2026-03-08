@@ -2,7 +2,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 from aiogram.filters import Command
 
-from modules.executors_manager import manager
+from modules.exec.executors_manager import manager
 from tg.oms.manager import scene_manager
 from tg.scenes.tags.tags_scene import TagsScene
 from tg.filters.role_filter import RoleFilter

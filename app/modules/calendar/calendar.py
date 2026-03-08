@@ -17,7 +17,7 @@ def _get_manager():
     global _calendar_manager
     if _calendar_manager is None:
         try:
-            from modules.calendar_manager import GoogleCalendarManager
+            from modules.calendar.calendar_manager import GoogleCalendarManager
             _calendar_manager = GoogleCalendarManager()
         except Exception as e:
             logger.warning(f"Google Calendar не инициализирован: {e}")

@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules import brain_client
+from modules.exec import brain_client
 from datetime import datetime, timedelta
 import calendar
  
@@ -242,7 +242,7 @@ class DatePickerPage(Page):
                         if day_busy_minutes == 0:
                             style = 'success'
                         elif day_busy_minutes <= 24 * 60 * 0.75:
-                            style = ' '
+                            style = None
                         else:
                             style = 'danger'
 

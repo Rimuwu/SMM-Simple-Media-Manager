@@ -1,6 +1,6 @@
 from tg.oms import Scene
 
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from .channels_page import ChannelsSettingsPage
 from .content_page import ContentSetterPage
 from .publish_date_page import PublishDateSetterPage

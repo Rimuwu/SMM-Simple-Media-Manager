@@ -1,6 +1,6 @@
 from tg.oms import Page
-from global_modules.brain_client import brain_client
-from global_modules.classes.enums import CardStatus
+from modules.exec.brain_client import brain_client
+from modules.enums import CardStatus
 from tg.oms.utils import callback_generator
 from modules.logs import logger
 from datetime import datetime, timedelta

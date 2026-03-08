@@ -6,7 +6,7 @@ from .main_page import MainPage
 from .finish_page import FinishPage
 from .tags_page import TagsPage
 from .files_page import FilesPage
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from .cancel import CancelPage
 from .image import Image
 from .send_page import SendDatePage

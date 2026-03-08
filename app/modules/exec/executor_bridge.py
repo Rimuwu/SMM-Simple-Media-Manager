@@ -9,7 +9,7 @@ from typing import Optional, TYPE_CHECKING
 from tg.main import TelegramExecutor
 
 if TYPE_CHECKING:
-    from modules.executors_manager import ExecutorManager
+    from modules.exec.executors_manager import ExecutorManager
 
 # Устанавливается при старте приложения в main.py
 _executor_manager: Optional["ExecutorManager"] = None
@@ -61,7 +61,7 @@ async def delete_forum_message_by_id(message_id: int) -> bool:
     Удалить сообщение с форума по message_id.
     Заменяет: executors_api.delete(ApiEndpoints.FORUM_DELETE_MESSAGE_FOR_ID.format(message_id))
     """
-    from global_modules.json_get import open_settings
+    from modules.exec.json_get import open_settings
     manager = get_manager()
     if not manager:
         return False
@@ -202,7 +202,7 @@ async def send_leaderboard(
     if not tg:
         return False
 
-    from global_modules.brain_client import get_users as _get_users
+    from modules.exec.brain_client import get_users as _get_users
     from modules.utils import get_user_display_name
 
     users = await _get_users() or []

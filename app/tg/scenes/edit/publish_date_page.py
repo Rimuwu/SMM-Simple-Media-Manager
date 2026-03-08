@@ -1,6 +1,6 @@
 from datetime import datetime
 from tg.oms.common_pages.date_input_page import DateInputPage
-from modules import card_events
+from modules.card import card_events
 from uuid import UUID as _UUID
 
 class PublishDateSetterPage(DateInputPage):

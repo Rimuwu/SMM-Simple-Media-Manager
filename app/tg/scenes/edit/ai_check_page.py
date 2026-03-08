@@ -88,7 +88,7 @@ class AICheckPage(Page):
         try:
             # Отправляем запрос и логируем, но не блокируем основной flow (это фоновой таск)
             from modules import ai as ai_module
-            await ai_module.send(payload)
+            ai_module.send(payload)
         except Exception as e:
             logger.error(f"Exception while sending AI request for user {self.scene.user_id}: {e}")
             try:

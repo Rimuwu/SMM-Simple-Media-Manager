@@ -2,15 +2,15 @@ import asyncio
 from typing import Literal, Optional
 from uuid import UUID as _UUID
 from database.connection import session_factory
-from global_modules.classes.enums import UserRole
-from global_modules.json_get import open_clients, open_settings
+from modules.enums import UserRole
+from modules.exec.json_get import open_clients, open_settings
 
 from models.Card import Card, CardStatus
 from models.User import User
-from modules.scheduler import schedule_card_notifications, cancel_card_tasks, schedule_post_tasks
+from modules.tasks.scheduler import schedule_card_notifications, cancel_card_tasks, schedule_post_tasks
 
-from modules.card_service import increment_reviewers_tasks
-from modules.executors_client import (
+from modules.card.card_service import increment_reviewers_tasks
+from modules.exec.executors_client import (
     send_forum_message, update_forum_message, delete_forum_message, delete_forum_message_by_id,
     send_complete_preview, delete_all_complete_previews,
     close_user_scene, update_task_scenes, close_card_related_scenes,

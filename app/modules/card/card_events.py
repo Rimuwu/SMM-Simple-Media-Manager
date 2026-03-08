@@ -1,52 +1,22 @@
-import asyncio
+﻿import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID as _UUID
-from global_modules.classes.enums import CardStatus
+from modules.enums import CardStatus
 from models.Card import Card
 from models.User import User
 from database.connection import session_factory
-from modules.executors_client import (
+from modules.exec.executors_client import (
     notify_users, update_scenes, update_forum_message,
     send_complete_preview, update_complete_preview, 
     delete_complete_preview, delete_all_complete_previews
 )
 from modules.constants import SceneNames
-from modules.scheduler import reschedule_post_tasks, reschedule_card_notifications
-from modules.calendar import update_calendar_event
-from modules.status_changers import to_edited
+from modules.tasks.scheduler import reschedule_post_tasks, reschedule_card_notifications
+from modules.calendar.calendar import update_calendar_event
+from modules.card.status_changers import to_edited
 from models.CardEditorNote import CardEditorNote
 from modules.logs import logger
-
-
-def get_content_for_client(card: Card, client_key: str) -> str:
-    """
-    Получить контент для конкретного клиента.
-    Сначала пытается получить специфичный контент для клиента,
-    если его нет - возвращает общий контент ('all'),
-    если и его нет - возвращает description.
-    
-    Args:
-        card: Карточка
-        client_key: Ключ клиента
-        
-    Returns:
-        str: Контент для клиента
-    """
-    content_dict = card.content if isinstance(card.content, dict) else {}
-    
-    # Сначала пытаемся получить специфичный контент
-    content = content_dict.get(client_key)
-    
-    # Если нет - берём общий
-    if not content:
-        content = content_dict.get('all')
-    
-    # Если и его нет - берём description
-    if not content:
-        content = card.description or ""
-    
-    return content
 
 
 async def on_name(
@@ -304,7 +274,7 @@ async def on_executor(
         if old_user:
             # Закрываем сцену если это не заказчик
             if old_executor_id != card.customer_id:
-                from modules.executors_client import close_user_scene
+                from modules.exec.executors_client import close_user_scene
                 await close_user_scene(old_user.telegram_id)
             
 

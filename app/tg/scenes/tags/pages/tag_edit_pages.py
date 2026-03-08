@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 
 
 # Поля, которые редактируются как текст

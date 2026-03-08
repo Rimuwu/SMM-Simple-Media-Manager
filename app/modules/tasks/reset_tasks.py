@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import uuid4
 from models.ScheduledTask import ScheduledTask
-from global_modules.timezone import now_naive as moscow_now
+from modules.timezone import now_naive as moscow_now
 from modules.logs import logger
 
 

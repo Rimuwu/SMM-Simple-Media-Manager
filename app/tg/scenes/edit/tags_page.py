@@ -1,5 +1,5 @@
 from tg.oms.common_pages import TagsSelectorPage
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 
 
 class TagsSetterPage(TagsSelectorPage):

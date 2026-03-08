@@ -1,7 +1,7 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
-from global_modules import brain_client
-from modules.executors_manager import manager
+from modules.exec import brain_client
+from modules.exec.executors_manager import manager
 from aiogram import F
 from aiogram.filters import Command
 from tg.oms import scene_manager

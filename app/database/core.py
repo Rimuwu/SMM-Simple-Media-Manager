@@ -3,6 +3,7 @@
 from database.connection import Base, engine, session_factory
 from sqlalchemy import select, text
 import logging
+from os import getenv
 
 # Отключаем логирование SQL параметров
 logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
@@ -18,9 +19,7 @@ from models.Entity import Entity
 from models.CardFile import CardFile
 from models.CardMessage import CardMessage
 
-from global_modules.classes.enums import UserRole
-
-from global_modules.vault.vault_client import vault_getenv as getenv
+from modules.enums import UserRole
 
 async def create_tables():
     """Удалить все таблицы и пересоздать их заново."""

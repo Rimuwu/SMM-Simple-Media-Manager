@@ -2,7 +2,7 @@ from modules.utils import get_display_name
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 
 class AddCommentPage(TextTypeScene):
     __page_name__ = 'add-comment'

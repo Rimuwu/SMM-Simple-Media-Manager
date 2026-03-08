@@ -3,7 +3,7 @@ from .pages.tags_list_page import TagsListPage
 from .pages.tag_detail_page import TagDetailPage
 from .pages.tag_edit_pages import TagEditTextPage, TagEditIntPage
 from .pages.tag_create_pages import TagCreateKeyPage, TagCreateNamePage, TagCreateHashtagPage
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 
 
 class TagsScene(Scene):

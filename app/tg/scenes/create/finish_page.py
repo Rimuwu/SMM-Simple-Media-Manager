@@ -2,7 +2,7 @@ from datetime import datetime
 from modules.utils import get_display_name
 from tg.oms.utils import callback_generator
 from tg.oms import Page
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from tg.scenes.constants import format_channels, format_tags
 

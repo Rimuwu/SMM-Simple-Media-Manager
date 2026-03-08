@@ -1,10 +1,10 @@
 from models.Card import Card, CardStatus
 from models.User import User
-from global_modules.classes.enums import UserRole
-from modules import executor_bridge
+from modules.enums import UserRole
+from modules.exec import executor_bridge
 from datetime import datetime
 import html
-from global_modules.json_get import open_settings, open_clients
+from modules.exec.json_get import open_settings, open_clients
 from modules.logs import logger
 
 
@@ -152,7 +152,8 @@ async def send_admin_no_executor_alert(card: Card, **kwargs):
         # Отправляем уведомление каждому админу
         for admin in admins:
             try:
-                    await executor_bridge.notify_user(admin.telegram_id, message_text)
+                await executor_bridge.notify_user(admin.telegram_id, message_text)
+            except Exception as e:
                 logger.error(f"Ошибка отправки уведомления админу {admin.telegram_id}: {e}")
         
         # Также отправляем на форум
@@ -437,7 +438,7 @@ async def finalize_card_publication(card_id: str, **kwargs):
         try:
             from models.ScheduledTask import ScheduledTask
             from database.connection import session_factory
-            from global_modules.timezone import now_naive as moscow_now
+            from modules.timezone import now_naive as moscow_now
             from datetime import timedelta
             from uuid import UUID as PyUUID
             
@@ -459,7 +460,7 @@ async def finalize_card_publication(card_id: str, **kwargs):
         
 
         try:
-            from modules.status_changers import to_sent
+            from modules.card.status_changers import to_sent
             await to_sent(card=card)
         except Exception as e:
             logger.error(f"Ошибка смены статуса карточки {card.card_id}: {e}")
@@ -563,7 +564,7 @@ async def reset_monthly_tasks():
         logger.info(f"Месячный счетчик сброшен у {len(users)} пользователей")
 
         # Создаём следующую задачу сброса
-        from modules.reset_tasks import check_and_create_monthly_reset_task
+        from modules.tasks.reset_tasks import check_and_create_monthly_reset_task
         await check_and_create_monthly_reset_task()
 
     except Exception as e:
@@ -600,7 +601,7 @@ async def reset_yearly_tasks():
         logger.info(f"Годовой счетчик сброшен у {len(users)} пользователей")
 
         # Создаём следующую задачу сброса
-        from modules.reset_tasks import check_and_create_yearly_reset_task
+        from modules.tasks.reset_tasks import check_and_create_yearly_reset_task
         await check_and_create_yearly_reset_task()
 
     except Exception as e:

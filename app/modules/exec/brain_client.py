@@ -1,39 +1,51 @@
-"""
+﻿"""
 Клиент для работы с brain (данными БД).
 В монолите заменяет HTTP-вызовы к brain-api прямыми вызовами к моделям SQLAlchemy.
 """
 from typing import Optional
 from uuid import UUID as _UUID
-from global_modules.classes.enums import CardStatus
+from modules.enums import CardStatus
 from modules.logs import logger
 
 
-async def get_cards(task_id=None, card_id=None, status=None, customer_id=None, executor_id=None, need_check=None) -> list[dict]:
+async def get_cards(
+    task_id=None, card_id=None, 
+    status=None, customer_id=None, 
+    executor_id=None, need_check=None
+    ) -> list[dict]:
     from models.Card import Card
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
     from database.connection import session_factory
+    
     async with session_factory() as session:
-        query = select(Card)
-        if task_id is not None: query = query.where(Card.task_id == int(task_id))
+        query = select(Card).options(selectinload(Card.contents))
+        if task_id is not None: query = query.where(
+            Card.task_id == int(task_id))
+
         if card_id is not None:
-            try: query = query.where(Card.card_id == _UUID(str(card_id)))
-            except Exception: return []
+            try: query = query.where(
+                Card.card_id == _UUID(str(card_id)))
+
+            except Exception: 
+                return []
+
         if status is not None: query = query.where(Card.status == status)
+
         if customer_id is not None: query = query.where(Card.customer_id == _UUID(str(customer_id)))
         if executor_id is not None: query = query.where(Card.executor_id == _UUID(str(executor_id)))
         if need_check is not None: query = query.where(Card.need_check == need_check)
+
         result = await session.execute(query)
         cards = result.scalars().all()
+
         # Преобразуем модели в словари и добавим содержимое (content) для удобства
         out: list[dict] = []
         for c in cards:
             d = c.to_dict()
-            try:
-                # свойство .content возвращает словарь client_key -> text
-                d['content'] = c.content
-            except Exception:
-                d['content'] = {}
+            d["content"] = c.content
             out.append(d)
+
         return out
 
 
@@ -60,7 +72,7 @@ async def update_card(card_id: str, **kwargs) -> dict | None:
 
 
 async def change_card_status(card_id: str, status: CardStatus, who_changed: str = "admin", comment=None) -> dict | None:
-    from modules import status_changers
+    from modules.card import status_changers
     from models.Card import Card
     try:
         card = await Card.get_by_id(_UUID(str(card_id)))
@@ -214,10 +226,15 @@ async def load_scene(user_id: int) -> dict | None:
     return scene.to_dict() if scene else None
 
 
+from datetime import datetime
+
 def _serialize_for_json(obj):
-    """Рекурсивно конвертирует UUID и другие non-JSON объекты в строки"""
+    """Рекурсивно конвертирует UUID, datetime и другие non-JSON объекты в строки"""
     if isinstance(obj, _UUID):
         return str(obj)
+    if isinstance(obj, datetime):
+        # convert datetimes to ISO string
+        return obj.isoformat()
     elif isinstance(obj, dict):
         return {k: _serialize_for_json(v) for k, v in obj.items()}
     elif isinstance(obj, (list, tuple)):
@@ -363,7 +380,7 @@ async def create_card(title: str, description: str = "", deadline=None, send_tim
                       image_prompt=None, type_id=None, **kwargs) -> dict | None:
     from models.Card import Card
     from models.ClientSetting import ClientSetting
-    from modules.executors_client import send_forum_message
+    from modules.exec.executors_client import send_forum_message
     from datetime import datetime
     try:
         card = await Card.create(
@@ -395,8 +412,8 @@ async def delete_card(card_id: str) -> dict:
     from models.Card import Card
     from models.CardFile import CardFile
     from models.CardMessage import CardMessage
-    from modules.executors_client import delete_forum_message_by_id, delete_all_complete_previews
-    from modules.calendar import delete_calendar_event
+    from modules.exec.executors_client import delete_forum_message_by_id, delete_all_complete_previews
+    from modules.calendar.calendar import delete_calendar_event
     try:
         card = await Card.get_by_id(_UUID(str(card_id)))
         if not card: return {"detail": "Card not found", "status": 404}
@@ -420,8 +437,8 @@ async def delete_card(card_id: str) -> dict:
 
 async def send_now(card_id: str) -> dict:
     from models.Card import Card
-    from global_modules.classes.enums import CardStatus
-    from global_modules.timezone import now_naive as moscow_now
+    from modules.enums import CardStatus
+    from modules.timezone import now_naive as moscow_now
     from datetime import timedelta
     try:
         card = await Card.get_by_id(_UUID(str(card_id)))
@@ -514,7 +531,7 @@ async def get_busy_slots(start: str = None, end: str = None) -> list[dict]:
 async def notify_executor(card_id: str, message: str) -> bool:
     from models.Card import Card
     from models.User import User
-    from modules import executor_bridge
+    from modules.exec import executor_bridge
     try:
         card = await Card.get_by_id(_UUID(str(card_id)))
         if not card or not card.executor_id: return False

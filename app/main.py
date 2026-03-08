@@ -3,8 +3,6 @@
 Запускает: БД, планировщик задач, Telegram-бот (polling), VK-исполнитель.
 """
 import asyncio
-import sys
-import os
 
 # app/ — корень Python-пакета; при запуске из app/ — sys.path настроен верно.
 # При запуске через docker: WORKDIR /app, CMD ["python", "main.py"]
@@ -17,15 +15,15 @@ async def main():
     await create_superuser()
 
     # ──────────────── 2. Запуск исполнителей (TG, VK) ────
-    from modules.executors_manager import manager, executors_start
-    from modules import executor_bridge
+    from modules.exec.executors_manager import manager, executors_start
+    from modules.exec import executor_bridge
 
     await executors_start()
     executor_bridge.set_manager(manager)
 
     # ──────────────── 3. Планировщик задач ───────────────
     from database.connection import session_factory
-    from modules.scheduler import TaskScheduler
+    from modules.tasks.scheduler import TaskScheduler
 
     scheduler = TaskScheduler(session_factory=session_factory)
 

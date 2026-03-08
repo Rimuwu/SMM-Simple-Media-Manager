@@ -3,7 +3,7 @@
 HTTP-клиенты между сервисами удалены (монолит).
 Функции реэкспортируются из global_modules.brain_client.
 """
-from global_modules.brain_client import (
+from modules.exec.brain_client import (
     brain_client,
     get_cards,
     update_card,

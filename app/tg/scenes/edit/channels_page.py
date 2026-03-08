@@ -1,6 +1,6 @@
 from tg.oms.models.option_page import OptionTypeScene
 from modules.constants import SETTINGS
-from global_modules.brain_client import brain_client
+from modules.exec.brain_client import brain_client
 
 class ChannelsSettingsPage(OptionTypeScene):
 

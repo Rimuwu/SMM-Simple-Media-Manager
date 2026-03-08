@@ -1,4 +1,5 @@
-from global_modules import brain_client
+from modules.card import card_events
+from modules.exec import brain_client
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms.utils import callback_generator
 from aiogram.types import Message
@@ -323,9 +324,9 @@ class ContentSetterPage(TextTypeScene):
             # Определяем client_key в зависимости от режима
             client_key = None if self.content_mode == 'all' else self.content_mode
 
-            await brain_client.set_content(
+            await card_events.on_content(
                 card_id=task_id,
-                content=html_text,
+                new_content=html_text,
                 client_key=client_key
             )
             print(f"Контент обновлен для task_id={task_id}, client_key={client_key}")

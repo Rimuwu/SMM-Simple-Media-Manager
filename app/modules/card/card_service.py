@@ -2,7 +2,7 @@
 from typing import Optional
 from models.User import User
 from models.Card import Card
-from modules import executor_bridge
+from modules.exec import executor_bridge
 from modules.logs import logger
 
 

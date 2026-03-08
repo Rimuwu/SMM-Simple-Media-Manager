@@ -7,7 +7,7 @@ from uuid import UUID as _UUID
 from database.connection import Base
 from database.crud_mixins import AsyncCRUDMixin
 from database.annotated_types import uuidPK, createAT, updateAT
-from global_modules.classes.enums import CardStatus
+from modules.enums import CardStatus
 
 from typing import TYPE_CHECKING, List
 
@@ -27,8 +27,6 @@ class Card(Base, AsyncCRUDMixin):
 
     card_id: Mapped[uuidPK]
     status: Mapped[CardStatus] = mapped_column(nullable=False, default=CardStatus.pass_)
-
-    task_id: Mapped[int] = mapped_column(nullable=False)
 
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(

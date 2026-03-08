@@ -1,7 +1,7 @@
-from modules import card_events
+from modules.card import card_events
 from uuid import UUID as _UUID
 from tg.oms.common_pages.update_text_page import UpdateTextPage
-from global_modules.classes.enums import ChangeType
+from modules.enums import ChangeType
 
 
 class ChangeNamePage(UpdateTextPage):
