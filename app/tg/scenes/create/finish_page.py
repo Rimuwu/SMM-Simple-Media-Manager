@@ -57,7 +57,7 @@ class FinishPage(Page):
         add_vars['channels'] = format_channels(channels) if channels else '⭕'
 
         tags = data.get('tags')
-        add_vars['tags'] = format_tags(tags) if tags else '⭕'
+        add_vars['tags'] = await format_tags(tags) if tags else '⭕'
         
         # Date
         if data.get('publish_date'):

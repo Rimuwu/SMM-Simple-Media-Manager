@@ -14,8 +14,6 @@ from os import getenv
 from modules.logs import logger
 
 
-
-
 STORAGE_PATH = Path('/storage_data')
 STORAGE_PATH.mkdir(parents=True, exist_ok=True)
 

@@ -97,8 +97,8 @@ class TaskDetailPage(Page):
         # Форматируем каналы
         channels_str = format_channels(task.get('clients', []))
 
-        # Форматируем теги
-        tags_str = format_tags(task.get('tags', []))
+        # Форматируем теги (асинхронно, с учетом порядка)
+        tags_str = await format_tags(task.get('tags', []))
 
         add_vars = {
             'task_name': task.get(

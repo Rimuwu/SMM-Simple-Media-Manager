@@ -1,7 +1,7 @@
 from typing import Union
 from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
-from modules.api_client import get_users
+from modules.exec.brain_client import get_users
 
 class Authorize(BaseFilter):
 

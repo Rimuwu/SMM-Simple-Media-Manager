@@ -23,10 +23,6 @@ def open_json_file(filepath: str) -> dict:
         return {}
 
 
-def open_properties() -> dict:
-    """Возвращает свойства из settings.json"""
-    return open_json_file('settings.json').get('properties', {})
-
 
 def open_settings() -> dict:
     """Возвращает настройки из settings.json"""

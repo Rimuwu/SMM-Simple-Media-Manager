@@ -61,7 +61,7 @@ async def delete_forum_message_by_id(message_id: int) -> bool:
     Удалить сообщение с форума по message_id.
     Заменяет: executors_api.delete(ApiEndpoints.FORUM_DELETE_MESSAGE_FOR_ID.format(message_id))
     """
-    from modules.exec.json_get import open_settings
+    from modules.json_get import open_settings
     manager = get_manager()
     if not manager:
         return False
@@ -334,7 +334,7 @@ async def send_post(
         return {"success": False, "error": f"Executor {executor_name} not found"}
 
     try:
-        text = generate_post(content, tags or [], client_config)
+        text = await generate_post(content, tags or [], client_config)
         files = await download_files(post_images or [])
 
         # Отправка через конкретный executor (tg или vk)

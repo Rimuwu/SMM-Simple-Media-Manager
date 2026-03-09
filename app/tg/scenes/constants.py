@@ -4,6 +4,9 @@
 from modules.enums import Department, CardStatus
 from modules.constants import SETTINGS, CLIENTS
 
+# утилита для форматирования тегов с учётом order
+from modules.utils import format_tags  # type: ignore
+
 # Маппинг значений отделов на читаемые имена
 DEPARTMENT_NAMES: dict[str, str] = {
     Department.it.value: "IT",
@@ -52,10 +55,3 @@ def format_channels(channels: list) -> str:
     return ', '.join(CLIENTS.get(ch, {}
            ).get('label', ch) for ch in channels)
 
-
-def format_tags(tags: list) -> str:
-    """Форматирует список ключей тегов в строку с именами."""
-    if not tags:
-        return 'Не указаны'
-
-    return ', '.join(tags)

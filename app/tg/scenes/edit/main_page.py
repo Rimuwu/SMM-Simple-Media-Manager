@@ -26,7 +26,7 @@ class MainPage(Page):
                 channels_text = format_channels(channels)
                 
                 tags = card.get('tags', [])
-                tags_text = format_tags(tags)
+                tags_text = await format_tags(tags)
                 
                 # Форматируем даты
                 publish_date = card.get('send_time')

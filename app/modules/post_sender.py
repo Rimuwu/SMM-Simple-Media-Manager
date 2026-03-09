@@ -335,7 +335,7 @@ async def prepare_and_send_preview(
         {'success': bool, 'message_ids': list[int], 'error': str | None}
     """
     # Генерируем текст поста
-    post_text = generate_post(content, tags, client_key=client_key)
+    post_text = await generate_post(content, tags, client_key=client_key)
 
     media_files = []
     if post_images:

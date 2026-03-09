@@ -5,13 +5,12 @@ from modules.post_sender import download_files
 from tg.main import TelegramExecutor
 from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS, CLIENTS
-from modules.api_client import get_cards, update_card, get_users
 from modules.post_generator import generate_post
 from modules.enums import CardStatus
 from modules.utils import get_telegram_user
 from modules.entities_sender import send_poll_preview, get_entities_for_client
-from modules.exec.brain_client import brain_client
-from modules.exec.json_get import open_clients, open_settings
+from modules.exec.brain_client import brain_client, get_cards, update_card, get_users
+from modules.json_get import open_clients, open_settings
 
 forum_topic = SETTINGS.get('forum_topic', 0)
 group_forum = SETTINGS.get('group_forum', 0)
@@ -78,7 +77,10 @@ async def text_getter(card: dict, tag: str,
 
     tags = []
     if tags_raw != ["Без тегов"]:
-        for t in tags_raw:
+        # упорядочиваем теги по полю order из БД
+        from modules.utils import sort_tags
+        sorted_keys = await sort_tags(tags_raw)
+        for t in sorted_keys:
             tag_info = settings['properties']['tags']['values'].get(t, {})
             tag_label = '#' + tag_info.get("tag", t)
             tags.append(tag_label)
@@ -393,7 +395,7 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
 
     tags = card.get("tags", [])
 
-    post_text = generate_post(
+    post_text = await generate_post(
         content=content,
         tags=tags,
         client_key=client_key
@@ -637,7 +639,7 @@ async def update_complete_preview(card_id: str, client_key: str,
 
     tags = card.get("tags", [])
 
-    post_text = generate_post(
+    post_text = await generate_post(
         content=content,
         tags=tags,
         client_key=client_key

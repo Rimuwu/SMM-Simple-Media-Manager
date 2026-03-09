@@ -6,10 +6,8 @@ from modules.text_generators import card_executed, forum_message
 from modules.logs import logger
 from modules.exec.executors_manager import manager
 from aiogram import F
-from aiogram.filters import Command
 
-from modules.api_client import get_user_role, get_cards
-from modules.api_client import update_card, get_users
+from modules.exec.brain_client import update_card, get_users
 from tg.oms.manager import scene_manager
 
 client_executor = manager.get("telegram_executor")

@@ -49,20 +49,24 @@ def convert_hyperlinks_to_vk(text: str) -> str:
     return re.sub(pattern, replace_link, text, flags=re.IGNORECASE)
 
 
-def generate_post(
+async def generate_post(
     content: str,
     tags: Optional[list[str]] = None,
     client_key: Optional[str] = None
 ) -> str:
     """
-    Генерирует пост с форматированием для указанной платформы.
-    
+    Асинхронно генерирует пост с форматированием для указанной платформы.
+
+    Функция автоматически сортирует список ключей тегов по значению
+    ``order`` из базы данных, затем формирует хештеги с учётом суффикса
+    клиента. Это избавляет вызывающий код от необходимости заботиться об
+    порядке.
+
     Args:
         content: Основной текст поста
-        tags: Список хештегов
-        platform: Платформа для форматирования (telegram, vk)
+        tags: Список хештегов (ключи)
         client_key: Ключ клиента из clients.json для добавления tag_suffix
-    
+
     Returns:
         Отформатированный текст поста
     """
@@ -75,13 +79,16 @@ def generate_post(
 
     # Добавляем хештеги с суффиксом клиента
     if tags:
+        # сортируем по order
+        from modules.utils import sort_tags
+        tags = await sort_tags(tags)
+
         tag_suffix = ""
         if client_key and client_key in CLIENTS:
             tag_suffix = CLIENTS[client_key].get('tag_suffix', '')
 
         hashtags_list = []
         for tag in tags:
-            
             tag_name = SETTINGS['properties']['tags']['values'].get(tag, {}).get('tag', tag)
             # Добавляем # если его нет
             formatted_tag = tag_name if tag_name.startswith("#") else f"#{tag_name}"
@@ -110,19 +117,21 @@ def generate_post(
     return post_text
 
 
-def format_hashtags(tags: list[str]) -> str:
+async def format_hashtags(tags: list[str]) -> str:
     """
-    Форматирует список тегов в строку хештегов.
-    
+    Форматирует список тегов в строку хештегов с учётом порядка из БД.
+
     Args:
-        tags: Список тегов
-    
+        tags: Список ключей тегов
+
     Returns:
         Строка с хештегами
     """
     if not tags:
         return ""
-    
+
+    from modules.utils import sort_tags
+    tags = await sort_tags(tags)
     return " ".join([f"#{tag}" if not tag.startswith("#") else tag for tag in tags])
 
 

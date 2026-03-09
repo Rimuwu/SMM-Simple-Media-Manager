@@ -4,7 +4,7 @@ from modules.enums import UserRole
 from modules.exec import executor_bridge
 from datetime import datetime
 import html
-from modules.exec.json_get import open_settings, open_clients
+from modules.json_get import open_settings, open_clients
 from modules.logs import logger
 
 
