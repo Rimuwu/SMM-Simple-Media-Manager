@@ -39,15 +39,17 @@ class ContentSetterPage(TextTypeScene):
             client_key = self.content_mode
         
         # Получаем суффикс клиента
-        from modules.constants import CLIENTS, SETTINGS
+        from modules.constants import CLIENTS
         tag_suffix = CLIENTS.get(client_key, {}).get('tag_suffix', '')
         
-        # Подсчитываем длину всех тегов
+        # Загружаем карту тегов
+        from modules.utils import get_tags_map
+        tag_map = await get_tags_map()
+
+        # Подсчитываем длину всех тегов (учитывая имя из БД)
         total_length = 0
         for tag in tags:
-            # Получаем отображаемое имя тега из настроек
-            tag_info = SETTINGS.get('properties', {}).get('tags', {}).get('values', {}).get(tag, {})
-            tag_name = tag_info.get('tag', tag)
+            tag_name = tag_map.get(tag, {}).get('tag', tag)
 
             # Добавляем # если его нет
             if not tag_name.startswith("#"):

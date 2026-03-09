@@ -3,7 +3,7 @@ from typing import Literal, Optional
 from uuid import UUID as _UUID
 from database.connection import session_factory
 from modules.enums import UserRole
-from modules.json_get import open_clients, open_settings
+from modules.json_utils import open_clients, open_settings
 
 from models.Card import Card, CardStatus
 from models.User import User

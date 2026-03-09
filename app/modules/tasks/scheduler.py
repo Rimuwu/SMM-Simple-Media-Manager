@@ -299,7 +299,7 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
         session: Сессия БД
         card: Карточка для публикации
     """
-    from modules.json_get import open_clients
+    from modules.json_utils import open_clients
     from uuid import UUID as PyUUID
     
     if not card.send_time:

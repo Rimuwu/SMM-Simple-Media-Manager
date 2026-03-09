@@ -32,18 +32,7 @@ async def test_postmessage(message: Message):
     card = card[0]
     
     for key in ['tg_main', 'vk_main']:
-
-        data = {
-            "card_id": card['card_id'],
-            "client_key": key,
-            "entities": [card['entities']],
-            'post_images': card['post_images'],
-            'content': card['content'].get(key, 
-                                           card['content'].get('all', '-')),
-            'tags': card['tags'],
-            'settings': card['clients_settings']
-        }
-        
+        # просто вызываем helper из post_sender, он сам загрузит нужные поля
         from modules.post_sender import send_post
         result = await send_post(
             card_id=card['card_id'],

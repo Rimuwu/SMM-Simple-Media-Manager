@@ -53,31 +53,47 @@ def get_user_display_name(user: dict) -> str:
     return f"user_{user.get('telegram_id', '?')}"
 
 
+
+# кешированная карта тегов: ключ -> запись из БД
+_tags_cache: dict[str, dict] | None = None
+
+
+async def get_tags_map(refresh: bool = False) -> dict[str, dict]:
+    """Возвращает карту тегов, загруженную из БД.
+
+    При первом вызове загружает теги через ``brain_client.get_tags`` и сохраняет
+    результат в ``_tags_cache``. Если ``refresh`` установлен, принудительно
+    выполняется повторная загрузка.
+    """
+    global _tags_cache
+    if _tags_cache is not None and not refresh:
+        return _tags_cache
+
+    from modules.exec.brain_client import get_tags
+    try:
+        tags_list = await get_tags()
+    except Exception:
+        tags_list = []
+
+    _tags_cache = {t['key']: t for t in tags_list}
+    return _tags_cache
+
+
 async def sort_tags(tags: list[str]) -> list[str]:
     """
     Возвращает список ключей тегов, отсортированных по полю ``order`` из БД.
 
-    Если тег отсутствует в базе, он считается имеющим порядок 0 и остаётся в
-    текущем положении относительно других отсутствующих. Это удобно, поскольку
-    пользователь может передавать произвольный список ключей.
-
     Args:
         tags: список ключей тегов
 
-    Returns:
+    Возвращает:
         новый список ключей, упорядоченный по ``order``
     """
     if not tags:
         return []
-    # импорт внутри функции, чтобы избежать циклических зависимостей
-    from modules.exec.brain_client import get_tags
 
-    try:
-        db_tags = await get_tags()
-    except Exception:
-        db_tags = []
-
-    order_map = {t['key']: t.get('order', 0) for t in db_tags}
+    tag_map = await get_tags_map()
+    order_map = {k: tag_map.get(k, {}).get('order', 0) for k in tags}
     return sorted(tags, key=lambda k: order_map.get(k, 0))
 
 
@@ -85,9 +101,8 @@ async def format_tags(tags: list[str]) -> str:
     """
     Форматирует список ключей тегов в строку через запятую, учитывая порядок.
 
-    Теги сначала сортируются с помощью :func:`sort_tags`, затем каждый
-    ключ заменяется на имя из базы. Если имя не найдено, используется сам ключ.
-    Для пустого списка возвращается "Не указаны".
+    Сортировка и получение имён берётся из карты тегов
+    (см. :func:`get_tags_map`).
 
     Args:
         tags: список ключей тегов
@@ -98,16 +113,8 @@ async def format_tags(tags: list[str]) -> str:
     if not tags:
         return 'Не указаны'
 
-    # Получаем информацию из базы единожды
-    from modules.exec.brain_client import get_tags
-
-    try:
-        db_tags = await get_tags()
-    except Exception:
-        db_tags = []
-
-    order_map = {t['key']: t.get('order', 0) for t in db_tags}
-    name_map = {t['key']: t.get('name', t['key']) for t in db_tags}
-
-    sorted_keys = sorted(tags, key=lambda k: order_map.get(k, 0))
-    return ', '.join(name_map.get(k, k) for k in sorted_keys)
+    tag_map = await get_tags_map()
+    sorted_keys = sorted(tags, key=lambda k: tag_map.get(k, {}).get('order', 0))
+    def name_for(k: str) -> str:
+        return tag_map.get(k, {}).get('name', k)
+    return ', '.join(name_for(k) for k in sorted_keys)

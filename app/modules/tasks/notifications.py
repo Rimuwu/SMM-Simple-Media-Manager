@@ -4,7 +4,7 @@ from modules.enums import UserRole
 from modules.exec import executor_bridge
 from datetime import datetime
 import html
-from modules.json_get import open_settings, open_clients
+from modules.json_utils import open_settings, open_clients
 from modules.logs import logger
 
 
@@ -222,15 +222,17 @@ async def send_post_now(card_id: str, client_key: str, **kwargs):
                 if ent.client_key == client_key or ent.client_key is None:
                     entities_for_client.append(ent.to_dict())
 
-        # Отправляем запрос на немедленную публикацию
-        response = await executor_bridge.send_post(
+        # делегируем всю работу helper-методу
+        from modules.post_sender import send_post
+
+        response = await send_post(
             card_id=str(card.card_id),
             client_key=client_key,
             content=content,
             tags=card.tags,
             post_images=card.post_images or [],
             settings=clients_settings,
-            entities=entities_for_client
+            entities=entities_for_client,
         )
         
         if response.get('success'):

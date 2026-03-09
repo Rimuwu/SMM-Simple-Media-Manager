@@ -3,7 +3,6 @@ import asyncio
 from datetime import datetime
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.constants import SETTINGS
 from modules.logs import logger
 
 
@@ -38,11 +37,9 @@ class AIParserPage(Page):
             # Отображаем теги
             tags = parsed_data.get('tags', [])
             if tags:
-                tag_options = {
-                    key: tag['name'] 
-                    for key, tag in SETTINGS['properties']['tags']['values'].items()
-                }
-                tag_names = [tag_options.get(t, t) for t in tags]
+                from modules.utils import get_tags_map
+                tag_map = await get_tags_map()
+                tag_names = [tag_map.get(t, {}).get('name', t) for t in tags]
                 self.content += f'🏷 **Хештеги:** {", ".join(tag_names)}'
             else:
                 self.content += '🏷 **Хештеги:** ➖'
@@ -93,10 +90,9 @@ class AIParserPage(Page):
         """Отправляет текст на парсинг в brain-api с callback-метаданными."""
         current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        tag_options = {
-            key: tag['name'] 
-            for key, tag in SETTINGS['properties']['tags']['values'].items()
-        }
+        from modules.utils import get_tags_map
+        tag_map = await get_tags_map()
+        tag_options = {k: v.get('name') for k, v in tag_map.items()}
         tags_list = ', '.join([f'"{key}" ({name})' for key, name in tag_options.items()])
 
         prompt = (
@@ -154,10 +150,9 @@ class AIParserPage(Page):
             image = parsed.get('image')
             raw_tags = parsed.get('tags', [])
 
-            tag_options = {
-                key: tag['name'] 
-                for key, tag in SETTINGS['properties']['tags']['values'].items()
-            }
+            from modules.utils import get_tags_map
+            tag_map = await get_tags_map()
+            tag_options = {k: v.get('name') for k, v in tag_map.items()}
             valid_tags = [t for t in (raw_tags if isinstance(raw_tags, list) else []) if t in tag_options]
 
             result_data = {

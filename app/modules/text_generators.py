@@ -5,12 +5,12 @@ from modules.post_sender import download_files
 from tg.main import TelegramExecutor
 from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS, CLIENTS
-from modules.post_generator import generate_post
+from modules.post_generator import generate_post, render_post_from_card
 from modules.enums import CardStatus
 from modules.utils import get_telegram_user
 from modules.entities_sender import send_poll_preview, get_entities_for_client
 from modules.exec.brain_client import brain_client, get_cards, update_card, get_users
-from modules.json_get import open_clients, open_settings
+from modules.json_utils import open_clients, open_settings
 
 forum_topic = SETTINGS.get('forum_topic', 0)
 group_forum = SETTINGS.get('group_forum', 0)
@@ -80,9 +80,10 @@ async def text_getter(card: dict, tag: str,
         # упорядочиваем теги по полю order из БД
         from modules.utils import sort_tags
         sorted_keys = await sort_tags(tags_raw)
+        from modules.utils import get_tags_map
+        tag_map = await get_tags_map()
         for t in sorted_keys:
-            tag_info = settings['properties']['tags']['values'].get(t, {})
-            tag_label = '#' + tag_info.get("tag", t)
+            tag_label = '#' + tag_map.get(t, {}).get('tag', t)
             tags.append(tag_label)
     else:
         tags = ["Без тегов"]
@@ -378,28 +379,12 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     
     card = cards[0]
     
-    # Получаем конфигурацию клиента
     client_config = CLIENTS.get(client_key)
     if not client_config:
         return {"error": f"Client {client_key} not found", "success": False}
-    
     client_label = client_config.get('label', client_key)
-    
-    # Получаем контент для клиента (сначала специфичный, потом общий)
-    content_dict = card.get("content", {})
-    if isinstance(content_dict, dict):
-        content = content_dict.get(client_key) or content_dict.get('all', '')
-    else:
-        # Обратная совместимость со старым форматом
-        content = content_dict if isinstance(content_dict, str) else ''
 
-    tags = card.get("tags", [])
-
-    post_text = await generate_post(
-        content=content,
-        tags=tags,
-        client_key=client_key
-    )
+    post_text = await render_post_from_card(card, client_key)
 
     # Загружаем изображения если есть
     post_images = card.get("post_images", []) or []
@@ -637,13 +622,7 @@ async def update_complete_preview(card_id: str, client_key: str,
         # Обратная совместимость со старым форматом
         content = content_dict if isinstance(content_dict, str) else ''
 
-    tags = card.get("tags", [])
-
-    post_text = await generate_post(
-        content=content,
-        tags=tags,
-        client_key=client_key
-    )
+    post_text = await render_post_from_card(card, client_key)
 
     new_info_id = info_id
     
@@ -685,7 +664,8 @@ async def update_complete_preview(card_id: str, client_key: str,
             return new_preview
         
         # Обновляем или создаём entities
-        new_post_ids = [new_post_id]
+        new_post_id = result.get('message_id')
+        new_post_ids = [new_post_id] if new_post_id else []
         entities_result = await get_entities_for_client(card_id, client_key)
         if entities_result.get('success') and entities_result.get('entities'):
             entities = entities_result['entities']

@@ -61,7 +61,7 @@ async def delete_forum_message_by_id(message_id: int) -> bool:
     Удалить сообщение с форума по message_id.
     Заменяет: executors_api.delete(ApiEndpoints.FORUM_DELETE_MESSAGE_FOR_ID.format(message_id))
     """
-    from modules.json_get import open_settings
+    from modules.json_utils import open_settings
     manager = get_manager()
     if not manager:
         return False
@@ -302,18 +302,23 @@ async def update_scenes(
 async def send_post(
     card_id: str,
     client_key: str,
-    content: str,
-    tags: Optional[list[str]] = None,
-    post_images: Optional[list[str]] = None,
+    text: str,
+    files: Optional[list[dict]] = None,
     settings: Optional[dict] = None,
     entities: Optional[list[dict]] = None
 ) -> dict:
     """
-    Отправить пост через нужного исполнителя.
-    Заменяет: executors_api.post("/post/send", ...)
+    Отправить уже подготовленный текст через нужного исполнителя.
+    В этой версии **генерация текста производится вне функции**, поэтому
+    ``text`` должен быть готовым (например, полученным из
+    :func:`modules.post_generator.generate_post`).
+
+    Остальные параметры позволяют передать заранее скачанные файлы,
+    настройки клиента и дополнительную информацию (entities).
+    Это упрощает логику: функция теперь отвечает исключительно за
+    обращение к конкретному executor.
     """
     from modules.constants import CLIENTS
-    from modules.post_generator import generate_post
     from modules.post_sender import download_files
     from modules.entities_sender import send_poll_preview, get_entities_for_client
 
@@ -334,9 +339,8 @@ async def send_post(
         return {"success": False, "error": f"Executor {executor_name} not found"}
 
     try:
-        text = await generate_post(content, tags or [], client_config)
-        files = await download_files(post_images or [])
-
+        # если файлы не переданы, ничего не скачиваем
+        files = files or []
         # Отправка через конкретный executor (tg или vk)
         from tg.main import TelegramExecutor
         from vk.main import VKExecutor

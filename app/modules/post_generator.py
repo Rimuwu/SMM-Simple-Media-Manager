@@ -3,7 +3,7 @@
 """
 import re
 from typing import Optional
-from modules.constants import CLIENTS, SETTINGS
+from modules.constants import CLIENTS
 
 
 def clean_html(text: str) -> str:
@@ -88,8 +88,11 @@ async def generate_post(
             tag_suffix = CLIENTS[client_key].get('tag_suffix', '')
 
         hashtags_list = []
+        # получаем карту тегов из БД, чтобы найти поле 'tag'
+        from modules.utils import get_tags_map
+        tag_map = await get_tags_map()
         for tag in tags:
-            tag_name = SETTINGS['properties']['tags']['values'].get(tag, {}).get('tag', tag)
+            tag_name = tag_map.get(tag, {}).get('tag', tag)
             # Добавляем # если его нет
             formatted_tag = tag_name if tag_name.startswith("#") else f"#{tag_name}"
             # Добавляем суффикс к каждому хештегу
@@ -134,19 +137,18 @@ async def format_hashtags(tags: list[str]) -> str:
     tags = await sort_tags(tags)
     return " ".join([f"#{tag}" if not tag.startswith("#") else tag for tag in tags])
 
+async def render_post_from_card(card: dict, client_key: str) -> str:
+    """Подготовить текст поста, извлекая контент и теги из карточки.
 
-def truncate_post(text: str, max_length: int = 4096) -> str:
+    Функция берёт из ``card`` словарь ``content`` (проверяет клиент-специфичный
+    ключ, затем ``all``) и список тегов, после чего вызывает
+    :func:`generate_post`.
     """
-    Обрезает текст поста до максимальной длины.
-    
-    Args:
-        text: Текст поста
-        max_length: Максимальная длина
-    
-    Returns:
-        Обрезанный текст
-    """
-    if len(text) <= max_length:
-        return text
-    
-    return text[:max_length - 3] + "..."
+    content_dict = card.get("content", {})
+    if isinstance(content_dict, dict):
+        content = content_dict.get(client_key) or content_dict.get('all', '')
+    else:
+        # обратная совместимость
+        content = content_dict if isinstance(content_dict, str) else ''
+    tags = card.get("tags", []) or []
+    return await generate_post(content, tags, client_key=client_key)

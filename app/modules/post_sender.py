@@ -15,7 +15,7 @@ from aiogram.types import (
 )
 from modules.entities_sender import get_entities_for_client, send_poll_preview
 from modules.exec.brain_client import brain_client
-from modules.post_generator import generate_post
+from modules.post_generator import generate_post, render_post_from_card
 from modules.logs import logger
 
 
@@ -385,4 +385,67 @@ async def prepare_and_send_preview(
         text=post_text,
         media_files=media_files,
         entities=entities
+    )
+
+
+# ---------------------------------------------------------------------------
+# High-level helpers
+# ---------------------------------------------------------------------------
+
+async def send_post(
+    card_id: str,
+    client_key: str,
+    content: str | None = None,
+    tags: Optional[list[str]] = None,
+    post_images: Optional[list[str]] = None,
+    settings: Optional[dict] = None,
+    entities: Optional[list] = None,
+) -> dict:
+    """Универсальная обёртка для немедленной отправки поста через исполнителя.
+
+    Если ``content`` или ``tags`` не переданы, функция самостятеьно подгрузит
+    карточку из базы и извлечёт нужные данные (поведение использовалось в
+    тестовом хэндлере ``tg/handlers/test.py``).
+
+    Текст генерируется внутри при помощи :func:`modules.post_generator.generate_post`,
+    файлы скачиваются с помощью :func:`download_files`.
+    Затем отправка делегируется в :func:`modules.exec.executor_bridge.send_post`.
+    """
+    # импорт здесь, чтобы избежать циклических ссылок при загрузке модуля
+    from modules.exec import executor_bridge
+    from modules.post_generator import generate_post, render_post_from_card
+
+    # Если caller не передал явно содержание, или захотел
+    # упрощённо воспользоваться карточкой, просто загрузим её
+    if content is None or tags is None:
+        from modules.exec.brain_client import get_cards
+
+        cards = await get_cards(card_id=card_id)
+        if cards:
+            card = cards[0]
+        else:
+            return {"success": False, "error": "Card not found"}
+    else:
+        # если контент и теги заданы, можно обойтись без загрузки
+        card = None
+
+    # генерируем текст
+    if card is not None:
+        text = await render_post_from_card(card, client_key)
+    else:
+        content = content or ''
+        tags = tags or []
+        text = await generate_post(content, tags, client_key)
+
+    # скачиваем файлы при необходимости
+    files = await download_files(post_images or [])
+
+    # делегируем отправку
+    return await executor_bridge.send_post(
+        card_id=card_id,
+        client_key=client_key,
+        text=text,
+        files=files,
+        settings=settings,
+        entities=entities,
     )
