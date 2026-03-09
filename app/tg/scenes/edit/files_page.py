@@ -3,9 +3,12 @@
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message, BufferedInputFile
 from tg.oms import Page
-from modules.exec.brain_client import brain_client
+from models.Card import Card
+from models.CardFile import CardFile
 from modules.logs import logger
-from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension, is_video_by_mime_or_extension, detect_file_type_by_bytes
+from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension, is_video_by_mime_or_extension, detect_file_type_by_bytes, convert_image_to_png
+from modules.storage import download_file as _dl_storage
+from uuid import UUID as _UUID
 
 
 class FilesPage(Page):
@@ -42,8 +45,8 @@ class FilesPage(Page):
             await self.scene.update_key(self.__page_name__, 'selected_files', saved)
 
         try:
-            resp = await brain_client.list_files(card_id=str(card.get('card_id')))
-            files = resp if resp else []
+            files = [f.to_dict() for f in await CardFile.for_card(str(card.get('card_id')))]
+            files = files if files else []
             await self.scene.update_key(self.__page_name__, 'files', files)
 
             # Normalize selected -> ids
@@ -153,7 +156,8 @@ class FilesPage(Page):
         is_hidden = target.get('hide', False)
         
         try:
-            file_data, status = await brain_client.download_file(fid)
+            cf = await CardFile.get_by_id(_UUID(str(fid)))
+            file_data, status = (await _dl_storage(cf.filename)) if cf else (None, 404)
             if status != 200 or not isinstance(file_data, bytes):
                 return await callback.answer('❌ Ошибка при загрузке файла')
 
@@ -265,8 +269,12 @@ class FilesPage(Page):
         file_id = str(f.get('id'))
         
         try:
-            # Переключаем hide через API
-            result = await brain_client.toggle_file_hide(file_id)
+            # Переключаем hide
+            cf = await CardFile.get_by_id(_UUID(str(file_id)))
+            result = None
+            if cf:
+                await cf.update(hide=not cf.hide)
+                result = cf.to_dict()
             if result:
                 new_hide = result.get('hide', False)
                 status_text = 'скрыт' if new_hide else 'показан'
@@ -292,7 +300,9 @@ class FilesPage(Page):
             sel = await self._selected()
             card = await self._card()
             if card and card.get('card_id'):
-                await brain_client.update_card(card_id=card.get('card_id'), post_images=sel)
+                card_obj = await Card.get_by_id(_UUID(str(card.get('card_id'))))
+                if card_obj:
+                    await card_obj.update(post_images=sel)
                 logger.info('Saved selected files for card %s: %s', card.get('card_id'), sel)
         except Exception as e:
             logger.error('Error saving selected files on page leave: %s', e)
@@ -305,14 +315,15 @@ class FilesPage(Page):
         if not data:
             return await message.answer('❌ Не удалось скачать файл')
         try:
-            converted = brain_client._convert_to_png(data) if is_image_by_mime_or_extension(mime, filename) else data
+            converted = convert_image_to_png(data) if is_image_by_mime_or_extension(mime, filename) else data
         except Exception:
             converted = data
     
         content_type = 'image/png' if is_image_by_mime_or_extension(mime, filename) else (mime or 'application/octet-stream')
-        res = await brain_client.upload_file(
+        res = await CardFile.upload(
             card_id=card.get('card_id'), 
-            file_data=converted, filename=filename or 'file', 
+            file_data=converted,
+            filename=filename or 'file', 
             content_type=content_type
         )
 

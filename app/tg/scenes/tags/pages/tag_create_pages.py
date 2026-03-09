@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from models.Tag import Tag
 
 
 class TagCreateKeyPage(Page):
@@ -94,10 +94,10 @@ class TagCreateHashtagPage(Page):
         tag = value.strip().lstrip('#')
 
         # Считаем порядок: в конец списка
-        existing = await brain_client.get_tags()
+        existing = await Tag.all_sorted()
         order = len(existing)
 
-        result = await brain_client.create_tag(key=key, name=name, tag=tag, order=order)
+        result = await Tag.create(key=key, name=name, tag=tag, order=order)
         if result:
             await self.scene.update_key('scene', 'selected_tag', key)
             await self.scene.update_page('tag-detail')

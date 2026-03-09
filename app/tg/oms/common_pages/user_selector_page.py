@@ -1,6 +1,6 @@
 from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import get_users
+from models.User import User
 from typing import Optional, Callable
 from modules.utils import get_user_display_name
 
@@ -36,9 +36,9 @@ class UserSelectorPage(RadioTypeScene):
         if not self.users_data:
             # Получаем пользователей из БД с фильтром по департаменту если указан
             if self.filter_department:
-                users = await get_users(department=self.filter_department)
+                users = [u.to_dict() for u in await User.find(department=self.filter_department)]
             else:
-                users = await get_users()
+                users = [u.to_dict() for u in await User.get_all()]
 
             if users:
                 self.users_data = users

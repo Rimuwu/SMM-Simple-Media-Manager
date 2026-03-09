@@ -1,6 +1,6 @@
 
 from datetime import datetime
-from pprint import pprint
+from modules.card.card_events import on_executor
 from modules.post_sender import download_files
 from tg.main import TelegramExecutor
 from modules.exec.executors_manager import manager
@@ -9,7 +9,10 @@ from modules.post_generator import generate_post, render_post_from_card
 from modules.enums import CardStatus
 from modules.utils import get_telegram_user
 from modules.entities_sender import send_poll_preview, get_entities_for_client
-from modules.exec.brain_client import brain_client, get_cards, update_card, get_users
+from models.Card import Card
+from models.User import User
+from models.CardMessage import CardMessage
+from modules.storage import download_file as _storage_download
 from modules.json_utils import open_clients, open_settings
 
 forum_topic = SETTINGS.get('forum_topic', 0)
@@ -33,17 +36,17 @@ async def card_deleted(card_id: str):
     if not client_executor:
         return {"error": "Executor not found", "success": False}
 
-    cards = await get_cards(card_id=card_id)
+    cards = await Card.find(card_id=card_id)
     if not cards:
         return {"error": f"Card not found for {card_id}", "success": False}
     else:
-        forum_messages = await brain_client.get_messages(
-            card_id=card_id, message_type="forum"
+        forum_messages = await CardMessage.filter_by(
+            card_id=cards[0].card_id, message_type="forum"
         )
 
-        first_or_none = forum_messages[0] if forum_messages else {}
+        first_or_none = forum_messages[0] if forum_messages else None
 
-        message_id = first_or_none.get("message_id", None)
+        message_id = first_or_none.message_id if first_or_none else None
         if not message_id:
             return {"error": "No forum message ID", "success": False}
 
@@ -119,13 +122,13 @@ async def text_getter(card: dict, tag: str,
         _id = card.get(i)
 
         if _id is not None:
-            users = await get_users(user_id=_id)
+            users = await User.find(user_id=_id)
             user = users[0] if users else None
 
             if user is not None:
                 tg_user = await get_telegram_user(
                     bot=client_executor.bot,
-                    telegram_id=user.get("telegram_id")
+                    telegram_id=user.telegram_id
                 )
                 if tg_user:
                     username = f'@{tg_user.username}' if tg_user.username else f'`{tg_user.full_name}`'
@@ -167,11 +170,11 @@ async def forum_message(card_id: str):
     if not client_executor:
         return {"error": "Executor not found", "success": False}
 
-    cards = await get_cards(card_id=card_id)
+    cards = await Card.find(card_id=card_id)
     if not cards:
         return {"error": "Card not found", "success": False}
-    else:
-        card = cards[0]
+
+    card = cards[0].to_full_dict()
 
     tag = pass_tag
     markup = []
@@ -255,10 +258,10 @@ async def forum_message(card_id: str):
 
     text = await text_getter(card, tag, client_executor)
 
-    forum_messages = await brain_client.get_messages(
-        card_id=card_id, message_type="forum"
-    )
-    
+    forum_messages = await CardMessage.filter_by(
+        card_id=cards[0].card_id, message_type="forum"
+    ) if cards else []
+
     first_or_none = forum_messages[0] if forum_messages else None
 
     if not first_or_none:
@@ -274,7 +277,7 @@ async def forum_message(card_id: str):
     else:
         data = await client_executor.edit_message(
             chat_id=group_forum,
-            message_id=first_or_none['message_id'],
+            message_id=first_or_none.message_id,
             text=text,
             parse_mode="html",
             list_markup=markup
@@ -311,25 +314,16 @@ async def card_executed(card_id: str, telegram_id: int):
     if not client_executor:
         return {"error": "Executor not found", "success": False}
 
-    users = await get_users(telegram_id=telegram_id)
-    cards = await get_cards(card_id=card_id)
+    users = await User.find(telegram_id=telegram_id)
+    cards = await Card.find(card_id=card_id)
     if not cards:
         return {"error": "Card not found", "success": False}
     elif not users:
         return {"error": "User not found", "success": False}
     else:
-        card = cards[0]
-        executor_id = users[0]['user_id']
+        executor_id = str(users[0].user_id)
 
-        await update_card(
-            card_id=card_id,
-            executor_id=executor_id
-        )
-
-        await client_executor.send_message(
-            chat_id=executor_id,
-            text=f'Вы взяли задание: {card["name"]}',
-        )
+        await on_executor(executor_id, card_id=card_id)
 
     return {"success": True}
 
@@ -346,7 +340,7 @@ async def download_files_raw(file_ids: list[str]) -> list[bytes]:
     for file_ref in file_ids:
         try:
             file_id = str(file_ref)
-            file_data, dl_status = await brain_client.download_file(file_id)
+            file_data, dl_status = await _storage_download(file_id)
             if dl_status == 200 and isinstance(file_data, (bytes, bytearray)):
                 downloaded_files.append(bytes(file_data))
         except Exception as e:
@@ -373,12 +367,12 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
     if not client_executor:
         return {"error": "Executor not found", "success": False}
     
-    cards = await get_cards(card_id=card_id)
+    cards = await Card.find(card_id=card_id)
     if not cards:
         return {"error": "Card not found", "success": False}
-    
-    card = cards[0]
-    
+
+    card = cards[0].to_full_dict()
+
     client_config = CLIENTS.get(client_key)
     if not client_config:
         return {"error": f"Client {client_key} not found", "success": False}
@@ -516,24 +510,24 @@ async def send_complete_preview(card_id: str, client_key: str) -> dict:
         
         executor_id = card.get('executor_id')
         if executor_id:
-            users = await get_users(user_id=executor_id)
+            users = await User.find(user_id=executor_id)
             if users:
                 user = users[0]
                 tg_user = await get_telegram_user(
                     bot=client_executor.bot,
-                    telegram_id=user.get("telegram_id")
+                    telegram_id=user.telegram_id
                 )
                 if tg_user:
                     executor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name
         
         editor_id = card.get('editor_id')
         if editor_id:
-            users = await get_users(user_id=editor_id)
+            users = await User.find(user_id=editor_id)
             if users:
                 user = users[0]
                 tg_user = await get_telegram_user(
                     bot=client_executor.bot,
-                    telegram_id=user.get("telegram_id")
+                    telegram_id=user.telegram_id
                 )
                 if tg_user:
                     editor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name
@@ -601,11 +595,11 @@ async def update_complete_preview(card_id: str, client_key: str,
     if not client_executor:
         return {"error": "Executor not found", "success": False}
 
-    cards = await get_cards(card_id=card_id)
+    cards = await Card.find(card_id=card_id)
     if not cards:
         return {"error": "Card not found", "success": False}
 
-    card = cards[0]
+    card = cards[0].to_full_dict()
 
     # Получаем конфигурацию клиента
     client_config = CLIENTS.get(client_key)
@@ -702,24 +696,24 @@ async def update_complete_preview(card_id: str, client_key: str,
             
             executor_id = card.get('executor_id')
             if executor_id:
-                users = await get_users(user_id=executor_id)
+                users = await User.find(user_id=executor_id)
                 if users:
                     user = users[0]
                     tg_user = await get_telegram_user(
                         bot=client_executor.bot,
-                        telegram_id=user.get("telegram_id")
+                        telegram_id=user.telegram_id
                     )
                     if tg_user:
                         executor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name
             
             editor_id = card.get('editor_id')
             if editor_id:
-                users = await get_users(user_id=editor_id)
+                users = await User.find(user_id=editor_id)
                 if users:
                     user = users[0]
                     tg_user = await get_telegram_user(
                         bot=client_executor.bot,
-                        telegram_id=user.get("telegram_id")
+                        telegram_id=user.telegram_id
                     )
                     if tg_user:
                         editor_name = f'@{tg_user.username}' if tg_user.username else tg_user.full_name

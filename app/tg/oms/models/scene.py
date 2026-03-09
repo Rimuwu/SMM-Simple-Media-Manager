@@ -233,14 +233,42 @@ class Scene:
         await self.save_to_db()
 
     def clear_message_for_markdown(self, content: str) -> str:
-        symbols = ['*', '_', '`', '~']
-        for sym in symbols:
-            count = content.count(sym)
-            if count % 2 == 1:
-                # Находим последний (непарный) символ и заменяем только его
-                last_index = content.rfind(sym)
-                if last_index != -1:
-                    content = content[:last_index] + '#' + content[last_index + 1:]
+        def get_code_ranges(text: str) -> list:
+            """Возвращает список (start, end) диапазонов backtick-пролётов."""
+            ranges = []
+            i = 0
+            while i < len(text):
+                if text[i] == '`':
+                    j = text.find('`', i + 1)
+                    if j != -1:
+                        ranges.append((i, j))
+                        i = j + 1
+                    else:
+                        break
+                else:
+                    i += 1
+            return ranges
+
+        def is_inside_code(pos: int, code_ranges: list) -> bool:
+            return any(start < pos < end for start, end in code_ranges)
+
+        # Сначала обрабатываем backtick (он определяет границы кода)
+        count = content.count('`')
+        if count % 2 == 1:
+            last_index = content.rfind('`')
+            if last_index != -1:
+                content = content[:last_index] + '#' + content[last_index + 1:]
+
+        # Пересчитываем диапазоны кода после исправления backtick
+        code_ranges = get_code_ranges(content)
+
+        # Для остальных символов — пропускаем вхождения внутри кода
+        for sym in ['*', '_', '~']:
+            positions = [i for i, c in enumerate(content)
+                         if c == sym and not is_inside_code(i, code_ranges)]
+            if len(positions) % 2 == 1:
+                content = content[:positions[-1]] + '#' + content[positions[-1] + 1:]
+
         return content
 
     async def update_message(self):

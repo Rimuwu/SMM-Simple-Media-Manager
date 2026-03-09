@@ -1,7 +1,7 @@
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from models.User import User
 
 class EditAboutPage(TextTypeScene):
     __page_name__ = 'edit-about'
@@ -51,7 +51,9 @@ class EditAboutPage(TextTypeScene):
         edit_mode = self.scene.data['scene'].get('edit_mode')
         if edit_mode:
             user_id = self.scene.data['scene'].get('selected_user')
-            await brain_client.update_user(user_id, about=about_text)
+            u = await User.get_by_key("telegram_id", user_id)
+            if u:
+                await u.update(about=about_text)
 
             await self.scene.update_key('scene', 
                                         'edit_mode', False)
@@ -64,12 +66,13 @@ class EditAboutPage(TextTypeScene):
             role = self.scene.data['scene'].get('new_user_role')
             department = self.scene.data['scene'].get('new_user_department')
 
-            result = await brain_client.create_user(
+            result = await User.create(
                 telegram_id=telegram_id,
                 role=role,
                 department=department,
                 about=about_text,
-                name=self.scene.data['scene'].get('user_name') or None
+                name=self.scene.data['scene'].get('user_name') or None,
+                task_per_year=0, task_per_month=0, tasks=0, tasks_checked=0, tasks_created=0
             )
             
             if result:

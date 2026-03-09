@@ -28,7 +28,7 @@ class ScheduledTask(Base, AsyncCRUDMixin):
     # Relationship
     card: Mapped[Optional["Card"]] = relationship("Card", back_populates="scheduled_tasks", foreign_keys=[card_id])
 
-    # Путь к функции для импорта (например: "modules.notifications.send_card_reminder")
+    # Путь к функции для импорта (например: "modules.tasks.notifications.send_card_reminder")
     function_path: Mapped[str] = mapped_column(String(500), nullable=False)
     
     # Аргументы функции в формате JSON

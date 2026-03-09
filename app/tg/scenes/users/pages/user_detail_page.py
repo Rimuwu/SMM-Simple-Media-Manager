@@ -1,6 +1,6 @@
 from modules.utils import get_user_display_name
 from tg.oms import Page
-from modules.exec.brain_client import brain_client
+from models.User import User
 from tg.oms.utils import callback_generator
 from os import getenv
 from tg.scenes.constants import ROLE_NAMES, DEPARTMENT_NAMES as department_names
@@ -15,7 +15,7 @@ class UserDetailPage(Page):
         if not user_id: return
 
         self.user = None
-        users = await brain_client.get_users(telegram_id=user_id)
+        users = [u.to_dict() for u in await User.find(telegram_id=user_id)]
         if not users: return
 
         self.user = users[0]
@@ -133,7 +133,9 @@ class UserDetailPage(Page):
             await callback.answer("❌ Вы не можете удалить себя", show_alert=True)
             return
 
-        await brain_client.delete_user(user_id)
+        u = await User.get_by_key("telegram_id", user_id)
+        if u:
+            await u.delete()
 
         await callback.answer("✅ Пользователь удалён")
         await self.scene.update_page('users-list')

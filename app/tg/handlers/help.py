@@ -12,15 +12,14 @@ from tg.filters.in_dm import InDMorWorkGroup
 from tg.oms import scene_manager
 from tg.scenes.view.view_tasks_scene import ViewTasksScene
 from tg.scenes.edit.task_scene import TaskScene
-from modules.exec.brain_client import brain_client
-from urllib.parse import unquote_plus
+from models.User import User
 import re
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp
 bot: Bot = client_executor.bot
 
-# Help texts for different roles (moved to module scope for reuse)
+
 HELP_TEXTS = {
     'copywriter': (
         "✍️ *Помощь для копирайтера*\n\n"
@@ -54,7 +53,7 @@ HELP_TEXTS = {
 async def help(message: Message):
     """Show help using inline buttons only. No role argument accepted."""
     try:
-        user_role = await brain_client.get_user_role(message.from_user.id)
+        user_role = await User.role_for(message.from_user.id)
 
         # Copywriter and Customer get direct help text (no buttons)
         if user_role == 'copywriter':
@@ -89,7 +88,8 @@ async def help(message: Message):
                 parse_mode='Markdown')
 
 
-@dp.callback_query(Authorize(), InDMorWorkGroup(), lambda call: (call.data or '').lower().startswith('help:'))
+@dp.callback_query(Authorize(), InDMorWorkGroup(), 
+                   lambda call: (call.data or '').lower().startswith('help:'))
 async def help_callback(call: CallbackQuery):
     """Handle inline help button presses with role-specific buttons."""
     try:
@@ -102,7 +102,7 @@ async def help_callback(call: CallbackQuery):
             return
 
         action = data.split(':', 1)[1]
-        viewer_role = await brain_client.get_user_role(call.from_user.id)
+        viewer_role = await User.role_for(call.from_user.id)
 
         if action == 'close':
             try:
@@ -155,7 +155,7 @@ async def help_callback(call: CallbackQuery):
             return
 
         if action == 'menu':
-            viewer_role = await brain_client.get_user_role(call.from_user.id)
+            viewer_role = await User.role_for(call.from_user.id)
             if viewer_role == 'copywriter':
                 await call.message.edit_text(HELP_TEXTS['copywriter'],
                 parse_mode='Markdown')

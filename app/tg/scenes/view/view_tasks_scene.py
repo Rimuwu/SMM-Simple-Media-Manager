@@ -8,7 +8,8 @@ from .change_name_page import ChangeNamePage
 from .change_description_page import ChangeDescriptionPage
 from .select_user_filter_page import SelectUserFilterPage
 from .select_department_filter_page import SelectDepartmentFilterPage
-from modules.exec.brain_client import brain_client
+from models.Scene import Scene as SceneModel
+from models.Card import Card
 from tg.oms.common_pages import DatePickerPage, ContactPage
 from tg.scenes.edit.preview_page import PreviewPage
 from .files_page import FilesPage_view
@@ -35,10 +36,10 @@ class ViewTasksScene(Scene):
     ]
 
     # Привязываем функции для работы с БД
-    __insert_function__ = staticmethod(brain_client.insert_scene)
-    __load_function__ = staticmethod(brain_client.load_scene)
-    __update_function__ = staticmethod(brain_client.update_scene)
-    __delete_function__ = staticmethod(brain_client.delete_scene)
+    __insert_function__ = staticmethod(SceneModel.insert_scene)
+    __load_function__ = staticmethod(SceneModel.load_scene)
+    __update_function__ = staticmethod(SceneModel.update_scene)
+    __delete_function__ = staticmethod(SceneModel.delete_scene)
 
     async def get_card_data(self):
         """Получает данные задачи по её ID"""
@@ -46,8 +47,8 @@ class ViewTasksScene(Scene):
         if not task_id:
             return None
 
-        tasks = await brain_client.get_cards(card_id=task_id)
+        tasks = await Card.find(card_id=task_id)
         if not tasks:
             return None
 
-        return tasks[0]
+        return tasks[0].to_full_dict()

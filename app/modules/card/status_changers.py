@@ -1,5 +1,5 @@
 import asyncio
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from uuid import UUID as _UUID
 from database.connection import session_factory
 from modules.enums import UserRole
@@ -140,7 +140,8 @@ async def to_pass(
 
 async def to_edited(
           card: Optional[Card] = None,
-          card_id: Optional[_UUID] = None
+          card_id: Optional[_UUID] = None,
+          who_changed: Any = None
                   ):
     """ 1. Взятие / назаначение задачи
         Копирайтер взял задачу в работу с форума
@@ -225,7 +226,8 @@ async def to_edited(
 
 async def to_review(
           card: Optional[Card] = None,
-          card_id: Optional[_UUID] = None
+          card_id: Optional[_UUID] = None,
+          who_changed: Any = None
                   ):
     """ Отправка задания на редактирование 
 
@@ -343,7 +345,8 @@ async def to_review(
 
 async def to_ready(
           card: Optional[Card] = None,
-          card_id: Optional[_UUID] = None
+          card_id: Optional[_UUID] = None,
+          who_changed: Any = None
                   ):
     """ Завершение работы над задачей
 
@@ -473,7 +476,8 @@ async def to_ready(
 
 async def to_sent(
           card: Optional[Card] = None,
-          card_id: Optional[_UUID] = None
+          card_id: Optional[_UUID] = None,
+          who_changed: Any = None
                   ):
     """ Задача отправлена в каналы
 

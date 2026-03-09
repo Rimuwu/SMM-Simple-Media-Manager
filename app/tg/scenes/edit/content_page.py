@@ -1,5 +1,4 @@
 from modules.card import card_events
-from modules.exec import brain_client
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms.utils import callback_generator
 from aiogram.types import Message
@@ -250,8 +249,15 @@ class ContentSetterPage(TextTypeScene):
         # Определяем client_key в зависимости от режима
         client_key = None if self.content_mode == 'all' else self.content_mode
         
-        # Отправляем запрос на очистку контента
-        ok = await brain_client.clear_content(task_id, client_key)
+        from models.CardContent import CardContent
+        from uuid import UUID as _UUID
+        ok = True
+        try:
+            items = await CardContent.filter_by(card_id=_UUID(str(task_id)), **({'client_key': client_key} if client_key else {}))
+            for item in items:
+                await item.delete()
+        except Exception:
+            ok = False
         
         if ok:
             # Обновляем отображение

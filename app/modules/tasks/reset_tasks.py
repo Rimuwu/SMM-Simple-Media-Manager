@@ -32,7 +32,7 @@ async def check_and_create_monthly_reset_task():
     try:
         # Ищем существующую задачу сброса
         existing_tasks = await ScheduledTask.filter_by(
-            function_path="modules.notifications.reset_monthly_tasks"
+            function_path="modules.tasks.notifications.reset_monthly_tasks"
         )
         
         if existing_tasks:
@@ -45,7 +45,7 @@ async def check_and_create_monthly_reset_task():
         task = await ScheduledTask.create(
             task_id=uuid4(),
             card_id=None,
-            function_path="modules.notifications.reset_monthly_tasks",
+            function_path="modules.tasks.notifications.reset_monthly_tasks",
             arguments={},
             execute_at=next_month
         )
@@ -64,7 +64,7 @@ async def check_and_create_yearly_reset_task():
     try:
         # Ищем существующую задачу сброса
         existing_tasks = await ScheduledTask.filter_by(
-            function_path="modules.notifications.reset_yearly_tasks"
+            function_path="modules.tasks.notifications.reset_yearly_tasks"
         )
         
         if existing_tasks:
@@ -77,7 +77,7 @@ async def check_and_create_yearly_reset_task():
         task = await ScheduledTask.create(
             task_id=uuid4(),
             card_id=None,
-            function_path="modules.notifications.reset_yearly_tasks",
+            function_path="modules.tasks.notifications.reset_yearly_tasks",
             arguments={},
             execute_at=next_year
         )

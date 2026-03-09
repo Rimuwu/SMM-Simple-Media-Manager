@@ -12,7 +12,8 @@ from aiogram.types.bot_command import BotCommand
 from tg.oms import scene_manager
 from tg.scenes.view.view_tasks_scene import ViewTasksScene
 from tg.scenes.edit.task_scene import TaskScene
-from modules.exec.brain_client import brain_client
+from models.Card import Card
+from models.User import User
 from urllib.parse import unquote_plus
 import re
 from tg.filters.in_dm import InDMorWorkGroup
@@ -50,12 +51,12 @@ async def start_au(message: Message):
 
             if action and task_id:
                 # Получаем текущего пользователя из БД
-                user = await brain_client.get_user(telegram_id=message.from_user.id)
-                user_role = user.get('role') if user else None
-                user_internal_id = user.get('user_id') if user else None
+                user = await User.by_telegram(message.from_user.id)
+                user_role = user.role if user else None
+                user_internal_id = str(user.user_id) if user else None
 
                 # Получаем карточку
-                cards = await brain_client.get_cards(card_id=task_id)
+                cards = [c.to_dict() for c in await Card.find(card_id=task_id)]
                 if not cards:
                     await message.answer('❌ Задача не найдена или недоступна.')
                     handled = True
@@ -110,8 +111,9 @@ async def start_au(message: Message):
         "× *(Админ / Заказчик / Копирайтер)*\n"
         "`/create` - Для создания задач. Копирайтер может создать задачу только для себя.\n\n"
         "× *(Админ)*\n"
-        "`/users` - Создание и редактирование пользователей.\n\n"
-        "`/design_tasks` - Показать задачи для дизайнеров.\n\n"
+        "`/users` - Создание и редактирование пользователей.\n"
+        "`/design_tasks` - Показать задачи для дизайнеров.\n"
+        "`/tags` - Управление хештегами.\n\n"
         "× *(Любая роль)*\n"
         "`/tasks` - Для просмотра заказов, созданных задач или выбора задачи для работы.\n"
         "`/leaderboard` - Лидерборд выполненных задач.\n"

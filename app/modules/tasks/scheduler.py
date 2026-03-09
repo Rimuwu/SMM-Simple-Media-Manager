@@ -147,7 +147,7 @@ async def create_scheduled_task(
     Example:
         task = await create_scheduled_task(
             session=session,
-            function_path="modules.notifications.send_card_reminder",
+            function_path="modules.tasks.notifications.send_card_reminder",
             execute_at=datetime(2025, 11, 28, 10, 0, 0),
             card_id="uuid-string",
             message_type="reminder"
@@ -200,7 +200,7 @@ async def schedule_card_notifications(
     if two_days_before > now:
         task = ScheduledTask(
             card_id=card_uuid,
-            function_path="modules.notifications.send_card_deadline_reminder",
+            function_path="modules.tasks.notifications.send_card_deadline_reminder",
             execute_at=two_days_before,
             arguments={"card_id": str(card.card_id)}
         )
@@ -212,7 +212,7 @@ async def schedule_card_notifications(
     if one_day_before > now and time_until_deadline > 86400:  # 86400 секунд = 1 день
         task = ScheduledTask(
             card_id=card_uuid,
-            function_path="modules.notifications.send_admin_no_executor_alert",
+            function_path="modules.tasks.notifications.send_admin_no_executor_alert",
             execute_at=one_day_before,
             arguments={"card_id": str(card.card_id)}
         )
@@ -223,7 +223,7 @@ async def schedule_card_notifications(
     if card.deadline > now:
         task = ScheduledTask(
             card_id=card_uuid,
-            function_path="modules.notifications.send_forum_deadline_passed",
+            function_path="modules.tasks.notifications.send_forum_deadline_passed",
             execute_at=card.deadline,
             arguments={"card_id": str(card.card_id)}
         )
@@ -330,7 +330,7 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
         if card.send_time > now:
             send_task = ScheduledTask(
                 card_id=card_uuid,
-                function_path="modules.notifications.send_post_now",
+                function_path="modules.tasks.notifications.send_post_now",
                 execute_at=card.send_time,
                 arguments={
                     "card_id": str(card.card_id),
@@ -343,7 +343,7 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
             # Время уже прошло - отправляем сейчас
             send_task = ScheduledTask(
                 card_id=card_uuid,
-                function_path="modules.notifications.send_post_now",
+                function_path="modules.tasks.notifications.send_post_now",
                 execute_at=now + timedelta(seconds=5),
                 arguments={
                     "card_id": str(card.card_id),
@@ -358,7 +358,7 @@ async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
     finalize_time = (card.send_time if card.send_time > now else now) + timedelta(minutes=1)
     finalize_task = ScheduledTask(
         card_id=card_uuid,
-        function_path="modules.notifications.finalize_card_publication",
+        function_path="modules.tasks.notifications.finalize_card_publication",
         execute_at=finalize_time,
         arguments={"card_id": str(card.card_id)}
     )
@@ -391,8 +391,8 @@ async def cancel_post_tasks(session: AsyncSession, card_id: str) -> int:
     
     # Удаляем задачи публикации и финализации
     post_functions = [
-        "modules.notifications.send_post_now",
-        "modules.notifications.finalize_card_publication",
+        "modules.tasks.notifications.send_post_now",
+        "modules.tasks.notifications.finalize_card_publication",
     ]
     
     stmt = delete(ScheduledTask).where(
@@ -453,7 +453,7 @@ async def update_post_tasks_time(session: AsyncSession, card: Card, new_time: da
     
     # Обновляем время для задач публикации
     post_functions = [
-        "modules.notifications.send_post_now",
+        "modules.tasks.notifications.send_post_now",
     ]
     
     stmt = (
@@ -474,7 +474,7 @@ async def update_post_tasks_time(session: AsyncSession, card: Card, new_time: da
         update(ScheduledTask)
         .where(
             ScheduledTask.card_id == card_uuid,
-            ScheduledTask.function_path == "modules.notifications.finalize_card_publication"
+            ScheduledTask.function_path == "modules.tasks.notifications.finalize_card_publication"
         )
         .values(execute_at=finalize_time)
     )

@@ -388,7 +388,7 @@ async def append_logs_to_finalize_task(card_id: str, logs: list[dict] | None):
         async with session_factory() as session:
             stmt = select(ScheduledTask).where(
                 ScheduledTask.card_id == card_uuid,
-                ScheduledTask.function_path == "modules.notifications.finalize_card_publication"
+                ScheduledTask.function_path == "modules.tasks.notifications.finalize_card_publication"
             )
             res = await session.execute(stmt)
             task = res.scalars().first()
@@ -450,7 +450,7 @@ async def finalize_card_publication(card_id: str, **kwargs):
             async with session_factory() as session:
                 task = ScheduledTask(
                     card_id=card_uuid,
-                    function_path="modules.notifications.delete_sent_card",
+                    function_path="modules.tasks.notifications.delete_sent_card",
                     execute_at=delete_at,
                     arguments={"card_id": str(card.card_id)}
                 )

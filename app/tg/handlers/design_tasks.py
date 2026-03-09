@@ -2,9 +2,10 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command
+from models.Card import Card
+from models.User import User
 from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS
-from modules.exec.brain_client import brain_client, get_user_role
 from modules.logs import logger
 
 client_executor = manager.get("telegram_executor")
@@ -29,26 +30,26 @@ def _make_message_link(chat_id: int, message_id: int) -> str:
     return f"https://t.me/c/{cid}/{message_id}"
 
 
-def _format_deadline(task: dict) -> str:
-    dl = task.get('deadline')
+def _format_deadline(task: Card) -> str:
+    dl = task.deadline
     if not dl:
         return "—"
     try:
-        dt = datetime.fromisoformat(dl) if isinstance(dl, str) else dl
+        dt = dl if not isinstance(dl, str) else datetime.fromisoformat(dl)
         return dt.strftime('%d.%m')
     except Exception:
         return "—"
 
 
-async def _get_design_cards() -> list[dict]:
-    cards = await brain_client.get_cards()
+async def _get_design_cards() -> list[Card]:
+    cards = await Card.find()
     # выбираем только те карточки, которые уже были отправлены дизайнерам
-    return [c for c in cards if c.get('prompt_message')]
+    return [c for c in cards if c.prompt_message]
 
 
 async def _build_page(chat_id: int, page: int) -> tuple[str, InlineKeyboardMarkup | None]:
     cards = await _get_design_cards()
-    cards.sort(key=lambda x: x.get('deadline') or '')
+    cards.sort(key=lambda x: x.deadline or '')
     total = len(cards)
 
     if total == 0:
@@ -58,9 +59,9 @@ async def _build_page(chat_id: int, page: int) -> tuple[str, InlineKeyboardMarku
     end = min(start + TASKS_PER_PAGE, total)
     rows = []
     for idx, card in enumerate(cards[start:end], start=start + 1):
-        name = card.get('name', 'Без названия')
+        name = card.name or 'Без названия'
         dd = _format_deadline(card)
-        link = _make_message_link(DESIGN_GROUP, card['prompt_message'])
+        link = _make_message_link(DESIGN_GROUP, card.prompt_message)
         # Markdown-ссылка
         rows.append(f"{idx}. [{name} — до {dd}]({link})")
 

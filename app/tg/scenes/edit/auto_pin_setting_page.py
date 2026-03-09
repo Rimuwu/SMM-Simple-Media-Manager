@@ -1,7 +1,8 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
-from modules.exec import brain_client
+from models.Card import Card
+from uuid import UUID as _UUID
 
 
 class AutoPinSettingPage(Page):
@@ -23,7 +24,9 @@ class AutoPinSettingPage(Page):
                 await self.scene.update_key('client-settings', 'selected_client', selected_client)
 
         await self.scene.update_key(self.__page_name__, 'selected_client', selected_client)
-        await self.scene.update_key(self.__page_name__, 'currentsetting', '✅ Включён' if card.get('clients_settings', {}).get(selected_client, {}).get('auto_pin', False) else '❌ Выключен')
+        raw_pin = card.get('clients_settings', {}).get(selected_client, {}).get('auto_pin', False)
+        pin_enabled = raw_pin.get('enabled', False) if isinstance(raw_pin, dict) else bool(raw_pin)
+        await self.scene.update_key(self.__page_name__, 'currentsetting', '✅ Включён' if pin_enabled else '❌ Выключен')
 
     async def content_worker(self) -> str:
         selected_client = self.scene.data.get(self.__page_name__, {}).get('selected_client')
@@ -35,7 +38,8 @@ class AutoPinSettingPage(Page):
             return "❌ Карточка не найдена"
 
         clients_settings = card.get('clients_settings', {})
-        current = clients_settings.get(selected_client, {}).get('auto_pin', False)
+        raw_pin = clients_settings.get(selected_client, {}).get('auto_pin', False)
+        current = raw_pin.get('enabled', False) if isinstance(raw_pin, dict) else bool(raw_pin)
 
         status_text = '✅ Включён' if current else '❌ Выключен'
         return self.append_variables(
@@ -54,7 +58,8 @@ class AutoPinSettingPage(Page):
             return buttons
 
         clients_settings = card.get('clients_settings', {})
-        current = clients_settings.get(selected_client, {}).get('auto_pin', False)
+        raw_pin = clients_settings.get(selected_client, {}).get('auto_pin', False)
+        current = raw_pin.get('enabled', False) if isinstance(raw_pin, dict) else bool(raw_pin)
 
         buttons.append({
             'text': '🔛 Включить',
@@ -88,19 +93,13 @@ class AutoPinSettingPage(Page):
         if not task_id:
             return await callback.answer('❌ Задача не найдена')
 
-        result = await brain_client.set_client_settings(
-            card_id=task_id,
-            client_id=selected_client,
-            setting_type='auto_pin',
-            data={'enabled': enabled}
-        )
+        card = await Card.get_by_id(_UUID(str(task_id)))
+        if not card:
+            return await callback.answer('❌ Задача не найдена')
 
-        if result and result.get('status', 200) == 200:
-            await callback.answer('✅ Автозакреп обновлён')
-            await self.scene.update_message()
-        else:
-            err = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else 'Ошибка сервера'
-            await callback.answer(f'❌ Ошибка: {err}', show_alert=True)
+        await card.set_client_setting_type(selected_client, 'auto_pin', enabled)
+        await callback.answer('✅ Автозакреп обновлён')
+        await self.scene.update_message()
 
     @Page.on_callback('back')
     async def back(self, callback, args):

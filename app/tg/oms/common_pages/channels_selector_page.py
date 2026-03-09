@@ -1,6 +1,7 @@
 from tg.oms.models.option_page import OptionTypeScene
-from modules.constants import SETTINGS
+from modules.constants import CLIENTS
 from typing import Optional, Callable
+
 
 
 class ChannelsSelectorPage(OptionTypeScene):
@@ -18,8 +19,8 @@ class ChannelsSelectorPage(OptionTypeScene):
     async def data_preparate(self):
         # Устанавливаем опции из настроек
         self.options = {
-            key: client['name'] 
-            for key, client in SETTINGS['properties']['channels']['values'].items()
+            key: client['label']
+            for key, client in CLIENTS.items()
         }
 
         # Копируем значения из сцены в страницу при первой загрузке
@@ -39,9 +40,9 @@ class ChannelsSelectorPage(OptionTypeScene):
         if channels_list:
             channel_names = []
             for ch_key in channels_list:
-                ch_info = SETTINGS['properties']['channels']['values'].get(ch_key)
+                ch_info = CLIENTS.get(ch_key)
                 if ch_info:
-                    channel_names.append(ch_info['name'])
+                    channel_names.append(ch_info['label'])
                 else:
                     channel_names.append(ch_key)
             channels_text = ', '.join(channel_names)

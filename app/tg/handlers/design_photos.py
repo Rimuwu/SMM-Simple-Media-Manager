@@ -1,26 +1,31 @@
 from typing import Optional
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
+from models.Card import Card
+from models.CardFile import CardFile
+from models.User import User
+from uuid import UUID as _UUID
 from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS
 from modules.logs import logger
 from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension
-from modules.exec.brain_client import brain_client
+from modules.file_utils import convert_image_to_png
+from modules.exec import executor_bridge
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp  # type: ignore
 bot: Bot = client_executor.bot  # type: ignore
 
 
-async def find_card_by_reply(reply_message_id: int) -> Optional[dict]:
+async def find_card_by_reply(reply_message_id: int) -> Optional[Card]:
     """Ищет карточку по ID сообщения, на которое ответили"""
     try:
-        cards = await brain_client.get_cards()
+        cards = await Card.find()
         if not cards:
             return None
 
         for c in cards:
-            if isinstance(c, dict) and c.get('prompt_message') == reply_message_id:
+            if c.prompt_message == reply_message_id:
                 return c
         return None
     except Exception as e:
@@ -32,7 +37,7 @@ async def upload_image_for_card(card_id: str, file_data: bytes, file_name: str) 
     try:
         # Конвертируем картинку в PNG если нужно
         try:
-            converted = brain_client._convert_to_png(file_data)
+            converted = convert_image_to_png(file_data)
             file_data_to_upload = converted
             file_name = file_name.rsplit('.', 1)[0] + '.png' if '.' in file_name else file_name + '.png'
             content_type = 'image/png'
@@ -40,25 +45,28 @@ async def upload_image_for_card(card_id: str, file_data: bytes, file_name: str) 
             file_data_to_upload = file_data
             content_type = None
 
-        # Загружаем файл через brain-api
-        res = await brain_client.upload_file(
-            card_id=str(card_id), file_data=file_data_to_upload, 
+        # Загружаем файл напрямую через CardFile
+        res = await CardFile.upload(
+            card_id=str(card_id), file_data=file_data_to_upload,
             filename=file_name, content_type=content_type
             )
         if res:
             logger.info(f"Файл {file_name} загружен для задачи {card_id}")
 
-            cards = await brain_client.get_cards(card_id=card_id)
-            if not cards:
+            card = await Card.get_by_id(_UUID(str(card_id)))
+            if not card:
                 logger.error(f"Не удалось получить данные задачи {card_id} после загрузки файла.")
                 return False
-            card = cards[0]
 
-            # Уведомляем исполнителя через общий метод
-            notify_success = await brain_client.notify_executor(
-                card_id=card_id,
-                message=f"🖼 К вашей задаче \"{card['name']}\" добавлено новое изображение от дизайнеров!"
-            )
+            # Уведомляем исполнителя напрямую
+            notify_success = False
+            if card.executor_id:
+                executor = await User.get_by_id(card.executor_id)
+                if executor:
+                    notify_success = await executor_bridge.notify_user(
+                        executor.telegram_id,
+                        f"🖼 К вашей задаче \"{card.name}\" добавлено новое изображение от дизайнеров!"
+                    )
 
             if notify_success:
                 logger.info(f"Уведомление отправлено исполнителю задачи {card_id}")

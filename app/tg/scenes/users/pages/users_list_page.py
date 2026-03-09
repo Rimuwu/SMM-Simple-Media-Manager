@@ -1,5 +1,5 @@
 from tg.oms.common_pages.user_selector_page import UserSelectorPage
-from modules.exec.brain_client import brain_client
+from models.User import User
 from tg.oms.utils import callback_generator
 from tg.scenes.constants import DEPARTMENT_NAMES, ROLE_NAMES, ROLE_ICONS
 
@@ -22,8 +22,8 @@ class UsersListPage(UserSelectorPage):
         filter_role = self.scene.data['scene'].get('users_filter_role')
         filter_department = self.scene.data['scene'].get('users_filter_department')
 
-        # Получаем всех пользователей через brain_client — фильтрацию выполняет базовый класс `UserSelectorPage`
-        users = await brain_client.get_users()
+        # Получаем всех пользователей — фильтрацию выполняет базовый класс `UserSelectorPage`
+        users = [u.to_dict() for u in await User.get_all()]
 
         self.users_data = users or []
 

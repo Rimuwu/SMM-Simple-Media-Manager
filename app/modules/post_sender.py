@@ -14,7 +14,9 @@ from aiogram.types import (
     Message
 )
 from modules.entities_sender import get_entities_for_client, send_poll_preview
-from modules.exec.brain_client import brain_client
+from uuid import UUID as _UUID
+from models.CardFile import CardFile
+from modules.storage import download_file as _storage_download_file
 from modules.post_generator import generate_post, render_post_from_card
 from modules.logs import logger
 
@@ -76,19 +78,17 @@ async def download_files(file_ids: list[str]) -> list[dict]:
         try:
             file_id = str(file_ref)
 
-            file_data, status = await brain_client.download_file(file_id)
+            cf = await CardFile.get_by_id(_UUID(file_id))
+            if not cf:
+                logger.warning(f"File record not found: {file_id}")
+                continue
+
+            file_data, status = await _storage_download_file(cf.filename)
             if status == 200 and isinstance(file_data, (bytes, bytearray)):
-                file_info = await brain_client.get_file_info(file_id)
-                file_name = None
-
-                if isinstance(file_info, dict):
-                    file_name = file_info.get('original_filename') or file_info.get('name') or file_info.get('filename')
-                file_name = file_name or file_id
-
+                file_name = cf.original_filename or cf.filename
                 media_type = detect_media_type(file_data, file_name)
-                downloaded_files.append({'id': file_id, 'data': file_data, 'name': file_name, 
-                                         'type': media_type, 'hide': file_info.get('hide', False)
-                                         })
+                downloaded_files.append({'id': file_id, 'data': file_data, 'name': file_name,
+                                         'type': media_type, 'hide': cf.hide})
                 logger.info(f"Downloaded file '{file_name}' ({len(file_data)} bytes, type: {media_type})")
             else:
                 logger.warning(f"Failed to download file {file_ref}: status={status}")
@@ -345,23 +345,17 @@ async def prepare_and_send_preview(
         ]
         for file_id in files_to_download:
             try:
-                file_data, status = await brain_client.download_file(file_id)
+                cf = await CardFile.get_by_id(_UUID(str(file_id)))
+                if not cf:
+                    logger.error(f"File record not found: {file_id}")
+                    continue
+
+                file_data, status = await _storage_download_file(cf.filename)
                 if status == 200 and isinstance(file_data, (bytes, bytearray)):
-                    file_info = await brain_client.get_file_info(file_id)
-                    file_name = None
-                    if isinstance(file_info, dict):
-                        file_name = file_info.get('original_filename') or file_info.get('name')
-
-                    file_name = file_name or str(file_id)
+                    file_name = cf.original_filename or cf.filename
                     media_type = detect_media_type(file_data, file_name)
-
-                    image_data = await brain_client.get_file_info(file_id)
-                    hide = False
-                    if isinstance(image_data, dict):
-                        hide = image_data.get('hide', False)
-
-                    media_files.append({'data': file_data, 'name': file_name, 'type': media_type, 
-                                        'hide': hide})
+                    media_files.append({'data': file_data, 'name': file_name, 'type': media_type,
+                                        'hide': cf.hide})
                 else:
                     logger.error(f"Failed to download file {file_id}: status={status}")
             except Exception as e:
@@ -392,6 +386,129 @@ async def prepare_and_send_preview(
 # High-level helpers
 # ---------------------------------------------------------------------------
 
+async def _send_post_tg(
+    executor,
+    client_id: str,
+    text: str,
+    files: list,
+    entities: list,
+    settings: dict,
+) -> dict:
+    """Отправка поста через TelegramExecutor."""
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+    # Строим reply_markup из entities типа inline_keyboard
+    reply_markup = None
+    keyboard_buttons = []
+    for entity in entities:
+        if entity.get('type') == 'inline_keyboard':
+            row = []
+            for btn in entity.get('data', {}).get('buttons', []):
+                if btn.get('text') and btn.get('url'):
+                    row.append(InlineKeyboardButton(text=btn['text'], url=btn['url']))
+            if row:
+                keyboard_buttons.append(row)
+    if keyboard_buttons:
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+    chat_id = str(client_id)
+    message_ids: list[int] = []
+    result: dict = {}
+
+    if not files:
+        result = await executor.send_message(
+            chat_id=chat_id, text=text, parse_mode='HTML', reply_markup=reply_markup
+        )
+        if result.get('success'):
+            message_ids = [result['message_id']]
+
+    elif len(files) == 1:
+        f = files[0]
+        if f.get('type') == 'video':
+            result = await executor.send_video(
+                chat_id=chat_id, video=f['data'], caption=text, parse_mode='HTML',
+                has_spoiler=f.get('hide', False), reply_markup=reply_markup
+            )
+        else:
+            result = await executor.send_photo(
+                chat_id=chat_id, photo=f['data'], caption=text, parse_mode='HTML',
+                has_spoiler=f.get('hide', False), reply_markup=reply_markup
+            )
+        if result.get('success'):
+            message_ids = [result['message_id']]
+
+    else:
+        result = await executor.send_media_group(
+            chat_id=chat_id, media=files, caption=text, parse_mode='HTML'
+        )
+        if result.get('success'):
+            message_ids = result.get('message_ids', [result.get('message_id')])
+            if reply_markup:
+                km = await executor.send_message(
+                    chat_id=chat_id, text='🔗', reply_markup=reply_markup
+                )
+                if km.get('success'):
+                    message_ids.append(km['message_id'])
+
+    if not result.get('success'):
+        return result
+
+    # Опросы и прочие entities
+    for entity in entities:
+        if entity.get('type') == 'poll':
+            from modules.entities_sender import send_poll_preview
+            poll_result = await send_poll_preview(
+                bot=executor.bot,
+                chat_id=int(client_id),
+                entity_data=entity.get('data', {})
+            )
+            if poll_result.get('success') and poll_result.get('message_id'):
+                message_ids.append(poll_result['message_id'])
+
+    return {'success': True, 'message_ids': message_ids}
+
+
+async def _send_post_vk(
+    executor,
+    text: str,
+    files: list,
+    settings: dict,
+) -> dict:
+    """Отправка поста через VKExecutor."""
+    import tempfile
+    import os
+
+    attachments: list[str] = []
+    for f in files:
+        file_data = f.get('data')
+        file_name = f.get('name', 'file')
+        file_type = f.get('type', 'photo')
+        if not isinstance(file_data, (bytes, bytearray)):
+            continue
+        suffix = os.path.splitext(file_name)[1] or ('.mp4' if file_type == 'video' else '.jpg')
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(file_data)
+            tmp_path = tmp.name
+        try:
+            if file_type == 'video':
+                upload_result = await executor.upload_video_to_wall(tmp_path)
+            else:
+                upload_result = await executor.upload_photo_to_wall(tmp_path)
+            if upload_result.get('success'):
+                attachments.append(upload_result['attachment'])
+            else:
+                logger.warning(f"VK file upload failed: {upload_result.get('error')}")
+        finally:
+            os.unlink(tmp_path)
+
+    primary_attachments_mode = settings.get('primary_attachments_mode', 'grid')
+    return await executor.create_wall_post(
+        text=text,
+        attachments=attachments or None,
+        primary_attachments_mode=primary_attachments_mode
+    )
+
+
 async def send_post(
     card_id: str,
     client_key: str,
@@ -403,49 +520,59 @@ async def send_post(
 ) -> dict:
     """Универсальная обёртка для немедленной отправки поста через исполнителя.
 
-    Если ``content`` или ``tags`` не переданы, функция самостятеьно подгрузит
-    карточку из базы и извлечёт нужные данные (поведение использовалось в
-    тестовом хэндлере ``tg/handlers/test.py``).
-
-    Текст генерируется внутри при помощи :func:`modules.post_generator.generate_post`,
-    файлы скачиваются с помощью :func:`download_files`.
-    Затем отправка делегируется в :func:`modules.exec.executor_bridge.send_post`.
+    Если ``content`` или ``tags`` не переданы, функция самостоятельно подгрузит
+    карточку из базы. Текст генерируется через :func:`modules.post_generator.generate_post`,
+    файлы скачиваются через :func:`download_files`.
+    Отправка производится напрямую через методы нужного executor-а.
     """
-    # импорт здесь, чтобы избежать циклических ссылок при загрузке модуля
     from modules.exec import executor_bridge
     from modules.post_generator import generate_post, render_post_from_card
+    from modules.constants import CLIENTS
 
-    # Если caller не передал явно содержание, или захотел
-    # упрощённо воспользоваться карточкой, просто загрузим её
     if content is None or tags is None:
-        from modules.exec.brain_client import get_cards
-
-        cards = await get_cards(card_id=card_id)
+        from models.Card import Card
+        cards = await Card.find(card_id=card_id)
         if cards:
-            card = cards[0]
+            card = cards[0].to_full_dict()
         else:
             return {"success": False, "error": "Card not found"}
     else:
-        # если контент и теги заданы, можно обойтись без загрузки
         card = None
 
-    # генерируем текст
     if card is not None:
         text = await render_post_from_card(card, client_key)
     else:
-        content = content or ''
-        tags = tags or []
-        text = await generate_post(content, tags, client_key)
+        text = await generate_post(content or '', tags or [], client_key)
 
-    # скачиваем файлы при необходимости
     files = await download_files(post_images or [])
 
-    # делегируем отправку
-    return await executor_bridge.send_post(
-        card_id=card_id,
-        client_key=client_key,
-        text=text,
-        files=files,
-        settings=settings,
-        entities=entities,
-    )
+    client_config = CLIENTS.get(client_key)
+    if not client_config:
+        return {"success": False, "error": f"Client {client_key} not found"}
+
+    executor_name = client_config.get("executor_name") or client_config.get("executor")
+    client_id = client_config.get("client_id")
+
+    manager = executor_bridge.get_manager()
+    if not manager:
+        return {"success": False, "error": "ExecutorManager not initialized"}
+
+    executor = manager.get(executor_name)
+    if not executor:
+        return {"success": False, "error": f"Executor {executor_name} not found"}
+
+    try:
+        from tg.main import TelegramExecutor
+        from vk.main import VKExecutor
+
+        if isinstance(executor, TelegramExecutor):
+            return await _send_post_tg(
+                executor, str(client_id), text, files, entities or [], settings or {}
+            )
+        elif isinstance(executor, VKExecutor):
+            return await _send_post_vk(executor, text, files, settings or {})
+        else:
+            return {"success": False, "error": f"Unknown executor type: {type(executor)}"}
+    except Exception as e:
+        logger.error(f"Ошибка при отправке поста: {e}", exc_info=True)
+        return {"success": False, "error": str(e)}

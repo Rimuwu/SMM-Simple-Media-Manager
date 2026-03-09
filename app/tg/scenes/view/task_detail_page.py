@@ -1,7 +1,9 @@
 from modules.utils import get_user_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from models.Card import Card
+from models.User import User
+from modules.card import card_service
 from modules.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
@@ -18,19 +20,14 @@ class TaskDetailPage(Page):
     async def data_preparate(self) -> None:
         # Загружаем детальную информацию о задаче
         role = self.scene.data['scene'].get('user_role')
-        self.user = {}
+        self.user = None
 
-        if role is None:
-            telegram_id = self.scene.user_id
-            user = await brain_client.get_user(telegram_id=telegram_id)
-            if user:
-                self.user = user
-                await self.scene.update_key('scene', 'user_role', user.get('role'))
-        else:
-            telegram_id = self.scene.user_id
-            user = await brain_client.get_user(telegram_id=telegram_id)
-            if user:
-                self.user = user
+        telegram_id = self.scene.user_id
+        user = await User.by_telegram(telegram_id)
+        if user:
+            self.user = user
+            if role is None:
+                await self.scene.update_key('scene', 'user_role', user.role)
 
         await self.load_task_details()
 
@@ -43,72 +40,67 @@ class TaskDetailPage(Page):
             return
 
         # Получаем информацию о задаче
-        tasks = await brain_client.get_cards(card_id=task_id)
+        tasks = await Card.find(card_id=task_id)
         if not tasks:
             return
-        
+
         task = tasks[0]
 
         # Форматируем исполнителя
-        executor_id = task.get('executor_id')
+        executor_id = task.executor_id
         executor_name = 'Не назначен'
         if executor_id:
-            user_data = await brain_client.get_user(user_id=executor_id)
+            user_data = await User.get_by_id(_UUID(str(executor_id)))
             if user_data:
                 executor_name = get_user_display_name(user_data)
 
         # Форматируем заказчика
-        customer_id = task.get('customer_id')
+        customer_id = task.customer_id
         customer_name = 'Не указан'
         if customer_id:
-            user_data = await brain_client.get_user(user_id=customer_id)
+            user_data = await User.get_by_id(_UUID(str(customer_id)))
             if user_data:
                 customer_name = get_user_display_name(user_data)
+
         # Форматируем редактора
-        editor_id = task.get('editor_id')
+        editor_id = task.editor_id
         editor_name = 'Не указан'
         if editor_id:
-            user_data = await brain_client.get_user(user_id=editor_id)
+            user_data = await User.get_by_id(_UUID(str(editor_id)))
             if user_data:
                 editor_name = get_user_display_name(user_data)
 
         # Форматируем дедлайн
-        deadline = task.get('deadline')
+        deadline = task.deadline
         if deadline:
             try:
-                deadline_dt = datetime.fromisoformat(deadline)
-                deadline_str = deadline_dt.strftime('%d.%m.%Y %H:%M')
+                deadline_str = deadline.strftime('%d.%m.%Y %H:%M')
             except:
-                deadline_str = deadline
+                deadline_str = str(deadline)
         else:
             deadline_str = 'Не установлен'
 
         # Форматируем даты отправки
-        send_time = task.get('send_time')
+        send_time = task.send_time
         if send_time:
             try:
-                send_time_dt = datetime.fromisoformat(send_time)
-                send_time_str = send_time_dt.strftime('%d.%m.%Y %H:%M')
+                send_time_str = send_time.strftime('%d.%m.%Y %H:%M')
             except:
-                send_time_str = send_time
+                send_time_str = str(send_time)
         else:
             send_time_str = 'Не установлено'
-        
+
         # Форматируем каналы
-        channels_str = format_channels(task.get('clients', []))
+        channels_str = format_channels(task.clients or [])
 
         # Форматируем теги (асинхронно, с учетом порядка)
-        tags_str = await format_tags(task.get('tags', []))
+        tags_str = await format_tags(task.tags or [])
 
+        task_status_val = task.status.value if hasattr(task.status, 'value') else task.status
         add_vars = {
-            'task_name': task.get(
-                'name', 'Без названия'),
-            'task_description': task.get(
-                'description', 'Нет описания'),
-            'status': CARD_STATUS_NAMES.get(
-                task.get('status'), 
-                task.get('status', 'Неизвестно')
-                ),
+            'task_name': task.name or 'Без названия',
+            'task_description': task.description or 'Нет описания',
+            'status': CARD_STATUS_NAMES.get(task_status_val, task_status_val or 'Неизвестно'),
             'executor': executor_name,
             'customer': customer_name,
             'editor': editor_name,
@@ -118,7 +110,7 @@ class TaskDetailPage(Page):
             'send_time': send_time_str
         }
 
-        await self.scene.update_key('scene', 'current_task_data', task)
+        await self.scene.update_key('scene', 'current_task_data', task.to_dict())
 
         self.content = self.append_variables(**add_vars)
         self.content = self.content.replace('None', '➖')
@@ -135,7 +127,7 @@ class TaskDetailPage(Page):
 
         role = self.scene.data['scene'].get('user_role')
         editor_id = current_task.get('editor_id')
-        user_id = self.user.get('user_id', 0)
+        user_id = str(self.user.user_id) if self.user else None
 
         is_editor = current_task.get('editor_id', 0) == user_id
         is_executor = current_task.get('executor_id', 0) == user_id
@@ -289,14 +281,13 @@ class TaskDetailPage(Page):
             if not card_id:
                 return
 
-            user_id = self.user.get('user_id', 0)
+            user_id = str(self.user.user_id) if self.user else None
             if not user_id:
-                user = await brain_client.get_user(telegram_id=self.scene.user_id)
+                user = await User.by_telegram(self.scene.user_id)
                 if not user:
                     await callback.answer("Ошибка при получении данных пользователя.", show_alert=True)
                     return
-
-                user_id = user.get('user_id', 0)
+                user_id = str(user.user_id)
 
             res = await card_events.on_editor(new_editor_id=_UUID(str(user_id)), card_id=_UUID(str(card_id)))
 
@@ -316,13 +307,9 @@ class TaskDetailPage(Page):
             card_id = task.get('card_id')
 
             # Возвращаем в статус edited (В работе)
-            res = await brain_client.change_card_status(
-                card_id=card_id,
-                status=CardStatus.edited
-            )
+            res = await card_service.change_card_status(card_id=card_id, status=CardStatus.edited)
 
             if res is not None:
-
                 await callback.answer("Задача возвращена в работу.", show_alert=True)
                 await self.load_task_details()
                 await self.scene.update_page('task-detail')
@@ -335,14 +322,11 @@ class TaskDetailPage(Page):
 
             card_id = task.get('card_id')
             
-            result = await brain_client.send_now(card_id)
-            status = result.get('status', 200) if isinstance(result, dict) else 500
-            
-            if status == 200:
+            card_obj = await Card.get_by_id(_UUID(str(card_id)))
+            if card_obj and card_obj.status == CardStatus.ready:
+                await card_obj.schedule_immediate()
                 await callback.answer("🚀 Задача отправлена на публикацию!", show_alert=True)
                 await self.load_task_details()
                 await self.scene.update_page('task-detail')
-
             else:
-                error_detail = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else str(result)
-                await callback.answer(f"Ошибка: {error_detail}", show_alert=True)
+                await callback.answer("Ошибка: задача не найдена или не в статусе 'готово'.", show_alert=True)

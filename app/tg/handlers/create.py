@@ -1,6 +1,6 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
-from modules.exec import brain_client
+from models.User import User
 from modules.exec.executors_manager import manager
 from aiogram import F
 from aiogram.filters import Command
@@ -47,7 +47,7 @@ async def cmd_create_copywriter(message: Message):
     if n_s:
         await n_s.end()
     
-    user = await brain_client.get_user(telegram_id=message.from_user.id)
+    user = await User.by_telegram(message.from_user.id)
     if not user:
         await message.answer("❌ Ошибка: пользователь не найден в базе данных.")
         return
@@ -58,7 +58,7 @@ async def cmd_create_copywriter(message: Message):
         bot
     )
     sc.data['scene']['copywriter_selfcreate'] = True
-    sc.data['scene']['user'] = user['user_id']
+    sc.data['scene']['user'] = str(user.user_id)
     sc.data['scene']['type'] = 'private'
 
     await sc.start()
@@ -69,7 +69,7 @@ async def cmd_create_editor(message: Message):
     if n_s:
         await n_s.end()
     
-    user = await brain_client.get_user(telegram_id=message.from_user.id)
+    user = await User.by_telegram(message.from_user.id)
     if not user:
         await message.answer("❌ Ошибка: пользователь не найден в базе данных.")
         return
@@ -80,7 +80,7 @@ async def cmd_create_editor(message: Message):
         bot
     )
     sc.data['scene']['copywriter_selfcreate'] = True
-    sc.data['scene']['user'] = user['user_id']
+    sc.data['scene']['user'] = str(user.user_id)
     sc.data['scene']['type'] = 'private'
 
     await sc.start()

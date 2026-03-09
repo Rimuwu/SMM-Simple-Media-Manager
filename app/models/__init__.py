@@ -5,7 +5,6 @@ from .Scene import Scene
 from .Tag import Tag
 from .ScheduledTask import ScheduledTask
 from .CardContent import CardContent
-from .CardEditorNote import CardEditorNote
 from .ClientSetting import ClientSetting
 from .Entity import Entity
 # from .Message import Message
@@ -20,7 +19,7 @@ __all__ = [
     "Card", "CardStatus",
     "Tag",
     "ScheduledTask", "TaskStatus",
-    "CardContent", "CardEditorNote", "ClientSetting", "Entity",
+    "CardContent", "ClientSetting", "Entity",
     # "Message", "MessageType",
     # "Automation", "AutomationTypes", "Preset"
 ]

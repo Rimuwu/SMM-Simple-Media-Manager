@@ -6,7 +6,9 @@ from html import escape
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from models.Card import Card
+from models.User import User
+from uuid import UUID as _UUID
 from modules.constants import SETTINGS
 
 
@@ -110,7 +112,9 @@ class ImagePromptPage(Page):
         # Сохраняем в БД
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            await brain_client.update_card(task_id, image_prompt=text)
+            card_obj = await Card.get_by_id(_UUID(str(task_id)))
+            if card_obj:
+                await card_obj.update(image_prompt=text)
         
         await self.scene.update_message()
     
@@ -146,21 +150,15 @@ class ImagePromptPage(Page):
         # Получаем имена исполнителя и заказчика
         executor_name = "Не назначен"
         if card.get('executor_id'):
-            executor_users = await brain_client.get_users(user_id=card['executor_id'])
-            if executor_users and isinstance(executor_users[0], dict):
-                executor_name = await get_display_name(
-                    executor_users[0]['telegram_id'], 
-                    self.scene.__bot__
-                )
+            executor_user = await User.get_by_id(_UUID(str(card['executor_id'])))
+            if executor_user:
+                executor_name = await get_display_name(executor_user.telegram_id, self.scene.__bot__)
 
         customer_name = "Не указан"
         if card.get('customer_id'):
-            customer_users = await brain_client.get_users(user_id=card['customer_id'])
-            if customer_users and isinstance(customer_users[0], dict):
-                customer_name = await get_display_name(
-                    customer_users[0]['telegram_id'], 
-                    self.scene.__bot__
-                )
+            customer_user = await User.get_by_id(_UUID(str(card['customer_id'])))
+            if customer_user:
+                customer_name = await get_display_name(customer_user.telegram_id, self.scene.__bot__)
 
         # Формируем сообщение (HTML)
         message_text = (
@@ -195,7 +193,9 @@ class ImagePromptPage(Page):
             
             # Сохраняем ID сообщения
             task_id = self.scene.data['scene'].get('task_id')
-            await brain_client.update_card(task_id, prompt_message=sent_message.message_id)
+            pmsg_obj = await Card.get_by_id(_UUID(str(task_id))) if task_id else None
+            if pmsg_obj:
+                await pmsg_obj.update(prompt_message=sent_message.message_id)
 
             await self.scene.update_key('scene', 'prompt_sent', True)
             await callback.answer("✅ Сообщение отправлено дизайнерам", show_alert=True)

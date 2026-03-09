@@ -1,7 +1,7 @@
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from models.User import User
 
 
 class EditNamePage(TextTypeScene):
@@ -52,7 +52,9 @@ class EditNamePage(TextTypeScene):
         edit_mode = self.scene.data['scene'].get('edit_mode')
         if edit_mode:
             user_id = self.scene.data['scene'].get('selected_user')
-            await brain_client.update_user(user_id, name=name_text)
+            u = await User.get_by_key("telegram_id", user_id)
+            if u:
+                await u.update(name=name_text)
             await self.scene.update_key('scene', 'edit_mode', False)
             await self.scene.update_page('user-detail')
             await callback.answer("✅ Имя обновлено")

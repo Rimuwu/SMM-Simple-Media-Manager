@@ -1,7 +1,9 @@
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec import brain_client
+from models.Entity import Entity
+from uuid import UUID as _UUID
+from datetime import datetime
 
 
 class PollCreatePage(TextTypeScene):
@@ -481,7 +483,14 @@ class PollCreatePage(TextTypeScene):
                 'name': payload.get('name')
             }
 
-            result = await brain_client.update_entity(entity_id=entity_id, data=up_payload['data'])
+            ent = await Entity.get_by_id(_UUID(str(entity_id)))
+            result = None
+            if ent:
+                updated = ent.data.copy() if ent.data else {}
+                updated.update(up_payload['data'])
+                updated['updated_at'] = datetime.now().isoformat()
+                await ent.update(data=updated)
+                result = ent.to_dict()
             if result:
                 # Очистим режим редактирования
                 await self.scene.update_key(self.__page_name__, 'data', {})
@@ -493,11 +502,10 @@ class PollCreatePage(TextTypeScene):
             return
 
         # Создание новой сущности
-        result = await brain_client.add_entity(
-            card_id=task_id, client_id=selected_client,
-            entity_type='poll',
-            data=payload['data'],
-            name=payload['name']
+        result = await Entity.create(
+            card_id=_UUID(str(task_id)), client_key=selected_client,
+            type='poll',
+            data=payload['data']
         )
         if result:
             await self.scene.update_key(self.__page_name__, 'data', {})

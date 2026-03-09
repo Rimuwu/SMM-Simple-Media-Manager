@@ -1,4 +1,5 @@
-from modules.exec import brain_client
+from models.Card import Card
+from uuid import UUID as _UUID
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
@@ -44,7 +45,8 @@ class ImageViewSettingPage(Page):
             return "❌ Карточка не найдена"
         
         clients_settings = card.get('clients_settings', {})
-        current_setting = clients_settings.get(selected_client, {}).get('image_view', 'grid')
+        raw_view = clients_settings.get(selected_client, {}).get('image_view', 'grid')
+        current_setting = raw_view.get('type', 'grid') if isinstance(raw_view, dict) else (raw_view or 'grid')
         
         # Формируем описание
         if current_setting == 'grid':
@@ -75,8 +77,8 @@ class ImageViewSettingPage(Page):
             return buttons
 
         clients_settings = card.get('clients_settings', {})
-        print(clients_settings)
-        current_setting = clients_settings.get(selected_client, {}).get('image_view', 'grid')
+        raw_view = clients_settings.get(selected_client, {}).get('image_view', 'grid')
+        current_setting = raw_view.get('type', 'grid') if isinstance(raw_view, dict) else (raw_view or 'grid')
         
         # Кнопки выбора типа отображения
         buttons.append({
@@ -119,18 +121,12 @@ class ImageViewSettingPage(Page):
             return
         
         # Отправляем запрос на обновление настройки
-        result = await brain_client.set_client_settings(
-            card_id=task_id, client_id=selected_client,
-            setting_type='image_view',
-            data={'type': view_type}
-        )
+        card_obj = await Card.get_by_id(_UUID(str(task_id)))
+        if not card_obj:
+            await callback.answer("❌ Задача не найдена")
+            return
 
-        if result and result.get('status', 200) == 200:
-            view_name = "сетка" if view_type == 'grid' else "карусель"
-            await callback.answer(f"✅ Настройка изменена: {view_name}")
-
-            # Обновляем отображение
-            await self.scene.update_message()
-        else:
-            error_msg = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else 'Ошибка сервера'
-            await callback.answer(f"❌ Ошибка: {error_msg}")
+        await card_obj.set_client_setting_type(selected_client, 'image_view', view_type)
+        view_name = "сетка" if view_type == 'grid' else "карусель"
+        await callback.answer(f"✅ Настройка изменена: {view_name}")
+        await self.scene.update_message()

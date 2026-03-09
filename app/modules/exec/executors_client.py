@@ -122,18 +122,19 @@ async def notify_user(user_id: int, message: str) -> bool:
 
 async def notify_users(user_ids, message: str, action: str = None) -> None:
     """Send notifications to multiple users. Accepts telegram_id (int) or user_id (UUID)."""
-    from modules.exec.brain_client import get_user as _get_user
+    from models.User import User
+
+    user_ids = list(set(user_ids))
+
     for uid in user_ids:
         if uid is None:
             continue
         try:
             # UUID — ищем telegram_id
             if isinstance(uid, _UUID) or (isinstance(uid, str) and '-' in str(uid)):
-                user = await _get_user(user_id=_UUID(str(uid)))
-                if user:
-                    telegram_id = user.get('telegram_id')
-                    if telegram_id:
-                        await notify_user(telegram_id, message)
+                users = await User.find(user_id=_UUID(str(uid)))
+                if users and users[0].telegram_id:
+                    await notify_user(users[0].telegram_id, message)
             else:
                 await notify_user(int(uid), message)
         except Exception as e:

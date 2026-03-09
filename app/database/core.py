@@ -13,7 +13,6 @@ from models import User
 from models.Tag import Tag
 from models.Card import Card
 from models.CardContent import CardContent
-from models.CardEditorNote import CardEditorNote
 from models.ClientSetting import ClientSetting
 from models.Entity import Entity
 from models.CardFile import CardFile

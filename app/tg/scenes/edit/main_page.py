@@ -1,7 +1,9 @@
 from datetime import datetime
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from models.Card import Card
+from models.User import User
+from uuid import UUID as _UUID
 from modules.enums import CardStatus
 from modules.logs import logger
 from tg.scenes.constants import CARD_STATUS_NAMES, format_channels, format_tags
@@ -17,7 +19,7 @@ class MainPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
 
         if task_id:
-            cards = await brain_client.get_cards(card_id=task_id)
+            cards = [c.to_full_dict() for c in await Card.find(card_id=task_id)]
             if cards:
                 card = cards[0]
 
@@ -46,16 +48,6 @@ class MainPage(Page):
                 # Форматируем статус
                 status = CARD_STATUS_NAMES.get(card.get('status'), card.get('status', 'Неизвестно'))
 
-                # Если статус "Отправлено", закрываем сцену
-                # if card.get('status') == CardStatus.sent.value:
-                #     logger.info(f"Сцена редактирования задачи {task_id} закрыта для пользователя {self.scene.user_id} (статус 'Отправлено')")
-                #     await self.scene.bot.send_message(
-                #         chat_id=self.scene.user_id,
-                #         text="🚀 Задача была отправлена и закрыта для редактирования."
-                #     )
-                #     # await self.scene.end()
-                #     return
-                
                 # Форматируем контент для отображения
                 content = card.get('content', 'Не указан')
                 if content and content != 'Не указан':
@@ -63,10 +55,6 @@ class MainPage(Page):
                     content_block = f'Текущий контент:\n```\n{content_display}\n```'
                 else:
                     content_block = 'Контент пока не указан'
-                
-                # Проверяем наличие комментариев
-                editor_notes = card.get('editor_notes', [])
-                has_notes = len(editor_notes) > 0
                 
                 # Обновляем все данные сцены одним вызовом
                 self.scene.data['scene'].update({
@@ -81,9 +69,7 @@ class MainPage(Page):
                     'content': content,
                     'content_block': content_block,
                     'clients_list': channels,
-                    'tags_list': tags,
-                    'has_notes': has_notes,
-                    'notes_count': len(editor_notes)
+                    'tags_list': tags
                 })
                 self._card_status_cache = card.get('status')
                 await self.scene.save_to_db()
@@ -96,12 +82,12 @@ class MainPage(Page):
         if status:
             user_role = self._card_role_cache
             if user_role is None:
-                user_role = await brain_client.get_user_role(self.scene.user_id)
+                user_role = await User.role_for(self.scene.user_id)
                 self._card_role_cache = user_role
 
             # Если статус "На проверке" или "Готов" и роль "копирайтер" - оставляем только комментарии и превью
             if status in [CardStatus.review.value, CardStatus.ready.value] and user_role == 'copywriter':
-                allowed_pages = ['editor-notes', 'post-preview']
+                allowed_pages = ['post-preview']
                 return {k: v for k, v in to_page_buttons.items() if k in allowed_pages}
 
             if status == CardStatus.sent.value and user_role == 'copywriter':

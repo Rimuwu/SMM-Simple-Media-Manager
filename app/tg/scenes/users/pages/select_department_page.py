@@ -2,7 +2,7 @@ from tg.oms.models.radio_page import RadioTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.enums import Department
-from modules.exec.brain_client import brain_client
+from models.User import User
 from tg.scenes.constants import DEPARTMENT_NAMES
 
 class SelectDepartmentPage(RadioTypeScene):
@@ -44,7 +44,10 @@ class SelectDepartmentPage(RadioTypeScene):
         edit_mode = self.scene.data['scene'].get('edit_mode')
         if edit_mode:
             user_id = self.scene.data['scene'].get('selected_user')
-            await brain_client.update_user(user_id, department=department)
+            u = await User.get_by_key("telegram_id", user_id)
+            if u:
+                dept_val = department.value if hasattr(department, 'value') else department
+                await u.update(department=dept_val)
 
             await self.scene.update_key('scene', 
                                         'edit_mode', False)

@@ -5,8 +5,8 @@ from typing import Optional, Callable
 async def _get_tags_options() -> dict:
     """Загружает теги из БД, при отсутствии — из settings.json."""
 
-    from modules.exec.brain_client import get_tags
-    db_tags = await get_tags()
+    from models.Tag import Tag
+    db_tags = [t.to_dict() for t in await Tag.all_sorted()]
 
     return {t['key']: t['name'] for t in db_tags}
 

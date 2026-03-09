@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from modules.card import card_service
 from modules.logs import logger
 
 
@@ -54,17 +54,16 @@ class DeleteConfirmPage(Page):
 
         logger.info(f"Пользователь {self.scene.user_id} подтвердил удаление задачи {card_id}")
 
-        result = await brain_client.delete_card(card_id)
-        status = result.get('status', 200) if isinstance(result, dict) else 200
+        result = await card_service.destroy_card(card_id)
+        success = result if isinstance(result, bool) else result.get('status', 500) == 200
 
-        if status == 200:
+        if success:
             logger.info(f"Задача {card_id} успешно удалена пользователем {self.scene.user_id}")
             await self.scene.update_key('scene', 'selected_task', None)
             await self.scene.update_key('scene', 'current_task_data', None)
             await self.scene.update_page('task-list')
             await callback.answer("🗑️ Задача успешно удалена.", show_alert=True)
         else:
-            error_detail = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else str(result)
-            logger.error(f"Ошибка при удалении задачи {card_id}: {error_detail}")
-            await callback.answer(f"Ошибка при удалении: {error_detail}", show_alert=True)
+            logger.error(f"Ошибка при удалении задачи {card_id}")
+            await callback.answer("Ошибка при удалении", show_alert=True)
             await self.scene.update_page('task-detail')

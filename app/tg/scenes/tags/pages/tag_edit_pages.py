@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from models.Tag import Tag
 
 
 # Поля, которые редактируются как текст
@@ -34,7 +34,9 @@ class TagEditTextPage(Page):
         value = value.strip().lstrip('#')
         tag_key = self.scene.data['scene'].get('selected_tag')
         field = self.scene.data['scene'].get('edit_field', 'name')
-        await brain_client.update_tag(tag_key, **{field: value})
+        t = await Tag.get_by_key("key", tag_key)
+        if t:
+            await t.update(**{field: value})
         await self.scene.update_page('tag-detail')
 
     @Page.on_callback('tag-detail')
@@ -72,13 +74,17 @@ class TagEditIntPage(Page):
         tag_key = self.scene.data['scene'].get('selected_tag')
         field = self.scene.data['scene'].get('edit_field', 'order')
         update_val = value if value != 0 or field == 'order' else None
-        await brain_client.update_tag(tag_key, **{field: update_val})
+        t = await Tag.get_by_key("key", tag_key)
+        if t:
+            await t.update(**{field: update_val})
         await self.scene.update_page('tag-detail')
 
     @Page.on_callback('clear-ftt')
     async def on_clear_ftt(self, callback, args):
         tag_key = self.scene.data['scene'].get('selected_tag')
-        await brain_client.update_tag(tag_key, forward_to_topic=None)
+        t = await Tag.get_by_key("key", tag_key)
+        if t:
+            await t.update(forward_to_topic=None)
         await callback.answer("✅ Топик убран")
         await self.scene.update_page('tag-detail')
 

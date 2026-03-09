@@ -17,3 +17,9 @@ class Tag(Base, AsyncCRUDMixin):
 
     def __repr__(self) -> str:
         return f"<Tag(key='{self.key}', name='{self.name}')>"
+
+    @classmethod
+    async def all_sorted(cls) -> "list[Tag]":
+        """Все теги, отсортированные по полю ``order``."""
+        tags = await cls.get_all()
+        return sorted(tags, key=lambda t: t.order)

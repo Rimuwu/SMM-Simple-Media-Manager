@@ -1,7 +1,7 @@
 from typing import Union
 from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
-from modules.exec.brain_client import get_users
+from models.User import User
 
 class Authorize(BaseFilter):
 
@@ -20,5 +20,5 @@ class Authorize(BaseFilter):
                 telegram_id = var.from_user.id
             else: return False
 
-        users = await get_users(telegram_id=telegram_id)
+        users = await User.find(telegram_id=telegram_id)
         return len(users) > 0

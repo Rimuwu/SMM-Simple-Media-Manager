@@ -2,7 +2,10 @@ from datetime import datetime
 from modules.utils import get_display_name
 from tg.oms.utils import callback_generator
 from tg.oms import Page
-from modules.exec.brain_client import brain_client
+from models.User import User
+from models.CardFile import CardFile
+from modules.card import card_service
+from uuid import UUID as _UUID
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from tg.scenes.constants import format_channels, format_tags
 
@@ -84,12 +87,12 @@ class FinishPage(Page):
         if user_id:
             # Получаем информацию о пользователе
 
-            users = await brain_client.get_users(user_id=str(user_id))
+            users = await User.find(user_id=_UUID(str(user_id)))
 
             if users:
                 user_data = users[0]
                 display_name = await get_display_name(
-                    user_data['telegram_id'],
+                    user_data.telegram_id,
                     self.scene.__bot__
                 )
                 add_vars['user'] = display_name
@@ -137,23 +140,23 @@ class FinishPage(Page):
             data['type'] = 'private'
 
         # Получаем customer_id (заказчик - текущий пользователь)
-        customers = await brain_client.get_users(telegram_id=self.scene.user_id)
-        customer_id = customers[0]['user_id'] if customers else None
+        customers = await User.find(telegram_id=self.scene.user_id)
+        customer_id = customers[0].user_id if customers else None
 
         # Получаем executor_id
         executor_id = None
         user_value = self.scene.data['scene'].get('user')
         if user_value:
             try:
-                executors = await brain_client.get_users(user_id=str(user_value))
+                executors = await User.find(user_id=_UUID(str(user_value)))
                 if executors:
-                    executor_id = executors[0]['user_id']
+                    executor_id = executors[0].user_id
                     print(f"Найден исполнитель по user_id {user_value}: {executor_id}")
             except Exception as e:
                 print(f"Ошибка получения исполнителя: {e}")
 
         try:
-            res = await brain_client.create_card(
+            res = await card_service.create_card(
                 title=data['name'],
                 description=data['description'],
                 deadline=data['publish_date'],
@@ -167,21 +170,17 @@ class FinishPage(Page):
                 customer_id=customer_id
             )
 
-            if res and 'card_id' in res:
-                card_id = res['card_id']
+            if res:
+                card_id = str(res.card_id)
                 files = data.get('files', [])
                 uploaded_count = 0
 
                 if files:
-                    upload_res = await brain_client.upload_files_to_card(
+                    uploaded_count = await CardFile.upload_many(
                         card_id=str(card_id),
                         files=files,
                         bot=self.scene.__bot__
                     )
-                    if upload_res:
-                        uploaded_count += 1
-                    else:
-                        print(f"Ошибка загрузки файлов к карточке {card_id}: {upload_res}")
 
                 await self.scene.end()
 
@@ -208,10 +207,9 @@ class FinishPage(Page):
             await self.scene.update_message()
 
             # Сообщаем пользователю об ошибке
-            err_text = res.get('error') if isinstance(res, dict) else None
             await self.scene.__bot__.send_message(
                 self.scene.user_id,
-                f'❌ Произошла ошибка при создании задачи: {err_text or "Неизвестная ошибка"}'
+                f'❌ Произошла ошибка при создании задачи: Неизвестная ошибка'
             )
 
         except Exception as e:

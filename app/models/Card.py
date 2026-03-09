@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, List
 if TYPE_CHECKING:
     from models.User import User
     from models.CardContent import CardContent
-    from models.CardEditorNote import CardEditorNote
     from models.ClientSetting import ClientSetting
     from models.Entity import Entity
     from models.CardMessage import CardMessage
@@ -68,17 +67,15 @@ class Card(Base, AsyncCRUDMixin):
 
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # Замена JSON-поля `editor_notes` отдельной таблицей `card_editor_notes`
-    editor_notes_entries: Mapped[list["CardEditorNote"]] = relationship(
-        "CardEditorNote", back_populates="card", cascade="all, delete-orphan")
-
     # Настройки по клиентам. Перенесены в `client_settings`
     clients_settings_entries: Mapped[list["ClientSetting"]] = relationship(
-        "ClientSetting", back_populates="card", cascade="all, delete-orphan")
+        "ClientSetting", back_populates="card", cascade="all, delete-orphan",
+        lazy="selectin")
 
     # Ентити для по клиентам. Перенесены в `entities`
     entities_entries: Mapped[list["Entity"]] = relationship(
-        "Entity", back_populates="card", cascade="all, delete-orphan")
+        "Entity", back_populates="card", cascade="all, delete-orphan",
+        lazy="selectin")
 
     # Файлы карточки
     files: Mapped[list["CardFile"]] = relationship(
@@ -100,6 +97,96 @@ class Card(Base, AsyncCRUDMixin):
     def __repr__(self) -> str:
         return f"<Card(id={self.card_id}, name='{self.name}', status='{self.status}')>"
 
+    # ── Классовые методы-запросы ─────────────────────────────────────────────
+
+    @classmethod
+    async def find(
+        cls,
+        card_id=None,
+        task_id=None,
+        status=None,
+        customer_id=None,
+        executor_id=None,
+        need_check=None,
+    ) -> "list[Card]":
+        """Найти карточки по произвольному набору фильтров.
+
+        Все параметры опциональны; без параметров возвращает все карточки.
+        Загружает связанные ``contents`` одним запросом (selectinload).
+        """
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from database.connection import session_factory
+
+        async with session_factory() as session:
+            query = select(cls).options(selectinload(cls.contents))
+            if task_id is not None:
+                query = query.where(cls.task_id == int(task_id))
+            if card_id is not None:
+                try:
+                    query = query.where(cls.card_id == _UUID(str(card_id)))
+                except Exception:
+                    return []
+            if status is not None:
+                query = query.where(cls.status == status)
+            if customer_id is not None:
+                query = query.where(cls.customer_id == _UUID(str(customer_id)))
+            if executor_id is not None:
+                query = query.where(cls.executor_id == _UUID(str(executor_id)))
+            if need_check is not None:
+                query = query.where(cls.need_check == need_check)
+            result = await session.execute(query)
+            return list(result.scalars().all())
+
+    @classmethod
+    async def by_message_id(cls, message_id: int) -> "Optional[Card]":
+        """Найти карточку по ID сообщения форума или превью."""
+        from models.CardMessage import CardMessage
+
+        messages = await CardMessage.filter_by(message_id=message_id)
+        if not messages:
+            return None
+        return await cls.get_by_id(_UUID(str(messages[0].card_id)))
+
+    @classmethod
+    async def busy_slots(
+        cls, start: Optional[str] = None, end: Optional[str] = None
+    ) -> list[dict]:
+        """Список занятых временных слотов вида ``{card_id, send_time}``."""
+        from sqlalchemy import select
+        from database.connection import session_factory
+
+        async with session_factory() as session:
+            stmt = select(cls.card_id, cls.send_time).where(cls.send_time.isnot(None))
+            if start:
+                stmt = stmt.where(cls.send_time >= datetime.fromisoformat(start))
+            if end:
+                stmt = stmt.where(cls.send_time <= datetime.fromisoformat(end))
+            result = await session.execute(stmt)
+            return [
+                {"card_id": str(cid), "send_time": st.isoformat()}
+                for cid, st in result.all()
+                if st
+            ]
+
+    async def schedule_immediate(self) -> "Card":
+        """Запланировать немедленную отправку (now + 5 секунд)."""
+        from modules.timezone import now_naive as moscow_now
+        from datetime import timedelta
+
+        await self.update(send_time=moscow_now() + timedelta(seconds=5))
+        return self
+
+    def to_full_dict(self) -> dict:
+        """Расширенный ``to_dict`` — включает виртуальные свойства ``content`` и ``clients_settings``.
+
+        Используйте вместо ``to_dict()`` там, где нужен полный контент карточки.
+        """
+        result = self.to_dict()
+        result["content"] = self.content
+        result["clients_settings"] = self.clients_settings
+        return result
+
     @property
     def content(self) -> dict:
         """Compatibility property: возвращает словарь client_key->text"""
@@ -111,12 +198,6 @@ class Card(Base, AsyncCRUDMixin):
             if key not in latest or created > latest[key][1]:
                 latest[key] = (c.text, created)
         return {k: v[0] for k, v in latest.items()}
-
-    @property
-    def editor_notes(self) -> list:
-        items = getattr(self, 'editor_notes_entries', []) or []
-        items_sorted = sorted(items, key=lambda n: getattr(n, 'created_at', datetime.min))
-        return [n.to_dict() for n in items_sorted]
 
     @property
     def clients_settings(self) -> dict:
@@ -147,16 +228,6 @@ class Card(Base, AsyncCRUDMixin):
         from models.CardContent import CardContent
         return await CardContent.create(session=session, card_id=self.card_id, text=text, client_key=client_key)
 
-    async def get_editor_notes(self, session: Optional["AsyncSession"] = None):
-        from models.CardEditorNote import CardEditorNote
-        notes = await CardEditorNote.filter_by(session=session, card_id=self.card_id)
-        notes.sort(key=lambda n: getattr(n, 'created_at', datetime.min))
-        return notes
-
-    async def add_editor_note(self, author: Optional[str], content: str, session: Optional["AsyncSession"] = None):
-        from models.CardEditorNote import CardEditorNote
-        return await CardEditorNote.create(session=session, card_id=self.card_id, author=author, content=content)
-
     async def get_clients_settings(self, session: Optional["AsyncSession"] = None, client_key: Optional[str] = None):
         from models.ClientSetting import ClientSetting
         filters: dict[str, object] = {"card_id": self.card_id}
@@ -182,6 +253,18 @@ class Card(Base, AsyncCRUDMixin):
                 session=session, card_id=self.card_id, client_key=client_key, data=data, type=type
             )
         return obj
+
+    async def set_client_setting_type(self, client_key: str, setting_type: str, data: dict, session: Optional["AsyncSession"] = None):
+        """Обновить один ключ setting_type внутри ClientSetting, сохраняя остальные ключи."""
+        from models.ClientSetting import ClientSetting
+        results = await ClientSetting.filter_by(session=session, card_id=self.card_id, client_key=client_key)
+        if results:
+            obj = results[0]
+            existing = obj.data.copy() if obj.data else {}
+            existing[setting_type] = data
+            await obj.update(session=session, data=existing)
+            return obj
+        return await ClientSetting.create(session=session, card_id=self.card_id, client_key=client_key, data={setting_type: data})
 
     async def get_entities(self, session: Optional["AsyncSession"] = None, client_key: Optional[str] = None):
         from models.Entity import Entity

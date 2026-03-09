@@ -1,5 +1,6 @@
 from tg.oms.common_pages import TagsSelectorPage
-from modules.exec.brain_client import brain_client
+from models.Card import Card
+from uuid import UUID as _UUID
 
 
 class TagsSetterPage(TagsSelectorPage):
@@ -16,10 +17,8 @@ class TagsSetterPage(TagsSelectorPage):
         if not task_id:
             return False
 
-        # Обновляем карточку
-        success = await brain_client.update_card(
-            card_id=task_id,
-            tags=tags_list
-        )
-
-        return success is not None
+        card = await Card.get_by_id(_UUID(str(task_id)))
+        if card:
+            await card.update(tags=tags_list)
+            return True
+        return False

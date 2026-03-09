@@ -78,3 +78,63 @@ class CardFile(Base, AsyncCRUDMixin):
 
     def __repr__(self) -> str:
         return f"<CardFile(id={self.id}, filename='{self.filename}', original='{self.original_filename}')>"
+
+    # ── Классовые методы ─────────────────────────────────────────────────────
+
+    @classmethod
+    async def for_card(cls, card_id: str) -> "list[CardFile]":
+        """Все файлы карточки, отсортированные по полю ``order``."""
+        files = await cls.filter_by(card_id=_UUID(str(card_id)))
+        return sorted(files, key=lambda f: f.order)
+
+    @classmethod
+    async def upload(
+        cls,
+        card_id: str,
+        file_data: bytes,
+        filename: str,
+        content_type: Optional[str] = None,
+    ) -> "Optional[CardFile]":
+        """Загрузить файл в хранилище и создать запись в БД."""
+        from modules.storage import upload_file as _up
+
+        result = await _up(file_data, filename, content_type)
+        if result.get("status") != "success":
+            return None
+        return await cls.create(
+            card_id=_UUID(str(card_id)),
+            filename=result["filename"],
+            original_filename=filename,
+            size=len(file_data),
+            data_info={"content_type": content_type or ""},
+            order=0,
+        )
+
+    @classmethod
+    async def upload_many(cls, card_id: str, files: list[dict], bot) -> int:
+        """Загрузить несколько файлов из Telegram к карточке.
+
+        Returns:
+            Количество успешно загруженных файлов.
+        """
+        from modules.file_utils import download_telegram_file
+
+        uploaded = 0
+        for file_info in files:
+            file_id = file_info.get("file_id")
+            if not file_id:
+                continue
+            try:
+                file_data = await download_telegram_file(bot, file_id)
+                if not file_data:
+                    continue
+                result = await cls.upload(
+                    card_id=card_id,
+                    file_data=file_data,
+                    filename=file_info.get("name", "file"),
+                )
+                if result:
+                    uploaded += 1
+            except Exception as e:
+                print(f"CardFile.upload_many error for {file_info.get('name')}: {e}")
+        return uploaded

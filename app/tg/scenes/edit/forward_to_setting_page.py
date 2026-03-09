@@ -1,7 +1,30 @@
-from modules.exec import brain_client
+from models.Card import Card
+from uuid import UUID as _UUID
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
+
+
+def _get_forward_list(clients_settings: dict, selected_client: str) -> list:
+    """Нормализует legacy-вложенные структуры, возвращая плоский список forward_to."""
+    cur = clients_settings.get(selected_client, {})
+    val = cur.get('forward_to', [])
+    if isinstance(val, dict):
+        val = val.get('forward_to', [])
+        if isinstance(val, dict):
+            val = val.get('forward_to', [])
+    return val if isinstance(val, list) else []
+
+
+def _get_only_main(clients_settings: dict, selected_client: str) -> bool:
+    """Нормализует legacy-вложенные структуры, возвращая флаг only_main_message."""
+    cur = clients_settings.get(selected_client, {})
+    if 'only_main_message' in cur:
+        return bool(cur['only_main_message'])
+    fwd = cur.get('forward_to', {})
+    if isinstance(fwd, dict):
+        return bool(fwd.get('only_main_message', True))
+    return True
 
 
 class ForwardToSettingPage(Page):
@@ -33,7 +56,7 @@ class ForwardToSettingPage(Page):
             return "❌ Карточка не найдена"
 
         clients_settings = card.get('clients_settings', {})
-        current = clients_settings.get(selected_client, {}).get('forward_to', []) or []
+        current = _get_forward_list(clients_settings, selected_client)
 
         if not current:
             return f"↪️ Репосты: нет целевых каналов\n\nВыберите каналы, в которые будет репоститься пост из текущего клиента ({selected_client})."
@@ -59,7 +82,7 @@ class ForwardToSettingPage(Page):
         options = [k for k, v in (CLIENTS or {}).items() if (v.get('executor_name') or v.get('executor')) == 'telegram_executor' and k != selected_client]
 
         clients_settings = card.get('clients_settings', {})
-        current = clients_settings.get(selected_client, {}).get('forward_to', []) or []
+        current = _get_forward_list(clients_settings, selected_client)
 
         for k in options:
             label = CLIENTS.get(k, {}).get('label', k)
@@ -69,7 +92,7 @@ class ForwardToSettingPage(Page):
             })
 
         # only_main_message toggle
-        only_main = clients_settings.get(selected_client, {}).get('only_main_message', True)
+        only_main = _get_only_main(clients_settings, selected_client)
         buttons.append({
             'text': ('🎯 Только главное сообщение' + (' ✅' if only_main else ' ❌')),
             'callback_data': callback_generator(self.scene.__scene_name__, 'toggle_only_main')
@@ -93,34 +116,24 @@ class ForwardToSettingPage(Page):
             return await callback.answer('❌ Карточка не найдена')
 
         clients_settings = card.get('clients_settings', {})
-        cur = clients_settings.get(selected_client, {})
-        forward_list = cur.get('forward_to', []) or []
+        forward_list = _get_forward_list(clients_settings, selected_client)
 
         if tgt in forward_list:
             forward_list = [c for c in forward_list if c != tgt]
         else:
-            forward_list.append(tgt)
+            forward_list = forward_list + [tgt]
 
-        # Сохраняем через brain-api (сохраняем текущее значение only_main_message если есть)
         task_id = self.scene.data['scene'].get('task_id')
         if not task_id:
             return await callback.answer('❌ Задача не найдена')
 
-        # берем текущее значение only_main_message из настроек (если есть)
-        only_main = cur.get('only_main_message', True)
+        card_obj = await Card.get_by_id(_UUID(str(task_id)))
+        if not card_obj:
+            return await callback.answer('❌ Задача не найдена')
 
-        result = await brain_client.set_client_settings(
-            card_id=task_id, client_id=selected_client,
-            setting_type='forward_to',
-            data={'forward_to': forward_list, 'only_main_message': only_main}
-        )
-
-        if result and result.get('status', 200) == 200:
-            await callback.answer('✅ Настройка сохранена')
-            await self.scene.update_message()
-        else:
-            err = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else 'Ошибка сервера'
-            await callback.answer(f'❌ Ошибка: {err}', show_alert=True)
+        await card_obj.set_client_setting_type(selected_client, 'forward_to', forward_list)
+        await callback.answer('✅ Настройка сохранена')
+        await self.scene.update_message()
 
     @Page.on_callback('toggle_only_main')
     async def toggle_only_main(self, callback, args):
@@ -134,29 +147,20 @@ class ForwardToSettingPage(Page):
             return await callback.answer('❌ Карточка не найдена')
 
         clients_settings = card.get('clients_settings', {})
-        cur = clients_settings.get(selected_client, {})
-        only_main = cur.get('only_main_message', True)
-        new_val = not bool(only_main)
-
-        # keep existing forward_to list
-        forward_list = cur.get('forward_to', []) or []
+        only_main = _get_only_main(clients_settings, selected_client)
+        new_val = not only_main
 
         task_id = self.scene.data['scene'].get('task_id')
         if not task_id:
             return await callback.answer('❌ Задача не найдена')
 
-        result = await brain_client.set_client_settings(
-            card_id=task_id, client_id=selected_client,
-            setting_type='forward_to',
-            data={'forward_to': forward_list, 'only_main_message': new_val}
-        )
+        card_obj2 = await Card.get_by_id(_UUID(str(task_id)))
+        if not card_obj2:
+            return await callback.answer('❌ Задача не найдена')
 
-        if result and result.get('status', 200) == 200:
-            await callback.answer('✅ Настройка сохранена')
-            await self.scene.update_message()
-        else:
-            err = result.get('detail', 'Неизвестная ошибка') if isinstance(result, dict) else 'Ошибка сервера'
-            await callback.answer(f'❌ Ошибка: {err}', show_alert=True)
+        await card_obj2.set_client_setting_type(selected_client, 'only_main_message', new_val)
+        await callback.answer('✅ Настройка сохранена')
+        await self.scene.update_message()
 
     @Page.on_callback('back')
     async def back(self, callback, args):

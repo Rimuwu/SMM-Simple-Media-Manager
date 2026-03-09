@@ -8,7 +8,7 @@ from .pages.edit_name_page import EditNamePage
 from .pages.edit_about_page import EditAboutPage
 from .pages.filter_users_by_role_page import FilterUsersByRolePage
 from .pages.filter_users_by_department_page import FilterUsersByDepartmentPage
-from modules.exec.brain_client import brain_client
+from models.Scene import Scene as SceneModel
 
 class UsersScene(Scene):
     __scene_name__ = 'users'
@@ -25,7 +25,7 @@ class UsersScene(Scene):
     ]
 
 
-    __insert_function__ = staticmethod(brain_client.insert_scene)
-    __load_function__ = staticmethod(brain_client.load_scene)
-    __update_function__ = staticmethod(brain_client.update_scene)
-    __delete_function__ = staticmethod(brain_client.delete_scene)
+    __insert_function__ = staticmethod(SceneModel.insert_scene)
+    __load_function__ = staticmethod(SceneModel.load_scene)
+    __update_function__ = staticmethod(SceneModel.update_scene)
+    __delete_function__ = staticmethod(SceneModel.delete_scene)

@@ -43,14 +43,16 @@ async def get_display_name(
     return f"user_{telegram_id}"
 
 
-def get_user_display_name(user: dict) -> str:
-    """Получить отображаемое имя пользователя из словаря данных БД."""
+def get_user_display_name(user) -> str:
+    """Получить отображаемое имя пользователя из модели или словаря данных БД."""
     if not user:
         return "Неизвестный"
-    name = user.get('name')
+    # Поддерживает как модель User (атрибуты), так и dict (get)
+    name = user.name if hasattr(user, "name") else user.get("name")
     if name:
         return name
-    return f"user_{user.get('telegram_id', '?')}"
+    tid = user.telegram_id if hasattr(user, "telegram_id") else user.get("telegram_id", "?")
+    return f"user_{tid}"
 
 
 
@@ -59,23 +61,22 @@ _tags_cache: dict[str, dict] | None = None
 
 
 async def get_tags_map(refresh: bool = False) -> dict[str, dict]:
-    """Возвращает карту тегов, загруженную из БД.
+    """Возвращает карту тегов ``{key: record}``, загруженную из БД.
 
-    При первом вызове загружает теги через ``brain_client.get_tags`` и сохраняет
-    результат в ``_tags_cache``. Если ``refresh`` установлен, принудительно
-    выполняется повторная загрузка.
+    При первом вызове загружает теги через модель ``Tag`` и кэширует результат.
+    Если ``refresh=True``, выполняется повторная загрузка.
     """
     global _tags_cache
     if _tags_cache is not None and not refresh:
         return _tags_cache
 
-    from modules.exec.brain_client import get_tags
+    from models.Tag import Tag
     try:
-        tags_list = await get_tags()
+        tags_list = await Tag.all_sorted()
     except Exception:
         tags_list = []
 
-    _tags_cache = {t['key']: t for t in tags_list}
+    _tags_cache = {t.key: {"key": t.key, "name": t.name, "tag": t.tag, "order": t.order} for t in tags_list}
     return _tags_cache
 
 

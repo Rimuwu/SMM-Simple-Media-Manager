@@ -1,7 +1,9 @@
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec import brain_client
+from models.Entity import Entity
+from uuid import UUID as _UUID
+from datetime import datetime
 
 
 class KeyboardCreatePage(TextTypeScene):
@@ -68,7 +70,7 @@ class KeyboardCreatePage(TextTypeScene):
             if idx is not None and 0 <= idx < len(buttons):
                 current = buttons[idx].get('url', '')
                 style = buttons[idx].get('style') or 'Без стиля'
-                return f"🔗 *Редактирование URL кнопки {idx + 1}*\n\nТекущая ссылка: {current}\nТекущий стиль: {style}\n\nВведите новую ссылку: {text_input}"
+                return f"🔗 *Редактирование URL кнопки {idx + 1}*\n\nТекущая ссылка: `{current}`\nТекущий стиль: {style}\n\nВведите новую ссылку: `{text_input}`"
             return "❌ Кнопка не найдена"
 
         elif edit_mode == 'button_style':
@@ -97,7 +99,7 @@ class KeyboardCreatePage(TextTypeScene):
                 text = btn.get('text', 'Без текста')
                 url = btn.get('url', 'Без ссылки')
                 style = btn.get('style') or 'Без стиля'
-                content += f"{i+1}. {text} → {url} ({style})\n"
+                content += f"{i+1}. {text} → `{url}` ({style})\n"
         else:
             content += "Нет кнопок"
         
@@ -402,7 +404,14 @@ class KeyboardCreatePage(TextTypeScene):
                 'name': payload.get('name')
             }
 
-            result = await brain_client.update_entity(entity_id=entity_id, data=up_payload['data'])
+            ent = await Entity.get_by_id(_UUID(str(entity_id)))
+            result = None
+            if ent:
+                updated = ent.data.copy() if ent.data else {}
+                updated.update(up_payload['data'])
+                updated['updated_at'] = datetime.now().isoformat()
+                await ent.update(data=updated)
+                result = ent.to_dict()
             if result:
                 await self.scene.update_key(self.__page_name__, 'data', {})
                 await self.scene.update_key(self.__page_name__, 'entity_id', None)
@@ -413,11 +422,10 @@ class KeyboardCreatePage(TextTypeScene):
             return
 
         # Создание новой сущности
-        result = await brain_client.add_entity(
-            card_id=task_id, client_id=selected_client,
-            entity_type='inline_keyboard',
-            data=payload['data'],
-            name=payload['name']
+        result = await Entity.create(
+            card_id=_UUID(str(task_id)), client_key=selected_client,
+            type='inline_keyboard',
+            data=payload['data']
         )
         if result:
             await self.scene.update_key(self.__page_name__, 'data', {})

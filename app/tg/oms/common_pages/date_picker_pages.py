@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec import brain_client
+from models.Card import Card
 from datetime import datetime, timedelta
 import calendar
  
@@ -44,8 +44,6 @@ class DatePickerPage(Page):
         # Логируем режим проверки занятости при входе на страницу
         picker_meta = self.scene.data.get('scene', {}).get('date_picker', {}) if isinstance(getattr(self.scene, 'data', None), dict) else {}
         check_busy = picker_meta.get('check_busy_slots', True)
-        state = 'ВКЛ' if check_busy else 'ВЫКЛ'
-        print(f"[date-picker] Проверять занятость слотов: {state}")
 
         return await super().page_enter(**kwargs)
 
@@ -81,7 +79,7 @@ class DatePickerPage(Page):
 
                 busy = set()
                 if check_busy:
-                    slots = await brain_client.get_busy_slots(start=first_day.isoformat(), end=last_day.isoformat())
+                    slots = await Card.busy_slots(start=first_day.isoformat(), end=last_day.isoformat())
                     for item in (slots or []):
                         try:
                             busy_dt = datetime.fromisoformat(item['send_time'])
@@ -105,7 +103,7 @@ class DatePickerPage(Page):
                 end = datetime(day_dt.year, day_dt.month, day_dt.day, 23, 59, 59)
                 busy_day = set()
                 if check_busy:
-                    slots2 = await brain_client.get_busy_slots(start=start.isoformat(), end=end.isoformat())
+                    slots2 = await Card.busy_slots(start=start.isoformat(), end=end.isoformat())
                     for item in (slots2 or []):
                         try:
                             busy_dt = datetime.fromisoformat(item['send_time'])
@@ -125,7 +123,7 @@ class DatePickerPage(Page):
                 end_h = datetime(day_dt.year, day_dt.month, day_dt.day, hour_sel, 59, 59)
                 busy_minutes = set()
                 if check_busy:
-                    slots3 = await brain_client.get_busy_slots(start=start_h.isoformat(), end=end_h.isoformat())
+                    slots3 = await Card.busy_slots(start=start_h.isoformat(), end=end_h.isoformat())
                     for item in (slots3 or []):
                         try:
                             busy_dt = datetime.fromisoformat(item['send_time'])

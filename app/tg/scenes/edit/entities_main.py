@@ -1,7 +1,8 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
-from modules.exec import brain_client
+from models.Entity import Entity
+from uuid import UUID as _UUID
 
 
 class EntitiesMainPage(Page):
@@ -40,7 +41,7 @@ class EntitiesMainPage(Page):
         if not task_id:
             return '❌ Задача не найдена'
         
-        entities = await brain_client.get_entities(card_id=task_id, client_id=self.selected_client)
+        entities = [e.to_dict() for e in await Entity.filter_by(card_id=_UUID(str(task_id)), client_key=self.selected_client)]
 
         types = {
             'poll': 'Опрос',
@@ -102,7 +103,7 @@ class EntitiesMainPage(Page):
 
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            entities = await brain_client.get_entities(card_id=task_id, client_id=self.selected_client)
+            entities = [e.to_dict() for e in await Entity.filter_by(card_id=_UUID(str(task_id)), client_key=self.selected_client)]
             if entities:
                 for e in entities:
                     eid = e.get('id')
@@ -174,7 +175,11 @@ class EntitiesMainPage(Page):
             await callback.answer('❌ Задача не найдена')
             return
         
-        ok = await brain_client.delete_entity_by_id(eid)
+        ent = await Entity.get_by_id(_UUID(str(eid)))
+        ok = False
+        if ent:
+            await ent.delete()
+            ok = True
         
         if ok:
             await callback.answer('✅ Удалено')

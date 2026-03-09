@@ -4,7 +4,7 @@ from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.exceptions import TelegramBadRequest
 from modules.exec.executors_manager import manager
-from modules.exec.brain_client import get_users
+from models.User import User
 from modules.logs import logger
 from tg.filters.authorize import Authorize
 from modules.utils import get_user_display_name
@@ -21,7 +21,7 @@ async def get_leaderboard_text(period: str = 'all') -> str:
     """
     try:
         # Получаем всех пользователей
-        users = await get_users()
+        users = [u.to_dict() for u in await User.get_all()]
         
         if not users:
             return "❌ Не удалось загрузить данные лидерборда."

@@ -1,6 +1,7 @@
 from tg.oms.models.option_page import OptionTypeScene
-from modules.constants import SETTINGS
-from modules.exec.brain_client import brain_client
+from modules.constants import CLIENTS
+from models.Card import Card
+from uuid import UUID as _UUID
 
 class ChannelsSettingsPage(OptionTypeScene):
 
@@ -10,10 +11,10 @@ class ChannelsSettingsPage(OptionTypeScene):
     async def data_preparate(self):
         # Устанавливаем опции из настроек
         self.options = {
-            key: client['name'] 
-            for key, client in SETTINGS['properties']['channels']['values'].items()
+            key: client['label']
+            for key, client in CLIENTS.items()
         }
-        
+
         # Копируем значения из сцены в страницу при первой загрузке
         clients_list = self.scene.data['scene'].get('clients_list', [])
         self.default_values = clients_list
@@ -31,9 +32,9 @@ class ChannelsSettingsPage(OptionTypeScene):
         if clients_list:
             channel_names = []
             for channel_key in clients_list:
-                channel_info = SETTINGS['properties']['channels']['values'].get(channel_key)
+                channel_info = CLIENTS.get(channel_key)
                 if channel_info:
-                    channel_names.append(channel_info['name'])
+                    channel_names.append(channel_info['label'])
                 else:
                     channel_names.append(channel_key)
             channels_text = ', '.join(channel_names)
@@ -53,18 +54,17 @@ class ChannelsSettingsPage(OptionTypeScene):
         # Обновляем карточку
         task_id = self.scene.data['scene'].get('task_id')
         if task_id:
-            await brain_client.update_card(
-                card_id=task_id,
-                clients=clients_list
-            )
+            card = await Card.get_by_id(_UUID(str(task_id)))
+            if card:
+                await card.update(clients=clients_list)
         
         # Обновляем отображение в главной странице - преобразуем ключи в имена
         if clients_list:
             channel_names = []
             for channel_key in clients_list:
-                channel_info = SETTINGS['properties']['channels']['values'].get(channel_key)
+                channel_info = CLIENTS.get(channel_key)
                 if channel_info:
-                    channel_names.append(channel_info['name'])
+                    channel_names.append(channel_info['label'])
                 else:
                     channel_names.append(channel_key)
             channels_text = ', '.join(channel_names)

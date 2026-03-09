@@ -1,6 +1,8 @@
 from urllib.parse import quote
 from tg.oms import Page
-from modules.exec.brain_client import brain_client
+from models.Card import Card
+from models.User import User
+from uuid import UUID as _UUID
 from modules.utils import get_telegram_user, get_user_display_name
 
 
@@ -17,7 +19,7 @@ class ContactPage(Page):
         if not task:
             card_id = self.scene.data['scene'].get('selected_task')
             if card_id:
-                cards = await brain_client.get_cards(card_id=card_id)
+                cards = [c.to_dict() for c in await Card.find(card_id=card_id)]
                 task = cards[0] if cards else None
         return task
 
@@ -36,7 +38,8 @@ class ContactPage(Page):
                 user_db_id = card.get(role_key)
                 if not user_db_id:
                     continue
-                user = await brain_client.get_user(user_id=user_db_id)
+                user_obj = await User.get_by_id(_UUID(str(user_db_id)))
+                user = user_obj.to_dict() if user_obj else None
                 if not user:
                     continue
                 tg_id = user.get('telegram_id')

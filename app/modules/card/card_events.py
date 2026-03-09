@@ -15,7 +15,6 @@ from modules.constants import SceneNames
 from modules.tasks.scheduler import reschedule_post_tasks, reschedule_card_notifications
 from modules.calendar.calendar import update_calendar_event
 from modules.card.status_changers import to_edited
-from models.CardEditorNote import CardEditorNote
 from modules.logs import logger
 
 
@@ -276,12 +275,10 @@ async def on_executor(
             if old_executor_id != card.customer_id:
                 from modules.exec.executors_client import close_user_scene
                 await close_user_scene(old_user.telegram_id)
-            
 
-    
     # Обновляем исполнителя в БД
     await card.update(executor_id=new_executor_id)
-    
+
     # Обрабатываем нового исполнителя
     if new_executor_id is None:
         pass
@@ -588,41 +585,6 @@ async def on_prompt_message(
     
     # Обновляем карточку
     await card.update(prompt_message=message_id)
-
-async def on_editor_notes(
-    content: str,
-    author: str,
-    card: Optional[Card] = None, 
-    card_id: Optional[_UUID] = None
-):
-    """Обработчик изменения заметок редактора."""
-    
-    if not card_id and not card:
-        raise ValueError("Необходимо указать card или card_id")
-    
-    if not card:
-        card = await Card.get_by_key('card_id', str(card_id))
-        if not card:
-            raise ValueError(f"Карточка с card_id {card_id} не найдена")
-    
-    # Обновляем карточку
-    await CardEditorNote.create(
-        card_id=card.card_id,
-        author=author,
-        content=content
-    )
-
-    # Уведомляем исполнителя о новой заметке
-    if card.executor_id and card.executor_id != author:
-        await notify_users([card.executor_id],
-                            f"📋 Новая заметка редактора:\n{content[:256]}",
-                            'editor-notes')
-
-    # Обновляем сцены
-    await asyncio.create_task(
-        update_scenes(SceneNames.USER_TASK, 'editor-notes',
-                     "task_id", str(card.card_id))
-    )
 
 async def on_clients_settings(
     clients_settings: dict,

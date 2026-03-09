@@ -1,13 +1,13 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from models.Tag import Tag
 
 
 class TagsListPage(Page):
     __page_name__ = 'tags-list'
 
     async def data_preparate(self):
-        self.tags = await brain_client.get_tags()
+        self.tags = [t.to_dict() for t in await Tag.all_sorted()]
 
     async def content_worker(self) -> str:
         if not self.tags:

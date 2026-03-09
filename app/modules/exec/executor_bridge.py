@@ -163,7 +163,9 @@ async def forward_first_by_tags(
 
 # ==================== Notifications ====================
 
-async def notify_user(user_id: int, message: str, reply_to: Optional[int] = None, parse_mode: Optional[str] = None) -> bool:
+async def notify_user(user_id: int, message: str, 
+                      reply_to: Optional[int] = None, 
+                      parse_mode: Optional[str] = None) -> bool:
     """
     Отправить уведомление пользователю.
     Заменяет: executors_api.post(ApiEndpoints.NOTIFY_USER, data={"user_id": user_id, "message": message})
@@ -176,10 +178,16 @@ async def notify_user(user_id: int, message: str, reply_to: Optional[int] = None
     if not tg:
         return False
 
+    list_markup = [
+        {'text': "🗑 Удалить уведомление",
+         'callback_data': f"delete_message"}
+    ]
+
     result = await tg.send_message(
         chat_id=str(user_id), text=message,
         reply_to_message_id=reply_to,
-        parse_mode=parse_mode
+        parse_mode=parse_mode,
+        list_markup=list_markup
     )
     return result.get("success", False)
 
@@ -202,10 +210,10 @@ async def send_leaderboard(
     if not tg:
         return False
 
-    from modules.exec.brain_client import get_users as _get_users
+    from models.User import User
     from modules.utils import get_user_display_name
 
-    users = await _get_users() or []
+    users = await User.get_all() or []
 
     if period == 'month':
         field = 'task_per_month'
@@ -220,17 +228,16 @@ async def send_leaderboard(
         period_name = 'всё время'
         emoji = '🏆'
 
-    sorted_users = sorted(users, key=lambda u: u.get(field, 0), reverse=True)
+    sorted_users = sorted(users, key=lambda u: getattr(u, field, 0) or 0, reverse=True)
     text_lines = [f"{emoji} <b>Лидерборд за {period_name}</b>\n"]
     medals = ['🥇', '🥈', '🥉']
     idx = -1
     for user in sorted_users[:10]:
-        tasks_count = user.get(field, 0)
+        tasks_count = getattr(user, field, 0) or 0
         if tasks_count == 0:
             continue
         idx += 1
-        telegram_id = user.get('telegram_id')
-        name = get_user_display_name(user) if telegram_id else 'Неизвестный'
+        name = get_user_display_name(user) if user.telegram_id else 'Неизвестный'
         position = medals[idx] if idx < 3 else f" {idx + 1}."
         text_lines.append(f"• {position} <b>{name}</b> — {tasks_count} задач")
 
@@ -295,61 +302,3 @@ async def update_scenes(
                 executors_logger.warning(f"Failed to update scene for user {scene.user_id}: {e}")
 
     return updated_count
-
-
-# ==================== Posts ====================
-
-async def send_post(
-    card_id: str,
-    client_key: str,
-    text: str,
-    files: Optional[list[dict]] = None,
-    settings: Optional[dict] = None,
-    entities: Optional[list[dict]] = None
-) -> dict:
-    """
-    Отправить уже подготовленный текст через нужного исполнителя.
-    В этой версии **генерация текста производится вне функции**, поэтому
-    ``text`` должен быть готовым (например, полученным из
-    :func:`modules.post_generator.generate_post`).
-
-    Остальные параметры позволяют передать заранее скачанные файлы,
-    настройки клиента и дополнительную информацию (entities).
-    Это упрощает логику: функция теперь отвечает исключительно за
-    обращение к конкретному executor.
-    """
-    from modules.constants import CLIENTS
-    from modules.post_sender import download_files
-    from modules.entities_sender import send_poll_preview, get_entities_for_client
-
-    settings = settings or {}
-    client_config = CLIENTS.get(client_key)
-    if not client_config:
-        return {"success": False, "error": f"Client {client_key} not found"}
-
-    executor_name = client_config.get("executor_name") or client_config.get("executor")
-    client_id = client_config.get("client_id")
-
-    manager = get_manager()
-    if not manager:
-        return {"success": False, "error": "ExecutorManager not initialized"}
-
-    executor = manager.get(executor_name)
-    if not executor:
-        return {"success": False, "error": f"Executor {executor_name} not found"}
-
-    try:
-        # если файлы не переданы, ничего не скачиваем
-        files = files or []
-        # Отправка через конкретный executor (tg или vk)
-        from tg.main import TelegramExecutor
-        from vk.main import VKExecutor
-
-        if isinstance(executor, TelegramExecutor):
-            return await executor.send_post(client_id, text, files, entities or [], settings)
-        elif isinstance(executor, VKExecutor):
-            return await executor.send_post(client_id, text, files, settings)
-        else:
-            return {"success": False, "error": f"Unknown executor type: {type(executor)}"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}

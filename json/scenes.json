@@ -191,10 +191,7 @@
             "tags": null,
             "content": null,
             "clients_list": [],
-            "tags_list": [],
-            "has_notes": false,
-            "notes_count": 0,
-            "formatted_notes": ""
+            "tags_list": []
         },
         "pages": {
             "main-page": {

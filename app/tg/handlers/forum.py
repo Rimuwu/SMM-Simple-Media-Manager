@@ -1,13 +1,13 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, CallbackQuery
-from modules.exec import brain_client
+from models.Card import Card
+from models.User import User
 from modules.enums import CardStatus
 from modules.text_generators import card_executed, forum_message
 from modules.logs import logger
 from modules.exec.executors_manager import manager
 from aiogram import F
 
-from modules.exec.brain_client import update_card, get_users
 from tg.oms.manager import scene_manager
 
 client_executor = manager.get("telegram_executor")
@@ -19,7 +19,7 @@ async def take_task(callback: CallbackQuery):
     logger.info(f"Пользователь {callback.from_user.id} нажал 'Забрать задание'")
 
     message_id = callback.message.message_id
-    users = await get_users(telegram_id=callback.from_user.id)
+    users = await User.find(telegram_id=callback.from_user.id)
     user = users[0] if users else None
 
     if not user:
@@ -27,7 +27,7 @@ async def take_task(callback: CallbackQuery):
             "Вы не зарегистрированы в системе.", show_alert=True)
         return
 
-    card = await brain_client.get_card_by_message_id(message_id)
+    card = await Card.by_message_id(message_id)
 
     if not card:
         await callback.answer(
@@ -38,14 +38,14 @@ async def take_task(callback: CallbackQuery):
         )
         return
 
-    card_id = card['card_id']
+    card_id = str(card.card_id)
 
     if not card:
         await callback.answer(
             "Задание не найдено.", show_alert=True)
         return 
     
-    if card['executor_id'] is not None:
+    if card.executor_id is not None:
         await callback.answer(
             "Задание уже взято другим исполнителем.", show_alert=True)
         return
@@ -93,7 +93,7 @@ async def edit_task(callback: CallbackQuery):
     logger.info(f"Пользователь {callback.from_user.id} нажал 'Взять в проверку'")
 
     message_id = callback.message.message_id
-    users = await get_users(telegram_id=callback.from_user.id)
+    users = await User.find(telegram_id=callback.from_user.id)
     user = users[0] if users else None
 
     if not user:
@@ -102,13 +102,13 @@ async def edit_task(callback: CallbackQuery):
         return
 
     # Проверяем что пользователь - редактор или админ
-    user_role = user.get('role')
+    user_role = user.role.value if user.role else None
     if user_role not in ['editor', 'admin']:
         await callback.answer(
             "Только редакторы и админы могут взять задание на проверку.", show_alert=True)
         return
 
-    card = await brain_client.get_card_by_message_id(message_id)
+    card = await Card.by_message_id(message_id)
 
     if not card:
         await callback.answer(
@@ -119,7 +119,7 @@ async def edit_task(callback: CallbackQuery):
         )
         return
 
-    card_id = card['card_id']
+    card_id = str(card.card_id)
 
     if not card:
         await callback.answer(
@@ -127,22 +127,19 @@ async def edit_task(callback: CallbackQuery):
         return 
 
     # Проверяем что задание на проверке и редактор не назначен
-    if card['status'] != CardStatus.review.value:
+    if card.status != CardStatus.review:
         await callback.answer(
             "Задание не на проверке.", show_alert=True)
         return
 
-    if card['editor_id'] is not None:
+    if card.editor_id is not None:
         await callback.answer(
             "Задание уже взято другим редактором.", show_alert=True)
         return
 
     # Назначаем редактора
-    editor_id = str(user['user_id'])
-    result = await update_card(
-        card_id=card_id,
-        editor_id=editor_id
-    )
+    editor_id = user.user_id
+    result = await card.update(editor_id=editor_id)
 
     if not result:
         await callback.answer(

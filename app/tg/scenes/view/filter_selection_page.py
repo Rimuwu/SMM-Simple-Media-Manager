@@ -1,7 +1,7 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.enums import UserRole
-from modules.exec.brain_client import brain_client
+from models.User import User
 
 class FilterSelectionPage(Page):
     __page_name__ = 'filter-selection'
@@ -11,7 +11,7 @@ class FilterSelectionPage(Page):
         if not self.scene.data['scene'].get('user_role'):
 
             telegram_id = self.scene.user_id
-            user_role = await brain_client.get_user_role(telegram_id)
+            user_role = await User.role_for(telegram_id)
             await self.scene.update_key('scene', 'user_role', user_role or 'Не определена')
 
     async def buttons_worker(self) -> list[dict]:

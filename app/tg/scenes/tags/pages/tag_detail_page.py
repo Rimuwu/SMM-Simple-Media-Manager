@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec.brain_client import brain_client
+from models.Tag import Tag
 
 
 class TagDetailPage(Page):
@@ -10,8 +10,8 @@ class TagDetailPage(Page):
         tag_key = self.scene.data['scene'].get('selected_tag')
         self.tag = None
         if tag_key:
-            tags = await brain_client.get_tags()
-            self.tag = next((t for t in tags if t['key'] == tag_key), None)
+            t = await Tag.get_by_key("key", tag_key)
+            self.tag = t.to_dict() if t else None
 
     async def content_worker(self) -> str:
         if not self.tag:
@@ -80,7 +80,9 @@ class TagDetailPage(Page):
     async def on_delete(self, callback, args):
         tag_key = self.scene.data['scene'].get('selected_tag')
         if tag_key:
-            await brain_client.delete_tag(tag_key)
+            t = await Tag.get_by_key("key", tag_key)
+            if t:
+                await t.delete()
             await callback.answer("✅ Тег удалён")
             await self.scene.update_page('tags-list')
         else:

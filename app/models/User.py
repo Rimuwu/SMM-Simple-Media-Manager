@@ -34,3 +34,41 @@ class User(Base, AsyncCRUDMixin):
     cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer", foreign_keys="Card.customer_id")
     executed_cards: Mapped[list["Card"]] = relationship("Card", back_populates="executor", foreign_keys="Card.executor_id")
     edited_cards: Mapped[list["Card"]] = relationship("Card", back_populates="editor", foreign_keys="Card.editor_id")
+
+    def __repr__(self) -> str:
+        return f"<User(id={self.user_id}, telegram_id={self.telegram_id}, role='{self.role}')>"
+
+    # ── Классовые методы-запросы ─────────────────────────────────────────────
+
+    @classmethod
+    async def find(
+        cls,
+        telegram_id=None,
+        role=None,
+        user_id=None,
+        department=None,
+    ) -> "list[User]":
+        """Найти пользователей по произвольному набору фильтров."""
+        from uuid import UUID as _UUID
+
+        filters: dict = {}
+        if telegram_id is not None:
+            filters["telegram_id"] = telegram_id
+        if role is not None:
+            filters["role"] = role
+        if department is not None:
+            filters["department"] = department
+        if user_id is not None:
+            filters["user_id"] = _UUID(str(user_id))
+        return await cls.filter_by(**filters) if filters else await cls.get_all()
+
+    @classmethod
+    async def by_telegram(cls, telegram_id: int) -> "Optional[User]":
+        """Получить пользователя по Telegram ID."""
+        return await cls.get_by_key("telegram_id", telegram_id)
+
+    @classmethod
+    async def role_for(cls, telegram_id: int) -> "Optional[str]":
+        """Вернуть строковое значение роли для пользователя с данным telegram_id."""
+        user = await cls.by_telegram(telegram_id)
+        return user.role.value if user else None

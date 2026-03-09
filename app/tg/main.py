@@ -6,7 +6,7 @@ from tg.oms.utils import list_to_inline
 from tg.oms import scene_manager
 from modules.exec.executor import BaseExecutor
 from modules.logs import logger
-from modules.exec.brain_client import get_all_scenes
+from models.Scene import Scene as SceneModel
 
 class TelegramExecutor(BaseExecutor):
     """Исполнитель для Telegram"""
@@ -362,7 +362,7 @@ class TelegramExecutor(BaseExecutor):
         """Запустить пуллинг"""
         self.setup_handlers()
         
-        all_scenes = await get_all_scenes()
+        all_scenes = await SceneModel.all_scenes()
 
         for scene_data in all_scenes:
 

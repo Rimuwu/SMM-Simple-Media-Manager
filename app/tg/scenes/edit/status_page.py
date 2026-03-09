@@ -1,6 +1,9 @@
 from tg.oms import Page
-from modules.exec.brain_client import brain_client
+from models.Card import Card
+from models.User import User
+from modules.card import card_service
 from modules.enums import CardStatus
+from uuid import UUID as _UUID
 from tg.oms.utils import callback_generator
 from modules.logs import logger
 from datetime import datetime, timedelta
@@ -15,7 +18,7 @@ class StatusSetterPage(Page):
         task_id = self.scene.data['scene'].get('task_id')
         self._card_cache = None
         if task_id:
-            cards = await brain_client.get_cards(card_id=task_id)
+            cards = [c.to_full_dict() for c in await Card.find(card_id=task_id)]
             self._card_cache = cards[0] if cards else None
     async def can_complete(self) -> bool:
         publish_date = self.scene.data['scene'].get('publish_date')
@@ -90,9 +93,9 @@ class StatusSetterPage(Page):
         executor_id = card.get('executor_id')
 
         # Получаем информацию о пользователе
-        user_role = await brain_client.get_user_role(self.scene.user_id)
-        users = await brain_client.get_users(telegram_id=self.scene.user_id)
-        current_user_id = str(users[0].get('user_id')) if users else None
+        user_role = await User.role_for(self.scene.user_id)
+        users = await User.find(telegram_id=self.scene.user_id)
+        current_user_id = str(users[0].user_id) if users else None
         
         # Флаги ролей
         is_admin = user_role == 'admin'
@@ -238,19 +241,19 @@ class StatusSetterPage(Page):
 
         if task_id:
             # Получаем роль пользователя
-            user_role = await brain_client.get_user_role(self.scene.user_id)
+            user_role = await User.role_for(self.scene.user_id)
             who_changed = 'executor' if user_role == 'copywriter' else 'admin'
 
             # Получаем user_id текущего пользователя
-            users = await brain_client.get_users(telegram_id=self.scene.user_id)
+            users = await User.find(telegram_id=self.scene.user_id)
             executor_id = None
             if users:
-                executor_id = str(users[0].get('user_id'))
+                executor_id = str(users[0].user_id)
 
             logger.info(f"Пользователь {self.scene.user_id} перевел задачу {task_id} в статус 'В работе' (executor_id={executor_id})")
 
             # Обновляем статус
-            await brain_client.change_card_status(
+            await card_service.change_card_status(
                 card_id=task_id,
                 status=CardStatus.edited,
                 who_changed=who_changed
@@ -258,7 +261,9 @@ class StatusSetterPage(Page):
 
             # Устанавливаем исполнителя отдельно
             if set_executor:
-                await brain_client.update_card(card_id=task_id, executor_id=executor_id)
+                card = await Card.get_by_id(_UUID(str(task_id)))
+                if card:
+                    await card.update(executor_id=executor_id)
 
             await self.scene.update_key(
                 'scene', 'status', '✏️ В работе')
@@ -274,7 +279,7 @@ class StatusSetterPage(Page):
         
         if task_id:
             logger.info(f"Пользователь {self.scene.user_id} отправил задачу {task_id} на проверку")
-            await brain_client.change_card_status(
+            await card_service.change_card_status(
                 card_id=task_id,
                 status=CardStatus.review,
                 who_changed='executor'
@@ -297,10 +302,10 @@ class StatusSetterPage(Page):
             logger.info(f"Пользователь {self.scene.user_id} завершил задачу {task_id} (статус 'Готова')")
             
             # Получаем роль пользователя
-            user_role = await brain_client.get_user_role(self.scene.user_id)
+            user_role = await User.role_for(self.scene.user_id)
             who_changed = 'executor' if user_role == 'copywriter' else 'admin'
             
-            await brain_client.change_card_status(
+            await card_service.change_card_status(
                 card_id=task_id,
                 status=CardStatus.ready,
                 who_changed=who_changed
@@ -327,18 +332,16 @@ class StatusSetterPage(Page):
             logger.info(f"Пользователь {self.scene.user_id} завершил задачу {task_id} без отправки")
             
             # Получаем роль пользователя
-            user_role = await brain_client.get_user_role(self.scene.user_id)
+            user_role = await User.role_for(self.scene.user_id)
             who_changed = 'executor' if user_role == 'copywriter' else 'admin'
             
             # Устанавливаем need_send=False и сбрасываем send_time
-            await brain_client.update_card(
-                card_id=task_id,
-                need_send=False,
-                send_time='reset'  # Сбрасываем время отправки
-            )
+            card = await Card.get_by_id(_UUID(str(task_id)))
+            if card:
+                await card.update(need_send=False, send_time=None)
             
             # Меняем статус на ready (закрытая без отправки)
-            await brain_client.change_card_status(
+            await card_service.change_card_status(
                 card_id=task_id,
                 status=CardStatus.ready,
                 who_changed=who_changed
@@ -363,23 +366,19 @@ class StatusSetterPage(Page):
             logger.info(f"Пользователь {self.scene.user_id} возвращает задачу {task_id} на форум")
             
             # Вызываем специальный эндпоинт для возврата на форум
-            user_role = await brain_client.get_user_role(self.scene.user_id)
+            user_role = await User.role_for(self.scene.user_id)
             who = 'executor' if user_role == 'copywriter' else 'admin'
             
-            res = await brain_client.change_card_status(
+            await card_service.change_card_status(
                 card_id=task_id,
                 status=CardStatus.pass_,
                 who_changed=who
             )
 
-            if res:
-                await self.scene.update_key('scene', 'status', '⏳ Создано')
-                await callback.answer('✅ Задача возвращена на форум!', show_alert=True)
-                # Закрываем сцену редактирования, так как задача больше не у исполнителя
-                await self.scene.end()
-            else:
-                error_msg = res.get('detail', 'Неизвестная ошибка') if isinstance(res, dict) else str(res)
-                await callback.answer(f'❌ Ошибка: {error_msg}', show_alert=True)
+            await self.scene.update_key('scene', 'status', '⏳ Создано')
+            await callback.answer('✅ Задача возвращена на форум!', show_alert=True)
+            # Закрываем сцену редактирования, так как задача больше не у исполнителя
+            await self.scene.end()
         else:
             await callback.answer('❌ Ошибка: задача не найдена', show_alert=True)
 

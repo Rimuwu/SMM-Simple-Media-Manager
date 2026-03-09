@@ -1,6 +1,7 @@
 from tg.oms import Scene
 
-from modules.exec.brain_client import brain_client
+from models.Scene import Scene as SceneModel
+from models.Card import Card
 from .channels_page import ChannelsSettingsPage
 from .content_page import ContentSetterPage
 from .publish_date_page import PublishDateSetterPage
@@ -47,10 +48,10 @@ class TaskScene(Scene):
     ]
 
     # Привязываем функции для работы с БД
-    __insert_function__ = staticmethod(brain_client.insert_scene)
-    __load_function__ = staticmethod(brain_client.load_scene)
-    __update_function__ = staticmethod(brain_client.update_scene)
-    __delete_function__ = staticmethod(brain_client.delete_scene)
+    __insert_function__ = staticmethod(SceneModel.insert_scene)
+    __load_function__ = staticmethod(SceneModel.load_scene)
+    __update_function__ = staticmethod(SceneModel.update_scene)
+    __delete_function__ = staticmethod(SceneModel.delete_scene)
     
     def set_taskid(self, task_id: int):
         """Устанавливает ID задачи в данные сцены"""
@@ -75,8 +76,8 @@ class TaskScene(Scene):
         if not task_id:
             return None
 
-        tasks = await brain_client.get_cards(card_id=task_id)
+        tasks = await Card.find(card_id=task_id)
         if not tasks:
             return None
 
-        return tasks[0]
+        return tasks[0].to_full_dict()

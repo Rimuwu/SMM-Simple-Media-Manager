@@ -1,6 +1,7 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.exec import brain_client
+from models.Entity import Entity
+from uuid import UUID as _UUID
 
 types = {
     'poll': 'Опрос',
@@ -19,7 +20,8 @@ class EntityViewPage(Page):
         if not selected_client:
             return
 
-        entity = await brain_client.get_entity(entity_id=eid)
+        ent = await Entity.get_by_id(_UUID(str(eid)))
+        entity = ent.to_dict() if ent else None
         if entity:
             await self.scene.update_key(self.__page_name__, 'entity', entity)
 
@@ -29,9 +31,8 @@ class EntityViewPage(Page):
             return '❌ Entity не найден'
 
         txt = [
-            f"Тип: {types.get(e.get('type'), e.get('type'))}", 
-            f"Имя: {e.get('data', {}).get('name') or e.get('type')}", 
-            f"ID: {e.get('id')}\n"
+            f"🧨 Тип: {types.get(e.get('type'), e.get('type'))}", 
+            f"*Имя*: {e.get('data', {}).get('name') or e.get('type')}\n", 
         ]
         data = e.get('data') or {}
 
@@ -46,7 +47,7 @@ class EntityViewPage(Page):
             if buttons:
                 txt.append(f"Кнопок: {len(buttons)}")
                 for i, btn in enumerate(buttons, 1):
-                    txt.append(f"{i}. {btn.get('text')} → {btn.get('url')}")
+                    txt.append(f"{i}. {btn.get('text')} → `{btn.get('url')}`")
             else:
                 txt.append("Нет кнопок")
 
@@ -81,7 +82,11 @@ class EntityViewPage(Page):
             return
 
         selected_client = self.scene.data.get('entities-main', {}).get('selected_client')
-        ok = await brain_client.delete_entity_by_id(e.get('id'))
+        ent = await Entity.get_by_id(_UUID(str(e.get('id'))))
+        ok = False
+        if ent:
+            await ent.delete()
+            ok = True
 
         if ok:
             await callback.answer('✅ Entity удалён')
