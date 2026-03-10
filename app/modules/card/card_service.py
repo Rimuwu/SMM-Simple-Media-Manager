@@ -13,32 +13,21 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from models.Card import Card
+    from models.Task import Task
 
 async def increment_reviewers_tasks(card: 'Card'):
     """
-    Увеличивает счётчик tasks_checked для всех редакторов,
+    Увеличивает счётчик tasks_checked для заказчика задания (если он админ).
     """
-
     try:
-        if card.editor_id:
-            editor = await User.get_by_key(
-                'user_id', card.editor_id
-            )
-        elif card.customer_id:
-            editor = await User.get_by_key(
-                'user_id', card.customer_id
-            )
-            if editor and editor.role != 'admin':
-                editor = None
-        else:
-            editor = None
-
-        if editor:
-            await editor.update(
-                tasks_checked=editor.tasks_checked + 1)
-            logger.info(f"Увеличен счётчик проверенных задач у {editor.user_id}")
+        task = await card.get_task()
+        if task and task.customer_id:
+            customer = await User.get_by_key('user_id', task.customer_id)
+            if customer and customer.role == 'admin':
+                await customer.update(tasks_checked=customer.tasks_checked + 1)
+                logger.info(f"Увеличен счётчик проверенных задач у {customer.user_id}")
     except Exception as e:
-        logger.error(f"Ошибка увеличения счётчика созданных задач: {e}")
+        logger.error(f"Ошибка увеличения счётчика: {e}")
 
 
 async def increment_customer_tasks(customer_id: str):
@@ -58,19 +47,39 @@ async def increment_customer_tasks(customer_id: str):
 
 
 
-async def create_card(
+async def create_task(
     title: str,
     description: str = "",
     deadline=None,
+    customer_id=None,
+    executor_id=None,
+) -> "Optional[Task]":
+    """Создать задание (контейнер для нескольких постов/карточек)."""
+    from models.Task import Task
+    try:
+        task = await Task.create(
+            name=title,
+            description=description or None,
+            deadline=datetime.fromisoformat(str(deadline)) if deadline else None,
+            customer_id=_UUID(str(customer_id)) if customer_id else None,
+            executor_id=_UUID(str(executor_id)) if executor_id else None,
+        )
+        return task
+    except Exception as e:
+        logger.error(f"create_task error: {e}")
+        return None
+
+
+async def create_card(
+    title: str,
+    description: str = "",
     send_time=None,
     channels: list | None = None,
     tags: list | None = None,
     need_check: bool = True,
-    executor_id=None,
-    customer_id=None,
-    editor_id=None,
     image_prompt: Optional[str] = None,
     type_id=None,
+    task_id=None,
     **kwargs,
 ) -> Optional['Card']:
     """Создать карточку с полными сайд-эффектами.
@@ -79,6 +88,7 @@ async def create_card(
     сообщение на форум, если тип задачи публичный.
     """
     from modules.exec.executors_client import send_forum_message
+    from models.Card import Card
 
     try:
         card = await Card.create(
@@ -86,13 +96,10 @@ async def create_card(
             description=description,
             clients=channels or [],
             tags=tags or [],
-            deadline=datetime.fromisoformat(str(deadline)) if deadline else None,
             send_time=datetime.fromisoformat(str(send_time)) if send_time else None,
             image_prompt=image_prompt,
-            customer_id=_UUID(str(customer_id)) if customer_id else None,
-            executor_id=_UUID(str(executor_id)) if executor_id else None,
             need_check=need_check,
-            editor_id=_UUID(str(editor_id)) if editor_id else None,
+            task_id=_UUID(str(task_id)) if task_id else None,
         )
         for key in channels or []:
             try:

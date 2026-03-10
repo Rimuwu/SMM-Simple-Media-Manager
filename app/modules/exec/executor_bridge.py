@@ -2,6 +2,9 @@
 Шим совместимости. Вся логика перенесена в executors_client.
 Этот модуль оставлен на период миграции — используйте executors_client напрямую.
 """
+from typing import Optional
+
+from tg.main import TelegramExecutor
 from modules.exec.executors_client import (  # noqa: F401
     notify_user,
     update_scenes,

@@ -4,13 +4,11 @@
 В монолите заменяет HTTP-вызовы к storage-api прямыми файловыми операциями.
 Путь к хранилищу настраивается через переменную окружения STORAGE_PATH.
 """
-import os
 import uuid
 import asyncio
 from pathlib import Path
 from typing import Optional
 
-from os import getenv
 from modules.logs import logger
 
 

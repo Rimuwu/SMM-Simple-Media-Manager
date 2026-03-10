@@ -13,7 +13,7 @@ from modules.enums import CardStatus
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
-    from models.User import User
+    from models.Task import Task
     from models.CardContent import CardContent
     from models.ClientSetting import ClientSetting
     from models.Entity import Entity
@@ -32,21 +32,6 @@ class Card(Base, AsyncCRUDMixin):
     description: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True)
 
-    # Связь с пользователем (заказчиком)
-    customer_id: Mapped[Optional[_UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
-    customer: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="cards", foreign_keys=[customer_id])
-
-    # Исполнитель
-    executor_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
-    executor: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="executed_cards", foreign_keys=[executor_id])
-
-    editor_id: Mapped[Optional[_UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True)
-    editor: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="edited_cards", foreign_keys=[editor_id])
-
     # Контент и метаданные (перенесены в отдельную таблицу `card_contents`)
     contents: Mapped[list["CardContent"]] = relationship(
         "CardContent", back_populates="card", cascade="all, delete-orphan")
@@ -57,7 +42,6 @@ class Card(Base, AsyncCRUDMixin):
     tags: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     # Дополнительные поля для управления карточками
-    deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     send_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     image_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -67,6 +51,12 @@ class Card(Base, AsyncCRUDMixin):
     post_images: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
 
     calendar_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Задание, к которому привязан этот пост
+    task_id: Mapped[Optional[_UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tasks.task_id"), nullable=True)
+    task: Mapped[Optional["Task"]] = relationship(
+        "Task", back_populates="cards", foreign_keys=[task_id])
 
     # Настройки по клиентам. Перенесены в `client_settings`
     clients_settings_entries: Mapped[list["ClientSetting"]] = relationship(
@@ -100,14 +90,19 @@ class Card(Base, AsyncCRUDMixin):
 
     # ── Классовые методы-запросы ─────────────────────────────────────────────
 
+    async def get_task(self) -> "Optional[Task]":
+        """Загрузить задание, к которому привязан этот пост."""
+        if not self.task_id:
+            return None
+        from models.Task import Task
+        return await Task.get_by_id(self.task_id)
+
     @classmethod
     async def find(
         cls,
         card_id=None,
         task_id=None,
         status=None,
-        customer_id=None,
-        executor_id=None,
         need_check=None,
     ) -> "list[Card]":
         """Найти карточки по произвольному набору фильтров.
@@ -122,7 +117,7 @@ class Card(Base, AsyncCRUDMixin):
         async with session_factory() as session:
             query = select(cls).options(selectinload(cls.contents))
             if task_id is not None:
-                query = query.where(cls.task_id == int(task_id))
+                query = query.where(cls.task_id == _UUID(str(task_id)))
             if card_id is not None:
                 try:
                     query = query.where(cls.card_id == _UUID(str(card_id)))
@@ -130,10 +125,6 @@ class Card(Base, AsyncCRUDMixin):
                     return []
             if status is not None:
                 query = query.where(cls.status == status)
-            if customer_id is not None:
-                query = query.where(cls.customer_id == _UUID(str(customer_id)))
-            if executor_id is not None:
-                query = query.where(cls.executor_id == _UUID(str(executor_id)))
             if need_check is not None:
                 query = query.where(cls.need_check == need_check)
             result = await session.execute(query)

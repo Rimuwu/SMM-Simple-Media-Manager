@@ -24,20 +24,24 @@ async def send_card_deadline_reminder(card: Card, **kwargs):
         logger.info(f"Карточка {card.card_id} имеет статус ready или sent, напоминание не отправляется")
         return
     
-    # Проверяем наличие исполнителя
-    if not card.executor_id:
+    # Проверяем наличие исполнителя через task
+    task = await card.get_task()
+    executor_id = task.executor_id if task else None
+    if not executor_id:
         logger.info(f"У карточки {card.card_id} нет исполнителя, напоминание не отправляется")
         return
+
+    deadline = task.deadline if task else None
     
     try:
         # Получаем исполнителя
-        executor = await User.get_by_key('user_id', card.executor_id)
+        executor = await User.get_by_key('user_id', executor_id)
         if not executor:
-            logger.error(f"Исполнитель {card.executor_id} не найден")
+            logger.error(f"Исполнитель {executor_id} не найден")
             return
         
         # Форматируем дедлайн
-        deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
+        deadline_str = deadline.strftime('%d.%m.%Y %H:%M') if deadline else 'Не установлен'
         
         # Формируем сообщение
         message_text = f"⏰ Напоминание о дедлайне\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\nОсталось 2 дня!"
@@ -88,9 +92,13 @@ async def send_forum_no_executor_alert(card: Card, **kwargs):
     """
     logger.info(f"Проверка наличия исполнителя для карточки {card.card_id} (форум)")
     
-    # Проверяем наличие исполнителя
-    if card.executor_id:
+    # Проверяем наличие исполнителя через task
+    task = await card.get_task()
+    executor_id = task.executor_id if task else None
+    if executor_id:
         return
+
+    deadline = task.deadline if task else None
     
     try:
         settings = open_settings()
@@ -100,7 +108,7 @@ async def send_forum_no_executor_alert(card: Card, **kwargs):
             return
         
         # Форматируем дедлайн
-        deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M') if card.deadline else 'Не установлен'
+        deadline_str = deadline.strftime('%d.%m.%Y %H:%M') if deadline else 'Не установлен'
         
         # Формируем сообщение
         message_text = f"⚠️ Внимание! Карточка без исполнителя\n\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\n❗ До дедлайна остался 1 день, но исполнитель не назначен!"
@@ -126,13 +134,16 @@ async def send_admin_no_executor_alert(card: Card, **kwargs):
     """
     logger.info(f"Проверка наличия исполнителя для карточки {card.card_id}")
     
-    # Проверяем наличие исполнителя
-    if card.executor_id:
+    # Проверяем наличие исполнителя и дедлайна через task
+    task = await card.get_task()
+    executor_id = task.executor_id if task else None
+    deadline = task.deadline if task else None
+    if executor_id:
         logger.info(f"У карточки {card.card_id} есть исполнитель, уведомление не отправляется")
         return
     
     # Проверяем что дедлайн установлен
-    if not card.deadline:
+    if not deadline:
         logger.info(f"У карточки {card.card_id} не установлен дедлайн")
         return
     
@@ -144,7 +155,7 @@ async def send_admin_no_executor_alert(card: Card, **kwargs):
             return
         
         # Форматируем дедлайн
-        deadline_str = card.deadline.strftime('%d.%m.%Y %H:%M')
+        deadline_str = deadline.strftime('%d.%m.%Y %H:%M')
         
         # Формируем сообщение
         message_text = f"⚠️ Внимание! Карточка без исполнителя\n\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\n❗ До дедлайна остался 1 день, но исполнитель не назначен!"
@@ -532,9 +543,6 @@ async def finalize_card_publication(card_id: str, **kwargs):
         
     except Exception as e:
         logger.error(f"Ошибка финализации публикации карточки {card.card_id}: {e}", exc_info=True)
-
-# Логика генерации лидерборда перемещена в исполнителя (executors).
-# Логика лидерборда: send_leaderboard вызывается перед сбросом счётчика.
 
 
 async def reset_monthly_tasks():

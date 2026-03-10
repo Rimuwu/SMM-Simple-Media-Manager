@@ -10,6 +10,7 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
 
 from models import User
+from models.Task import Task
 from models.Tag import Tag
 from models.Card import Card
 from models.CardContent import CardContent
@@ -25,7 +26,7 @@ async def create_tables():
 
     async with engine.begin() as conn:
         # Удаляем все таблицы с CASCADE для обхода зависимостей
-        # await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(
             text("CREATE SCHEMA IF NOT EXISTS public")
             )

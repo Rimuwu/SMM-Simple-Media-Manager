@@ -1,11 +1,8 @@
+import copy
 from datetime import datetime
 from os import getenv
-from modules.utils import get_user_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from models.User import User
-from uuid import UUID as _UUID
-from tg.scenes.constants import format_channels, format_tags
 
 debug = getenv('DEBUG', 'False') == 'True'
 
@@ -17,38 +14,18 @@ class MainPage(Page):
         add_vars = {}
         data = self.scene.data['scene']
 
-        # Режим отображения (simple | advanced)
-        mode = data.get('mode', 'simple')
-        add_vars['mode'] = 'Простой' if mode == 'simple' else 'Продвинутый'
+        # Инфо текущего задания
+        task = self.scene.data.get('task', {})
+        queued_cards = self.scene.data.get('cards', [])
+        add_vars['task_name'] = task.get('name') or 'Не задано'
+        add_vars['posts_count'] = str(len(queued_cards))
 
         if data['type'] == 'public':
             add_vars['type'] = 'Общее задание'
         else:
             add_vars['type'] = 'Личное задание'
 
-        # Editor check
-        editor_check = data.get('editor_check', True)
-        add_vars['editor_check'] = '✅' if editor_check else '❌'
-
-        # Channels
-        channels = data.get('channels', [])
-        add_vars['channels'] = format_channels(channels) if channels else '⭕'
-
-        tags = data.get('tags')
-        # format_tags теперь асинхронная функция
-        add_vars['tags'] = await format_tags(tags) if tags else '⭕'
-        
-        # Date
-        if data.get('publish_date'):
-            try:
-                dt = datetime.fromisoformat(data['publish_date'])
-                add_vars['publish_date'] = dt.strftime('%d.%m.%Y %H:%M')
-            except ValueError:
-                add_vars['publish_date'] = data['publish_date']
-        else:
-            add_vars['publish_date'] = '➖'
-        
-        # Date
+        # Дата отправки
         if data.get('send_date'):
             try:
                 dt = datetime.fromisoformat(data['send_date'])
@@ -57,20 +34,6 @@ class MainPage(Page):
                 add_vars['send_date'] = data['send_date']
         else:
             add_vars['send_date'] = '➖'
-
-        # Executor
-        user_id = data.get('user')
-        if user_id:
-            # Получаем конкретного пользователя по user_id
-            users = [u.to_dict() for u in await User.filter_by(user_id=_UUID(str(user_id)))]
-            user_data = users[0] if users else None
-
-            if user_data:
-                add_vars['user'] = get_user_display_name(user_data)
-            else:
-                add_vars['user'] = f"ID: {user_id}"
-        else:
-            add_vars['user'] = '➖'
 
         # Показываем количество файлов
         files = data.get('files', [])
@@ -84,10 +47,7 @@ class MainPage(Page):
         else:
             add_vars['description'] = 'Без описания'
 
-        self.content = self.append_variables(
-            **add_vars
-        )
-
+        self.content = self.append_variables(**add_vars)
         self.content = self.content.replace('None', '➖')
 
         return self.content
@@ -110,92 +70,57 @@ class MainPage(Page):
 
     @Page.on_callback('test_data')
     async def test_data_handler(self, callback, args):
-        await self.scene.update_key(
-            'scene', 
-            'name',
-            'Тестовое задание'
-        )
-        
-        await self.scene.update_key(
-            'scene', 
-            'description',
-            'Тестовое описание задания'
-        )
-        
-        await self.scene.update_key(
-            'scene', 
-            'publish_date',
-            datetime.today().isoformat()
-        )
+        await self.scene.update_key('scene', 'name', 'Тестовое задание')
+        await self.scene.update_key('scene', 'description', 'Тестовое описание задания')
         await self.scene.update_message()
 
-
-    async def post_buttons(self, 
-                           buttons: list[dict]) -> list[dict]:
+    async def post_buttons(self, buttons: list[dict]) -> list[dict]:
 
         buttons_lst = buttons.copy()
 
         for ind, item in enumerate(buttons_lst):
-
-            if item['callback_data'].split(':')[-1] in [
-                'ai-parse', 'finish'
-            ]:
-                buttons_lst[ind][
-                    'ignore_row'] = True
-                buttons_lst[ind][
-                    'next_line'] = False
+            if item['callback_data'].split(':')[-1] in ['ai-parse', 'finish']:
+                buttons_lst[ind]['ignore_row'] = True
+                buttons_lst[ind]['next_line'] = False
 
             if 'to_page_name' in item and 'style' not in item:
                 if item['to_page_name'] in ['finish']:
                     buttons_lst[ind]['style'] = 'success'
                 elif item['to_page_name'] in ['cancel']:
                     buttons_lst[ind]['style'] = 'danger'
-                elif item['to_page_name'] in [
-                    'ai-parse']:
+                elif item['to_page_name'] in ['ai-parse']:
                     buttons_lst[ind]['style'] = 'primary'
 
-        if not self.scene.data['scene']['copywriter_selfcreate']:
-            mode = self.scene.data['scene'].get(
-                'mode', 'advanced'
-                )
-            mode_text = f"🧭 Режим: {'Простой' if mode == 'simple' else 'Продвинутый'}"
-
+        # Кнопка "Добавить пост в задание" видна, если заполнено название поста
+        if self.scene.data['scene'].get('name'):
             buttons_lst.append({
-                'text': mode_text,
+                'text': '💾 Добавить пост в задание',
                 'callback_data': callback_generator(
-                    self.scene.__scene_name__, 'mode_toggle'
-                    ),
-                'style': 'primary'
+                    self.scene.__scene_name__, 'save_to_task'
+                ),
+                'ignore_row': True,
             })
 
         return buttons_lst
 
-    async def to_page_preworker(self, to_page_buttons: dict) -> dict:
-        """Фильтруем кнопки - editor-check только для админов и показываем нужный набор кнопок в зависимости от режима (simple/advanced)
-        """
-        user_role = await User.role_for(self.scene.user_id)
+    @Page.on_callback('save_to_task')
+    async def save_to_task(self, callback, args):
+        """Сохранить текущий пост в список задания и вернуться на главную страницу задания."""
+        data = self.scene.data['scene']
+        if not data.get('name'):
+            await callback.answer('Укажите хотя бы название поста', show_alert=True)
+            return
 
-        # Кнопка настройки проверки редактором доступна только админам
-        if user_role != 'admin' and 'editor-check' in to_page_buttons:
-            del to_page_buttons['editor-check']
+        card_data = copy.deepcopy(data)
+        cards = list(self.scene.data.get('cards', []))
+        cards.append(card_data)
+        self.scene.data['cards'] = cards
 
-        # Режим отображения
-        mode = self.scene.data['scene'].get('mode', 'advanced')
+        # Сбрасываем данные текущей карточки до значений по умолчанию
+        default = copy.deepcopy(self.scene.scene.standart_data)
+        self.scene.data['scene'].update(default)
+        await self.scene.save_to_db()
 
-        if mode == 'simple':
-            allowed = {
-                'ai-parse', 'name', 'description', 'send-date', 'publish-date',
-                'files', 'help', 'cancel', 'finish'
-            }
-            to_page_buttons = {k: v for k, v in to_page_buttons.items() if k in allowed}
-
-        return to_page_buttons
-
-    @Page.on_callback('mode_toggle')
-    async def mode_toggle_handler(self, callback, args):
-        """Обработка нажатия на кнопку режима: переключаем и обновляем сообщение"""
-        current = self.scene.data['scene'].get('mode', 'advanced')
-        new_mode = 'simple' if current == 'advanced' else 'advanced'
-        await self.scene.update_key('scene', 'mode', new_mode)
-        await self.scene.update_message()
+        await callback.answer(f'✅ Пост «{card_data["name"]}» добавлен в задание')
+        await self.scene.update_page('task-main')
         return 'exit'

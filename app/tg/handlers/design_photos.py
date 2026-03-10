@@ -58,10 +58,12 @@ async def upload_image_for_card(card_id: str, file_data: bytes, file_name: str) 
                 logger.error(f"Не удалось получить данные задачи {card_id} после загрузки файла.")
                 return False
 
-            # Уведомляем исполнителя напрямую
+            # Уведомляем исполнителя напрямую через task
             notify_success = False
-            if card.executor_id:
-                executor = await User.get_by_id(card.executor_id)
+            task = await card.get_task()
+            executor_id = task.executor_id if task else None
+            if executor_id:
+                executor = await User.get_by_id(executor_id)
                 if executor:
                     notify_success = await notify_user(
                         executor.telegram_id,

@@ -182,7 +182,10 @@ async def schedule_card_notifications(
         session: Сессия БД
         card: Карточка для которой нужно запланировать уведомления
     """
-    if not card.deadline:
+    # Дедлайн хранится в Task — получаем через card.get_task()
+    task = await card.get_task() if card.task_id else None
+    deadline = task.deadline if task else None
+    if not deadline:
         logger.info(f"У карточки {card.card_id} нет дедлайна, задачи не создаются")
         return
     
@@ -190,8 +193,8 @@ async def schedule_card_notifications(
     from uuid import UUID as PyUUID
     
     # Вычисляем время для уведомлений
-    two_days_before = card.deadline - timedelta(days=2)
-    one_day_before = card.deadline - timedelta(days=1)
+    two_days_before = deadline - timedelta(days=2)
+    one_day_before = deadline - timedelta(days=1)
     
     # Проверяем, что время уведомлений еще не прошло
     now = moscow_now()
@@ -200,37 +203,37 @@ async def schedule_card_notifications(
     
     # Задача: напоминание исполнителю за 2 дня
     if two_days_before > now:
-        task = ScheduledTask(
+        scheduled = ScheduledTask(
             card_id=card_uuid,
             function_path="modules.tasks.notifications.send_card_deadline_reminder",
             execute_at=two_days_before,
             arguments={"card_id": str(card.card_id)}
         )
-        session.add(task)
+        session.add(scheduled)
         logger.info(f"Создана задача напоминания для карточки {card.card_id} на {two_days_before}")
     
     # Задача: уведомление админам за 1 день (только если дедлайн больше чем через 1 день)
-    time_until_deadline = (card.deadline - now).total_seconds()
+    time_until_deadline = (deadline - now).total_seconds()
     if one_day_before > now and time_until_deadline > 86400:  # 86400 секунд = 1 день
-        task = ScheduledTask(
+        scheduled = ScheduledTask(
             card_id=card_uuid,
             function_path="modules.tasks.notifications.send_admin_no_executor_alert",
             execute_at=one_day_before,
             arguments={"card_id": str(card.card_id)}
         )
-        session.add(task)
+        session.add(scheduled)
         logger.info(f"Создана задача уведомления админов для карточки {card.card_id} на {one_day_before}")
     
     # Задача: уведомление на форум о просроченном дедлайне (в момент дедлайна)
-    if card.deadline > now:
-        task = ScheduledTask(
+    if deadline > now:
+        scheduled = ScheduledTask(
             card_id=card_uuid,
             function_path="modules.tasks.notifications.send_forum_deadline_passed",
-            execute_at=card.deadline,
+            execute_at=deadline,
             arguments={"card_id": str(card.card_id)}
         )
-        session.add(task)
-        logger.info(f"Создана задача уведомления о дедлайне для карточки {card.card_id} на {card.deadline}")
+        session.add(scheduled)
+        logger.info(f"Создана задача уведомления о дедлайне для карточки {card.card_id} на {deadline}")
 
     await session.commit()
 

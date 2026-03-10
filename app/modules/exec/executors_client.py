@@ -218,7 +218,8 @@ async def notify_users(
 
 
 async def update_task_scenes(card_id: str) -> int:
-    return await update_scenes(scene_name=SceneNames.VIEW_TASK, data_key="task_id", data_value=str(card_id), action="update")
+    return await update_scenes(
+        scene_name=SceneNames.VIEW_TASK, data_key="task_id", data_value=str(card_id), action="update")
 
 
 async def close_user_scene(user_id: int) -> int:
@@ -267,14 +268,6 @@ async def update_scenes(
                 executors_logger.warning(f"Failed to update scene for user {scene.user_id}: {e}")
 
     return updated_count
-
-
-async def delete_complete_preview(
-    info_ids: Optional[list] = None,
-    post_ids: Optional[list] = None,
-    entities: Optional[list] = None,
-) -> dict:
-    return await delete_all_complete_previews(info_ids=info_ids, post_ids=post_ids, entities=entities)
 
 
 # ==================== Дополнительно ====================

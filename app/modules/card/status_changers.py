@@ -73,8 +73,10 @@ async def to_pass(
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
 
-    if card.executor_id:
-        executor = await User.get_by_key('user_id', card.executor_id)
+    task = await card.get_task()
+    executor_id = task.executor_id if task else None
+    if executor_id:
+        executor = await User.get_by_key('user_id', executor_id)
         if executor:
 
             # Уведомление исполнителю и закрытие сцен
@@ -105,8 +107,7 @@ async def to_pass(
 
         await card.update(
             session,
-            status=CardStatus.pass_,
-            executor_id=None
+            status=CardStatus.pass_
         )
 
         await session.commit()
@@ -135,13 +136,16 @@ async def to_pass(
                 )
 
     else:
-        customer = await User.get_by_key('user_id', card.customer_id)
-        if customer:
-            await notify_user(
-                customer.telegram_id,
-                message=f'⚡ Задача "{card.name}" потеряла исполнителя.',
-                card_id=str(card.card_id)
-            )
+        task = await card.get_task()
+        customer_id = task.customer_id if task else None
+        if customer_id:
+            customer = await User.get_by_key('user_id', customer_id)
+            if customer:
+                await notify_user(
+                    customer.telegram_id,
+                    message=f'⚡ Задача "{card.name}" потеряла исполнителя.',
+                    card_id=str(card.card_id)
+                )
 
 
 async def to_edited(
@@ -223,13 +227,16 @@ async def to_edited(
 
     # Уведомление заказчику для private задач при взятии в работу
     elif previous_status == CardStatus.pass_:
-        customer = await User.get_by_key('user_id', card.customer_id)
-        if customer and customer.role != UserRole.admin:
-            await notify_user(
-                customer.telegram_id,
-                message=f'🎯 Задача "{card.name}" взята в работу.',
-                card_id=str(card.card_id)
-            )
+        task = await card.get_task()
+        customer_id = task.customer_id if task else None
+        if customer_id:
+            customer = await User.get_by_key('user_id', customer_id)
+            if customer and customer.role != UserRole.admin:
+                await notify_user(
+                    customer.telegram_id,
+                    message=f'🎯 Задача "{card.name}" взята в работу.',
+                    card_id=str(card.card_id)
+                )
 
 async def to_review(
           card: Optional['Card'] = None,
@@ -322,31 +329,35 @@ async def to_review(
     # Уведомления редакторам и админам
     recipients = []
 
-    if card.editor_id:
-        editor = await User.get_by_key('user_id', card.editor_id)
-        if editor and editor.telegram_id:
-            recipients.append(editor.user_id)
-    else:
-        customer = await User.get_by_key('user_id', card.customer_id)
+    task = await card.get_task()
+    customer_id = task.customer_id if task else None
+
+    # Нет редактора на уровне карточки — уведомляем заказчика/админов
+    if customer_id:
+        customer = await User.get_by_key('user_id', customer_id)
         if customer and customer.role == UserRole.admin:
-            recipients.append(card.customer_id)
+            recipients.append(customer_id)
         else:
             admins = await User.filter_by(role=UserRole.admin)
             for admin in admins:
                 recipients.append(admin.user_id)
+    else:
+        admins = await User.filter_by(role=UserRole.admin)
+        for admin in admins:
+            recipients.append(admin.user_id)
 
-        comment = f'⚡ Появилась задача на проверку: {card.name}. Вы получили это уведомление, так как в задача ищет своего редактора.'
-        editors = await User.filter_by(role=UserRole.editor)
-        listeners = [
-            editor.user_id for editor in editors 
-            if editor.user_id != card.customer_id
-        ]
+    comment = f'⚡ Появилась задача на проверку: {card.name}. Вы получили это уведомление, так как задача ищет своего редактора.'
+    editors = await User.filter_by(role=UserRole.editor)
+    listeners = [
+        editor.user_id for editor in editors
+        if customer_id is None or editor.user_id != customer_id
+    ]
 
-        await notify_users(
-            list(listeners),
-            comment,
-            card_id=str(card.card_id)
-        )
+    await notify_users(
+        list(listeners),
+        comment,
+        card_id=str(card.card_id)
+    )
 
     msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
     await notify_users(recipients, msg, card_id=str(card.card_id))
@@ -387,9 +398,11 @@ async def to_ready(
     # Обновление карточки в базе
     await card.update(status=CardStatus.ready)
 
-    # Закрытие сцены редактирования у исполнителя
-    if card.executor_id:
-        executor = await User.get_by_key('user_id', card.executor_id)
+    # Закрытие сцены редактирования у исполнителя из задания
+    task = await card.get_task()
+    executor_id = task.executor_id if task else None
+    if executor_id:
+        executor = await User.get_by_key('user_id', executor_id)
         if executor and executor.telegram_id:
             await close_user_scene(executor.telegram_id)
 
@@ -451,9 +464,10 @@ async def to_ready(
         logger.info(f"Отправлены превью постов для карточки {card.card_id}")
 
     # Уведомление заказчику о готовности задачи
-    if card.customer_id:
-        customer = await User.get_by_key(
-            'user_id', card.customer_id)
+    task = await card.get_task()
+    customer_id = task.customer_id if task else None
+    if customer_id:
+        customer = await User.get_by_key('user_id', customer_id)
 
         if customer and customer.telegram_id:
             send_time = card.send_time.strftime('%d.%m.%Y %H:%M') if card.send_time else 'Не установлен'
@@ -520,9 +534,11 @@ async def to_sent(
                 for mes in forum_mes:
                     await mes.delete()
 
-    # Увеличение счетчика выполненных задач у исполнителя
-    if card.executor_id:
-        executor = await User.get_by_key('user_id', card.executor_id)
+    # Увеличение счетчика выполненных задач у исполнителя задания
+    task = await card.get_task()
+    executor_id = task.executor_id if task else None
+    if executor_id:
+        executor = await User.get_by_key('user_id', executor_id)
         if executor:
             await executor.update(
                 tasks=executor.tasks + 1,

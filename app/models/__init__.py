@@ -1,5 +1,6 @@
 # Импортируем все модели в правильном порядке для SQLAlchemy
 from .User import User
+from .Task import Task
 from .Card import Card
 from .Scene import Scene
 from .Tag import Tag
@@ -16,6 +17,7 @@ from modules.enums import UserRole, CardStatus, AutomationTypes
 
 __all__ = [
     "User", "UserRole",
+    "Task",
     "Card", "CardStatus",
     "Tag",
     "ScheduledTask", "TaskStatus",

@@ -7,8 +7,7 @@ from models.User import User
 from database.connection import session_factory
 from modules.exec.executors_client import (
     notify_users, update_scenes, update_forum_message,
-    send_complete_preview, update_complete_preview, 
-    delete_complete_preview, delete_all_complete_previews
+    send_complete_preview, delete_all_complete_previews
 )
 from modules.constants import SceneNames
 from modules.tasks.scheduler import reschedule_post_tasks, reschedule_card_notifications
@@ -45,10 +44,9 @@ async def on_name(
     comment = f"✏️ Название изменено:\n{card.name} → {new_name}"
     await card.update(name=new_name)
 
-    listeners = [
-        card.executor_id,
-        card.editor_id
-    ]
+    task = await card.get_task()
+    executor_id = task.executor_id if task else None
+    listeners = [executor_id] if executor_id else []
 
     await notify_users(listeners, comment, 'change-name')
 
@@ -109,10 +107,9 @@ async def on_description(
             description=new_description
         )
 
-    listeners = [
-        card.executor_id,
-        card.editor_id
-    ]
+    task = await card.get_task()
+    executor_id = task.executor_id if task else None
+    listeners = [executor_id] if executor_id else []
 
     await notify_users(listeners, comment, 'change-description')
 
@@ -164,8 +161,10 @@ async def on_deadline(
         except Exception as e:
             logger.error(f"Ошибка обновления события календаря для карточки {card.card_id}: {e}")
 
-    # Обновляем карточку
-    await card.update(deadline=new_deadline)
+    # Дедлайн хранится в Task — обновляем его там
+    task = await card.get_task()
+    if task:
+        await task.update(deadline=new_deadline)
 
     # Перепланируем напоминания
     try:
@@ -176,11 +175,10 @@ async def on_deadline(
         logger.error(f"Ошибка перепланирования уведомлений для карточки {card.card_id}: {e}")
 
     # Уведомляем участников
-    listeners = [
-        card.executor_id,
-        card.editor_id,
-        card.customer_id
-    ]
+    task = await card.get_task()
+    executor_id = task.executor_id if task else None
+    customer_id = task.customer_id if task else None
+    listeners = [x for x in [executor_id, customer_id] if x]
 
     await notify_users(listeners, comment, 'change-deadline')
 
@@ -253,43 +251,44 @@ async def on_send_time(
     )
 
 async def on_executor(
-    new_executor_id: Optional[_UUID],
-    card: Optional['Card'] = None, 
+    new_executor_id,
+    card: Optional['Card'] = None,
     card_id: Optional[_UUID] = None
 ):
-    """Обработчик изменения исполнителя."""
-    
+    """Обработчик назначения исполнителя. Исполнитель хранится в Task."""
+
     if not card_id and not card:
         raise ValueError("Необходимо указать card или card_id")
-    
+
     if not card:
         card = await Card.get_by_key('card_id', str(card_id))
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
 
-    old_executor_id = card.executor_id
+    task = await card.get_task()
+    if not task:
+        logger.warning(f"on_executor: карточка {card.card_id} не привязана к заданию")
+        return
+
+    new_executor_id_uuid = _UUID(str(new_executor_id)) if new_executor_id else None
+    old_executor_id = task.executor_id
     forum_upd = False
-    
+
     # Обрабатываем старого исполнителя (если есть)
-    if old_executor_id and old_executor_id != new_executor_id:
+    if old_executor_id and old_executor_id != new_executor_id_uuid:
         old_user = await User.get_by_key('user_id', old_executor_id)
         if old_user:
-            # Закрываем сцену если это не заказчик
-            if old_executor_id != card.customer_id:
-                from modules.exec.executors_client import close_user_scene
-                await close_user_scene(old_user.telegram_id)
+            from modules.exec.executors_client import close_user_scene
+            await close_user_scene(old_user.telegram_id)
 
-    # Обновляем исполнителя в БД
-    await card.update(executor_id=new_executor_id)
+    # Обновляем исполнителя в Task
+    await task.update(executor_id=new_executor_id_uuid)
 
     # Обрабатываем нового исполнителя
-    if new_executor_id is None:
-        pass
-    else:
-        new_user = await User.get_by_key('user_id', new_executor_id)
+    if new_executor_id_uuid:
+        new_user = await User.get_by_key('user_id', new_executor_id_uuid)
         if new_user:
-            # Уведомляем нового исполнителя
-            await notify_users([new_executor_id], 
+            await notify_users([new_executor_id_uuid],
                 f"📝 Вы назначены исполнителем задачи: {card.name}",
                 'assign-executor')
 
@@ -306,32 +305,27 @@ async def on_executor(
         update_scenes(SceneNames.USER_TASK, 'main-page',
                      "task_id", str(card.card_id))
     )
-    
+
     await asyncio.create_task(
         update_scenes(SceneNames.VIEW_TASK, 'task-detail',
                      "selected_task", str(card.card_id))
     )
 
 async def on_editor(
-    new_editor_id: Optional[_UUID],
-    card: Optional['Card'] = None, 
+    new_editor_id,
+    card: Optional['Card'] = None,
     card_id: Optional[_UUID] = None
 ):
-    """Обработчик изменения редактора."""
-    
+    """Обработчик изменения редактора. Редактор на уровне карточки больше не используется."""
     if not card_id and not card:
         raise ValueError("Необходимо указать card или card_id")
-    
+
     if not card:
         card = await Card.get_by_key('card_id', str(card_id))
         if not card:
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
-    
-    # Обновляем редактора
-    await card.update(editor_id=new_editor_id)
 
-    # Уведомляем нового редактора
-    if new_editor_id:
+    # Уведомляем нового редактора (editor больше не хранится в карточке)
         await notify_users([new_editor_id],
                           f"📝 Вы назначены редактором задачи: {card.name}",
                           'editor-assigned')

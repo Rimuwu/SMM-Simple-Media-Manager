@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from models.Card import Card
+    from models.Task import Task
 
 class User(Base, AsyncCRUDMixin):
     __tablename__ = "users"
@@ -36,12 +37,12 @@ class User(Base, AsyncCRUDMixin):
     can_pick: Mapped[bool] = mapped_column(nullable=False, default=False) # Может ли заказчик выдать задание исполнителю как личное задание
 
     # Связи
-    cards: Mapped[list["Card"]] = relationship(
-        "Card", back_populates="customer", foreign_keys="Card.customer_id")
-    executed_cards: Mapped[list["Card"]] = relationship(
-        "Card", back_populates="executor", foreign_keys="Card.executor_id")
-    edited_cards: Mapped[list["Card"]] = relationship(
-        "Card", back_populates="editor", foreign_keys="Card.editor_id")
+    # Задания, созданные пользователем как заказчик
+    own_tasks: Mapped[list["Task"]] = relationship(
+        "Task", back_populates="customer", foreign_keys="Task.customer_id")
+    # Задания, в которых пользователь является исполнителем
+    executed_tasks: Mapped[list["Task"]] = relationship(
+        "Task", back_populates="executor", foreign_keys="Task.executor_id")
 
     def __repr__(self) -> str:
         return f"<User(id={self.user_id}, telegram_id={self.telegram_id}, role='{self.role}')>"

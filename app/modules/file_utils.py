@@ -135,37 +135,6 @@ def convert_image_to_png(file_data: bytes) -> bytes:
     return output.getvalue()
 
 
-def convert_image_to_jpeg(file_data: bytes, quality: int = 95) -> bytes:
-    """
-    Конвертирует изображение в JPEG формат.
-    Прозрачность заменяется белым фоном.
-    
-    Args:
-        file_data: Бинарные данные исходного изображения
-        quality: Качество JPEG (1-100)
-        
-    Returns:
-        bytes: JPEG данные изображения
-    """
-    image = Image.open(io.BytesIO(file_data))
-    
-    # Конвертируем в RGB (JPEG не поддерживает прозрачность)
-    if image.mode in ('RGBA', 'LA', 'P'):
-        background = Image.new('RGB', image.size, (255, 255, 255))
-        if image.mode == 'P':
-            image = image.convert('RGBA')
-        if image.mode in ('RGBA', 'LA'):
-            background.paste(image, mask=image.split()[-1])
-        else:
-            background.paste(image)
-        image = background
-    elif image.mode != 'RGB':
-        image = image.convert('RGB')
-    
-    output = io.BytesIO()
-    image.save(output, format='JPEG', quality=quality)
-    return output.getvalue()
-
 
 def generate_unique_filename(
     original_name: str, 
