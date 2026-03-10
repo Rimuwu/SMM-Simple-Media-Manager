@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from models.Tag import Tag
+from app.models.card.Tag import Tag
 
 
 class TagCreateKeyPage(Page):

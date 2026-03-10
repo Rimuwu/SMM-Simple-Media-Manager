@@ -10,14 +10,14 @@ logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
 
 from models import User
-from models.Task import Task
-from models.Tag import Tag
-from models.Card import Card
-from models.CardContent import CardContent
-from models.ClientSetting import ClientSetting
-from models.Entity import Entity
-from models.CardFile import CardFile
-from models.CardMessage import CardMessage
+from app.models.task.Task import Task
+from app.models.card.Tag import Tag
+from app.models.card.Card import Card
+from app.models.card.CardContent import CardContent
+from app.models.card.ClientSetting import ClientSetting
+from app.models.card.ClientEntity import Entity
+from app.models.task.TaskFile import TaskFile
+from app.models.Message import CardMessage
 
 from modules.enums import UserRole
 

@@ -7,8 +7,7 @@ from modules.enums import UserRole, Department
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from models.Card import Card
-    from models.Task import Task
+    from app.models.task.Task import Task
 
 class User(Base, AsyncCRUDMixin):
     __tablename__ = "users"
@@ -39,10 +38,13 @@ class User(Base, AsyncCRUDMixin):
     # Связи
     # Задания, созданные пользователем как заказчик
     own_tasks: Mapped[list["Task"]] = relationship(
-        "Task", back_populates="customer", foreign_keys="Task.customer_id")
+        "Task", back_populates="customer", foreign_keys="Task.customer_id", lazy="selectin")
     # Задания, в которых пользователь является исполнителем
     executed_tasks: Mapped[list["Task"]] = relationship(
-        "Task", back_populates="executor", foreign_keys="Task.executor_id")
+        "Task", back_populates="executor", foreign_keys="Task.executor_id", lazy="selectin")
+    # Задания, в которых пользователь является редактором
+    edited_tasks: Mapped[list["Task"]] = relationship(
+        "Task", back_populates="editor", foreign_keys="Task.editor_id", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"<User(id={self.user_id}, telegram_id={self.telegram_id}, role='{self.role}')>"

@@ -9,9 +9,9 @@ from modules.post_generator import generate_post, render_post_from_card
 from modules.enums import CardStatus
 from modules.utils import get_telegram_user
 from modules.entities_sender import send_poll_preview, get_entities_for_client
-from models.Card import Card
+from app.models.card.Card import Card
 from models.User import User
-from models.CardMessage import CardMessage
+from app.models.Message import CardMessage
 from modules.storage import download_file as _storage_download
 from modules.json_utils import open_clients, open_settings
 

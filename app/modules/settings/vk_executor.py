@@ -1,6 +1,6 @@
 
 
-from models.Card import Card
+from app.models.card.Card import Card
 
 
 # single (1 для клиента)

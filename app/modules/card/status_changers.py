@@ -16,12 +16,12 @@ from modules.exec.executors_client import (
     notify_user, notify_users
 )
 from modules.logs import logger
-from models.CardMessage import CardMessage
+from app.models.Message import CardMessage
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from models.Card import Card, CardStatus
+    from app.models.card.Card import Card, CardStatus
 
 settings = open_settings() or {}
 

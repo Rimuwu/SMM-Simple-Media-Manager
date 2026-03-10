@@ -1,7 +1,7 @@
 from tg.oms.models.text_page import TextTypeScene
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from models.Entity import Entity
+from app.models.card.ClientEntity import Entity
 from uuid import UUID as _UUID
 from datetime import datetime
 

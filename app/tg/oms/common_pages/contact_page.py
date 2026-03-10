@@ -1,6 +1,6 @@
 from urllib.parse import quote
 from tg.oms import Page
-from models.Card import Card
+from app.models.card.Card import Card
 from models.User import User
 from uuid import UUID as _UUID
 from modules.utils import get_telegram_user, get_user_display_name

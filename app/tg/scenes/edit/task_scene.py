@@ -1,7 +1,7 @@
 from tg.oms import Scene
 
 from models.Scene import Scene as SceneModel
-from models.Card import Card
+from app.models.card.Card import Card
 from .channels_page import ChannelsSettingsPage
 from .content_page import ContentSetterPage
 from .publish_date_page import PublishDateSetterPage

@@ -1,6 +1,6 @@
 from tg.oms.models.option_page import OptionTypeScene
 from modules.constants import CLIENTS
-from models.Card import Card
+from app.models.card.Card import Card
 from uuid import UUID as _UUID
 
 class ChannelsSettingsPage(OptionTypeScene):

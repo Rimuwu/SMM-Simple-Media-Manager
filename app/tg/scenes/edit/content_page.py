@@ -249,7 +249,7 @@ class ContentSetterPage(TextTypeScene):
         # Определяем client_key в зависимости от режима
         client_key = None if self.content_mode == 'all' else self.content_mode
         
-        from models.CardContent import CardContent
+        from app.models.card.CardContent import CardContent
         from uuid import UUID as _UUID
         ok = True
         try:

@@ -1,18 +1,16 @@
 # Импортируем все модели в правильном порядке для SQLAlchemy
 from .User import User
-from .Task import Task
-from .Card import Card
+from .task.Task import Task
+from .card.Card import Card
 from .Scene import Scene
-from .Tag import Tag
+from .card.Tag import Tag
 from .ScheduledTask import ScheduledTask
-from .CardContent import CardContent
-from .ClientSetting import ClientSetting
-from .Entity import Entity
-# from .Message import Message
-# from .Automation import Automation, Preset
+from .card.CardContent import CardContent
+from .card.ClientSetting import ClientSetting
+from .card.ClientEntity import Entity
 
 # Импортируем энумы из глобального модуля
-from modules.enums import UserRole, CardStatus, AutomationTypes
+from modules.enums import UserRole, CardStatus
 # from global_modules.classes.enums import MessageType
 
 __all__ = [
@@ -22,6 +20,5 @@ __all__ = [
     "Tag",
     "ScheduledTask", "TaskStatus",
     "CardContent", "ClientSetting", "Entity",
-    # "Message", "MessageType",
-    # "Automation", "AutomationTypes", "Preset"
+    "Scene"
 ]

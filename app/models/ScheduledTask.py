@@ -9,7 +9,7 @@ from typing import Optional, TYPE_CHECKING
 from uuid import UUID as PyUUID
 
 if TYPE_CHECKING:
-    from models.Card import Card
+    from app.models.card.Card import Card
 
 class ScheduledTask(Base, AsyncCRUDMixin):
     """
@@ -21,23 +21,27 @@ class ScheduledTask(Base, AsyncCRUDMixin):
     __tablename__ = "scheduled_tasks"
 
     task_id: Mapped[uuidPK]
-    
+
     # ID карточки (для удобного поиска и удаления задач по карточке)
-    card_id: Mapped[Optional[PyUUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("cards.card_id", ondelete="CASCADE"), nullable=True, index=True)
-    
+    card_id: Mapped[Optional[PyUUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cards.card_id", ondelete="CASCADE"), 
+        nullable=True, index=True
+    )
+
     # Relationship
-    card: Mapped[Optional["Card"]] = relationship("Card", back_populates="scheduled_tasks", foreign_keys=[card_id])
+    card: Mapped[Optional["Card"]] = relationship(
+        "Card", back_populates="scheduled_tasks", foreign_keys=[card_id], lazy="selectin")
 
     # Путь к функции для импорта (например: "modules.tasks.notifications.send_card_reminder")
     function_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    
+
     # Аргументы функции в формате JSON
     # Пример: {"card_id": "uuid-string", "message_type": "reminder"}
     arguments: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    
+
     # Время выполнения задачи
     execute_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    
+
     # Временные метки
     created_at: Mapped[createAT]
     updated_at: Mapped[updateAT]

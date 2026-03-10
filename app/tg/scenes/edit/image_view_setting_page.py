@@ -1,4 +1,4 @@
-from models.Card import Card
+from app.models.card.Card import Card
 from uuid import UUID as _UUID
 from tg.oms import Page
 from tg.oms.utils import callback_generator

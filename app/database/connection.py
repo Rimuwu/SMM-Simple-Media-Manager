@@ -9,9 +9,7 @@ POSTGRES_DB = getenv("POSTGRES_DB", "database")
 engine = create_async_engine(
     f'postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@postgres:5432/{POSTGRES_DB}', 
     future=True, 
-    echo=False,  # Отключаем логирование SQL параметров
-    #  pool_size=5, 
-    #  max_overflow=10
+    echo=False
     )
 
 session_factory = async_sessionmaker(

@@ -4,7 +4,7 @@ Module for sending and managing entities (polls, etc) in previews and messages
 from aiogram import Bot
 from aiogram.types import InputPollOption
 from uuid import UUID as _UUID
-from models.Entity import Entity
+from app.models.card.ClientEntity import Entity
 
 
 async def send_poll_preview(

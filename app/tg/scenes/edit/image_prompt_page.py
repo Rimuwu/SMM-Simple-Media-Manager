@@ -6,7 +6,7 @@ from html import escape
 from modules.utils import get_display_name
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from models.Card import Card
+from app.models.card.Card import Card
 from models.User import User
 from uuid import UUID as _UUID
 from modules.constants import SETTINGS

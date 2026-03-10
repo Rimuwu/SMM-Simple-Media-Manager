@@ -1,5 +1,5 @@
 from tg.oms.common_pages import TagsSelectorPage
-from models.Card import Card
+from app.models.card.Card import Card
 from uuid import UUID as _UUID
 
 

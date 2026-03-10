@@ -2,7 +2,7 @@ from datetime import datetime
 from tg.oms.utils import callback_generator
 from tg.oms import Page
 from models.User import User
-from models.CardFile import CardFile
+from app.models.task.TaskFile import CardFile
 from modules.card import card_service
 from uuid import UUID as _UUID
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton

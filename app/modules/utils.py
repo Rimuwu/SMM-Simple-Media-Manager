@@ -70,7 +70,7 @@ async def get_tags_map(refresh: bool = False) -> dict[str, dict]:
     if _tags_cache is not None and not refresh:
         return _tags_cache
 
-    from models.Tag import Tag
+    from app.models.card.Tag import Tag
     try:
         tags_list = await Tag.all_sorted()
     except Exception:

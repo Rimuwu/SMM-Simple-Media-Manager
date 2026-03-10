@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, DateTime, ForeignKey
+from sqlalchemy import BigInteger, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
@@ -10,7 +10,9 @@ from database.annotated_types import uuidPK, createAT, updateAT
 
 if TYPE_CHECKING:
     from models.User import User
-    from models.Card import Card
+    from app.models.card.Card import Card
+    from app.models.task.TaskFile import TaskFile
+    from app.models.Message import Message
 
 
 class Task(Base, AsyncCRUDMixin):
@@ -18,15 +20,23 @@ class Task(Base, AsyncCRUDMixin):
 
     task_id: Mapped[uuidPK]
 
+    # Название и тз
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Картинка
+    image_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    image_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=1)
+    image_message_id: Mapped[_UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Заказчик задания
     customer_id: Mapped[Optional[_UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True
     )
     customer: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="own_tasks", foreign_keys=[customer_id]
+        "User", back_populates="own_tasks", foreign_keys=[customer_id], lazy="selectin"
     )
 
     # Исполнитель задания
@@ -34,15 +44,28 @@ class Task(Base, AsyncCRUDMixin):
         UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True
     )
     executor: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="executed_tasks", foreign_keys=[executor_id]
+        "User", back_populates="executed_tasks", foreign_keys=[executor_id], lazy="selectin"
     )
 
+    # Редактор
+    editor_id: Mapped[Optional[_UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True
+    )
+    editor: Mapped[Optional["User"]] = relationship(
+        "User", back_populates="edited_tasks", foreign_keys=[editor_id], lazy="selectin"
+    )
+
+    # Общий итоговый дедлайн
     deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Посты (карточки), привязанные к этому заданию
     cards: Mapped[List["Card"]] = relationship(
-        "Card", back_populates="task", foreign_keys="Card.task_id"
+        "Card", back_populates="task", foreign_keys="Card.task_id", lazy="selectin"
     )
+
+    # Файлы карточки
+    files: Mapped[list["TaskFile"]] = relationship(
+        "TaskFile", back_populates="task", cascade="all, delete-orphan", lazy="selectin")
 
     created_at: Mapped[createAT]
     updated_at: Mapped[updateAT]

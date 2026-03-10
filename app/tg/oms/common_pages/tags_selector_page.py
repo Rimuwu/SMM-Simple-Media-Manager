@@ -5,7 +5,7 @@ from typing import Optional, Callable
 async def _get_tags_options() -> dict:
     """Загружает теги из БД, при отсутствии — из settings.json."""
 
-    from models.Tag import Tag
+    from app.models.card.Tag import Tag
     db_tags = [t.to_dict() for t in await Tag.all_sorted()]
 
     return {t['key']: t['name'] for t in db_tags}

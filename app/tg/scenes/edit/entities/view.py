@@ -1,6 +1,6 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from models.Entity import Entity
+from app.models.card.ClientEntity import Entity
 from uuid import UUID as _UUID
 
 types = {

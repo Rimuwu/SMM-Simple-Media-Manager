@@ -1,7 +1,7 @@
 from tg.oms import Page
 from tg.oms.utils import callback_generator
 from modules.constants import CLIENTS
-from models.Entity import Entity
+from app.models.card.ClientEntity import Entity
 from uuid import UUID as _UUID
 
 

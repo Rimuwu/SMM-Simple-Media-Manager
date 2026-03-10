@@ -7,12 +7,12 @@ from uuid import UUID as _UUID
 
 from modules.constants import SceneNames
 from modules.logs import logger
-from models.CardMessage import CardMessage
+from app.models.Message import CardMessage
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from models.Card import Card
+    from app.models.card.Card import Card
 
 def _get_tg():
     from modules.exec.executors_manager import manager

@@ -2,7 +2,7 @@ from datetime import datetime
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command
-from models.Card import Card
+from app.models.card.Card import Card
 from models.User import User
 from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS

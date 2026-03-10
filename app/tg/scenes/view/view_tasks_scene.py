@@ -9,7 +9,7 @@ from .change_description_page import ChangeDescriptionPage
 from .select_user_filter_page import SelectUserFilterPage
 from .select_department_filter_page import SelectDepartmentFilterPage
 from models.Scene import Scene as SceneModel
-from models.Card import Card
+from app.models.card.Card import Card
 from tg.oms.common_pages import DatePickerPage, ContactPage
 from tg.scenes.edit.preview_page import PreviewPage
 from .files_page import FilesPage_view

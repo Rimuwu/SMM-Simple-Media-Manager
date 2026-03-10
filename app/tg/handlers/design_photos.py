@@ -1,8 +1,8 @@
 from typing import Optional
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
-from models.Card import Card
-from models.CardFile import CardFile
+from app.models.card.Card import Card
+from app.models.task.TaskFile import CardFile
 from models.User import User
 from uuid import UUID as _UUID
 from modules.exec.executors_manager import manager

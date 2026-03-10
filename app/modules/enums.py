@@ -1,15 +1,6 @@
 from enum import Enum
 
 
-class AutomationTypes(str, Enum):
-    """Типы автоматизации"""
-
-    auto_story = "auto_story"
-    auto_repost = "auto_repost"
-    auto_reaction = "auto_reaction"
-    auto_pin = "auto_pin"
-
-
 class CardStatus(str, Enum):
     """Статусы карточек"""
 
@@ -26,17 +17,35 @@ class CardStatus(str, Enum):
 class MessageType(str, Enum):
     """Типы сообщений"""
 
-    can_take = "can_take"
-    ready_review = "ready_review"
-    ready_post = "ready_post"
+    # Сообщение на форуме задач
+    forum_message = "forum_message"
+
+    # Сообщение с итоговым превью
+    complete_preview = "complete_preview"
+    complete_info = "complete_info"
+    complete_entitity = "complete_entity"
+
+    # Сообщение с задачей дизайну
+    design_task = "design_task"
+
+    # Итоговый пост
+    final_post = "final_post"
+    final_entity = "final_entity"
 
 class UserRole(str, Enum):
     """Роли пользователей в системе"""
 
+    # Брать задания, редактировать, отправлять на проверку, создавать для себя
     copywriter = "copywriter"
+    # Копирайтер + брать на проверку и одобрять к публикации
     editor = "editor"
+    # Создавать и отслеживать прогресс
     customer = "customer"
+
+    # Всё
     admin = "admin"
+
+    # Авто-роль для счёта выполненных задач
     designer = "designer"
 
 class Department(str, Enum):
@@ -53,17 +62,3 @@ class Department(str, Enum):
     streaming = "streaming" # Отдел трансляций
 
     without_department = "without_department" # Без отдела
-
-class CardType(str, Enum):
-    """Типы карточек"""
-
-    public = "public"
-    private = "private"
-
-class ChangeType(str, Enum):
-    """Типы изменений в карточке"""
-    
-    DEADLINE = "deadline"
-    COMMENT = "comment"
-    NAME = "name"
-    DESCRIPTION = "description"

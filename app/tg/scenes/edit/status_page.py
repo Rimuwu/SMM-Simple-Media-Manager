@@ -1,5 +1,5 @@
 from tg.oms import Page
-from models.Card import Card
+from app.models.card.Card import Card
 from models.User import User
 from modules.card import card_service
 from modules.enums import CardStatus

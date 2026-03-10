@@ -17,9 +17,9 @@ class Scene(Base, AsyncCRUDMixin):
     scene_path: Mapped[str] = mapped_column(String, nullable=False)
     page: Mapped[str] = mapped_column(String, nullable=False)
     message_id: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    
+
     data: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
-    
+
     created_at: Mapped[createAT]
     updated_at: Mapped[updateAT]
 

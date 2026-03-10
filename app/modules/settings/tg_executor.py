@@ -1,7 +1,7 @@
 
 
 
-from models.Card import Card
+from app.models.card.Card import Card
 
 
 # Настройка автозакрепа для Telegram

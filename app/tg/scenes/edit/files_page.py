@@ -3,8 +3,8 @@
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message, BufferedInputFile
 from tg.oms import Page
-from models.Card import Card
-from models.CardFile import CardFile
+from app.models.card.Card import Card
+from app.models.task.TaskFile import CardFile
 from modules.logs import logger
 from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension, is_video_by_mime_or_extension, detect_file_type_by_bytes, convert_image_to_png
 from modules.storage import download_file as _dl_storage

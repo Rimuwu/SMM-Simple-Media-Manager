@@ -15,7 +15,7 @@ from aiogram.types import (
 )
 from modules.entities_sender import get_entities_for_client, send_poll_preview
 from uuid import UUID as _UUID
-from models.CardFile import CardFile
+from app.models.task.TaskFile import CardFile
 from modules.storage import download_file as _storage_download_file
 from modules.post_generator import generate_post, render_post_from_card
 from modules.logs import logger
@@ -537,7 +537,7 @@ async def send_post(
     from modules.constants import CLIENTS
 
     if content is None or tags is None:
-        from models.Card import Card
+        from app.models.card.Card import Card
         cards = await Card.find(card_id=card_id)
         if cards:
             card = cards[0].to_full_dict()

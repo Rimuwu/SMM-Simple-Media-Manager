@@ -12,7 +12,7 @@ from modules.logs import logger
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from models.Card import Card
+    from app.models.card.Card import Card
 
 
 class TaskScheduler:

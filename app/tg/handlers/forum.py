@@ -1,6 +1,6 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, CallbackQuery
-from models.Card import Card
+from app.models.card.Card import Card
 from models.User import User
 from modules.enums import CardStatus
 from modules.text_generators import card_executed, forum_message

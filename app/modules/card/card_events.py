@@ -18,7 +18,7 @@ from modules.logs import logger
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from models.Card import Card
+    from app.models.card.Card import Card
 
 async def on_name(
                   new_name: str,
@@ -225,7 +225,7 @@ async def on_send_time(
         logger.error(f"Ошибка перепланирования задач публикации для карточки {card.card_id}: {e}")
 
     # Обновляем превью если карточка готова — удаляем все и создаём новые
-    from models.Card import CardStatus
+    from app.models.card.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
             await delete_and_recreate_all_completes(card)
@@ -373,7 +373,7 @@ async def on_content(
     key = client_key if client_key else None
 
     # Создаём или обновляем запись в таблице CardContent
-    from models.CardContent import CardContent
+    from app.models.card.CardContent import CardContent
     content_records = await CardContent.filter_by(
         card_id=card.card_id,
         client_key=key
@@ -389,7 +389,7 @@ async def on_content(
         )
 
     # Обновляем превью если карточка готова — удаляем все и создаём новые
-    from models.Card import CardStatus
+    from app.models.card.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
             await delete_and_recreate_all_completes(card)
@@ -416,7 +416,7 @@ async def on_clients(
     removed_clients = old_clients - set(new_clients)
     
     # Удаляем настройки и контент клиентов, которых больше нет
-    from models.ClientSetting import ClientSetting
+    from app.models.card.ClientSetting import ClientSetting
     for client_key in removed_clients:
         settings = await card.get_clients_settings(client_key=client_key)
         for s in settings:
@@ -443,7 +443,7 @@ async def on_clients(
         logger.error(f"Ошибка перепланирования задач публикации для карточки {card.card_id}: {e}")
 
     # Обновляем превью если карточка готова — удаляем все и создаём новые
-    from models.Card import CardStatus
+    from app.models.card.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
             await delete_and_recreate_all_completes(card)
@@ -517,7 +517,7 @@ async def on_tags(
     await card.update(tags=new_tags)
     
     # Обновляем превью если карточка готова — удаляем все и создаём новые
-    from models.Card import CardStatus
+    from app.models.card.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
             await delete_and_recreate_all_completes(card)
@@ -558,7 +558,7 @@ async def on_image_prompt(
     await card.update(image_prompt=new_prompt)
 
     # При изменении промпта на изображение — пересоздаём превью если карточка готова
-    from models.Card import CardStatus
+    from app.models.card.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
             await delete_and_recreate_all_completes(card)
@@ -602,7 +602,7 @@ async def on_clients_settings(
     await card.update(clients_settings=clients_settings)
     
     # Обновляем превью если карточка готова — удаляем все и создаём новые
-    from models.Card import CardStatus
+    from app.models.card.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
             await delete_and_recreate_all_completes(card)
@@ -636,7 +636,7 @@ async def on_entities(
             raise ValueError(f"Карточка с card_id {card_id} не найдена")
 
     # Обновляем превью если карточка готова — удаляем все и создаём новые
-    from models.Card import CardStatus
+    from app.models.card.Card import CardStatus
     if card.status == CardStatus.ready:
         try:
             await delete_and_recreate_all_completes(card)

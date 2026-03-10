@@ -1,4 +1,4 @@
-from models.Card import Card, CardStatus
+from app.models.card.Card import Card, CardStatus
 from models.User import User
 from modules.enums import UserRole
 from modules.exec.executors_client import notify_user, forward_first_by_tags, send_leaderboard

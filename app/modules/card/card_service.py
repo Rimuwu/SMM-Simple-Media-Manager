@@ -4,16 +4,16 @@ from uuid import UUID as _UUID
 from datetime import datetime
 
 from models.User import User
-from models.CardFile import CardFile
-from models.ClientSetting import ClientSetting
+from app.models.task.TaskFile import CardFile
+from app.models.card.ClientSetting import ClientSetting
 from modules.enums import CardStatus
 from modules.logs import logger
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from models.Card import Card
-    from models.Task import Task
+    from app.models.card.Card import Card
+    from app.models.task.Task import Task
 
 async def increment_reviewers_tasks(card: 'Card'):
     """
@@ -55,7 +55,7 @@ async def create_task(
     executor_id=None,
 ) -> "Optional[Task]":
     """Создать задание (контейнер для нескольких постов/карточек)."""
-    from models.Task import Task
+    from app.models.task.Task import Task
     try:
         task = await Task.create(
             name=title,
@@ -88,7 +88,7 @@ async def create_card(
     сообщение на форум, если тип задачи публичный.
     """
     from modules.exec.executors_client import send_forum_message
-    from models.Card import Card
+    from app.models.card.Card import Card
 
     try:
         card = await Card.create(
@@ -119,13 +119,13 @@ async def create_card(
 
 async def destroy_card(card_id: str) -> bool:
     """Удалить карточку с каскадной очисткой файлов, сообщений и календаря."""
-    from models.CardMessage import CardMessage
+    from app.models.Message import CardMessage
     from modules.exec.executors_client import (
         delete_forum_message_by_id,
         delete_all_complete_previews,
     )
     from modules.calendar.calendar import delete_calendar_event
-    from models.Card import Card
+    from app.models.card.Card import Card
 
     try:
         card = await Card.get_by_id(_UUID(str(card_id)))
@@ -169,7 +169,7 @@ async def change_card_status(
 ) -> Optional['Card']:
     """Сменить статус карточки через соответствующий обработчик статуса."""
     from modules.card import status_changers
-    from models.Card import Card, CardStatus
+    from app.models.card.Card import Card, CardStatus
 
     try:
         card = await Card.get_by_id(_UUID(str(card_id)))

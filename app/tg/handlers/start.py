@@ -12,7 +12,7 @@ from aiogram.types.bot_command import BotCommand
 from tg.oms import scene_manager
 from tg.scenes.view.view_tasks_scene import ViewTasksScene
 from tg.scenes.edit.task_scene import TaskScene
-from models.Card import Card
+from app.models.card.Card import Card
 from models.User import User
 from urllib.parse import unquote_plus
 import re
