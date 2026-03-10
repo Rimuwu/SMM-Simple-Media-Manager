@@ -1,6 +1,6 @@
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
-from modules.logs import logger
+from app.modules.components.logs import logger
 from modules.exec.executors_manager import manager
 from aiogram.filters import Command
 from tg.filters.authorize import Authorize

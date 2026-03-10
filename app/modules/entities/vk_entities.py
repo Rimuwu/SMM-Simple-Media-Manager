@@ -1,2 +1,0 @@
-
-avaibale_entities = {}

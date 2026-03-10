@@ -7,7 +7,7 @@ from models.User import User
 from uuid import UUID as _UUID
 from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS
-from modules.logs import logger
+from app.modules.components.logs import logger
 from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension
 from modules.file_utils import convert_image_to_png
 from modules.exec.executors_client import notify_user

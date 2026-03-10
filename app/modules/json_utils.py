@@ -11,10 +11,6 @@ from typing import Any, Dict, Union
 BASE_PATH = Path('json/')
 
 
-# -------------------------------------------------------------
-# Чтение JSON файлов
-# -------------------------------------------------------------
-
 def open_json_file(filepath: str) -> dict:
     """Загружает JSON-файл из директории ``json/``.
 
@@ -34,21 +30,6 @@ def open_json_file(filepath: str) -> dict:
         print(f"An unexpected error occurred: {e}")
         return {}
 
-
-def open_settings() -> dict:
-    """Возвращает словарь из ``json/settings.json``"""
-    return open_json_file('settings.json')
-
-
-def open_clients() -> dict:
-    """Возвращает словарь из ``json/clients.json``"""
-    return open_json_file('clients.json')
-
-
-# -------------------------------------------------------------
-# Утилиты для обработки значений, возможно содержащих ссылки
-# на переменные окружения.
-# -------------------------------------------------------------
 
 def value_env(value: Union[str, dict]) -> Union[str, int, bool]:
     """Если ``value`` — словарь с ключом ``'env'``, возвращает значение

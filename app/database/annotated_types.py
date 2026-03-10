@@ -6,7 +6,7 @@ from uuid import uuid4, UUID as _UUID
 from sqlalchemy import DateTime, Integer, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import mapped_column
-from modules.timezone import now_naive
+from app.modules.components.timezone import now_naive
 
 # Стандартный тип для создания uuid полей
 uuidPK = Annotated[_UUID, mapped_column(UUID(as_uuid=True), 

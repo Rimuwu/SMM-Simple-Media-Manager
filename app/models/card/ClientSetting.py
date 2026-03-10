@@ -16,7 +16,7 @@ class ClientSetting(Base, AsyncCRUDMixin):
 
     id: Mapped[uuidPK]
     card_id: Mapped[_UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cards.card_id", ondelete="CASCADE"), nullable=False)
+        UUID(as_uuid=True), ForeignKey("cards.id", ondelete="CASCADE"), nullable=False)
 
     client_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
@@ -26,3 +26,27 @@ class ClientSetting(Base, AsyncCRUDMixin):
     # Relationship
     card: Mapped["Card"] = relationship(
         "Card", back_populates="clients_settings_entries", lazy="selectin")
+
+    def __repr__(self) -> str:
+        return f"<ClientSetting(id='{self.id}', card_id='{self.card_id}', client_key='{self.client_key}', type='{self.type}')>"
+
+    @classmethod
+    async def create_setting(
+        cls
+    ): pass
+
+
+    @classmethod
+    async def create_vk_image_view(
+        cls
+    ): pass
+
+    @classmethod
+    async def create_tg_pin_message(
+        cls
+    ): pass
+
+    @classmethod
+    async def create_tg_forward_message(
+        cls
+    ): pass

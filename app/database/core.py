@@ -5,28 +5,18 @@ from sqlalchemy import select, text
 import logging
 from os import getenv
 
+from models import User, Task, TaskFile, Card, CardContent, ClientSetting, ClientEntity, Tag, ScheduledTask, Scene
+
 # Отключаем логирование SQL параметров
 logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
-
-from models import User
-from app.models.task.Task import Task
-from app.models.card.Tag import Tag
-from app.models.card.Card import Card
-from app.models.card.CardContent import CardContent
-from app.models.card.ClientSetting import ClientSetting
-from app.models.card.ClientEntity import Entity
-from app.models.task.TaskFile import TaskFile
-from app.models.Message import CardMessage
-
-from modules.enums import UserRole
 
 async def create_tables():
     """Удалить все таблицы и пересоздать их заново."""
 
     async with engine.begin() as conn:
         # Удаляем все таблицы с CASCADE для обхода зависимостей
-        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        # await conn.execute(text("DROP SCHEMA public CASCADE"))
         await conn.execute(
             text("CREATE SCHEMA IF NOT EXISTS public")
             )
@@ -34,6 +24,8 @@ async def create_tables():
 
 async def create_superuser():
     """Создать суперпользователя, если его нет в базе."""
+    from modules.enums import UserRole
+
 
     admin_id = getenv("ADMIN_ID", None)
     if not admin_id:
@@ -55,7 +47,8 @@ async def create_superuser():
             telegram_id=int(admin_id),
             role=UserRole.admin,
             department='smm',
-            about="Superuser"
+            about="Superuser",
+            name='Dinosaur'
         )
         session.add(new_admin)
         await session.commit()

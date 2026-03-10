@@ -5,7 +5,7 @@ from vk_api.vk_api import VkApiMethod
 from modules.exec.executor import BaseExecutor
 from modules.post_generator import clean_html, convert_hyperlinks_to_vk
 from typing import Literal, Optional, Dict, List, Any
-from modules.logs import logger
+from app.modules.components.logs import logger
 
 
 class VKExecutor(BaseExecutor):

@@ -32,13 +32,3 @@ def load_constants():
 
 constants = load_constants()
 globals().update(constants) # Обновляем переменные констант
-
-
-class SceneNames:
-    USER_TASK = 'user-task'
-    VIEW_TASK = 'view-tasks'
-
-
-class Messages:
-    TASK_TAKEN = '📌 Задача взята в работу'
-    TASK_RETURNED = '📤 Задача возвращена'

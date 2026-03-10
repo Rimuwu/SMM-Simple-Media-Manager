@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.exceptions import TelegramBadRequest
 from modules.exec.executors_manager import manager
 from models.User import User
-from modules.logs import logger
+from app.modules.components.logs import logger
 from tg.filters.authorize import Authorize
 from modules.utils import get_user_display_name
 from tg.filters.in_dm import InDMorWorkGroup

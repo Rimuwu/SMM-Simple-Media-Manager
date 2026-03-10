@@ -17,7 +17,7 @@ class TaskFile(Base, AsyncCRUDMixin):
 
     id: Mapped[uuidPK]
     task_id: Mapped[_UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tasks.task_id", ondelete="CASCADE"), nullable=False)
+        UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
 
     # Имя файла в хранилище (UUID + расширение)
     filename: Mapped[str] = mapped_column(String, nullable=False, unique=True)
@@ -39,11 +39,11 @@ class TaskFile(Base, AsyncCRUDMixin):
     async def delete(self, session: Optional["AsyncSession"] = None) -> None:
         """При удалении из БД — удаляем файл из локального хранилища, затем запись в БД."""
         try:
-            from modules.storage import delete_file
+            from app.modules.components.storage import delete_file
             await delete_file(self.filename)
 
         except Exception as e:
-            from modules.logs import Logger
+            from app.modules.components.logs import Logger
             Logger().get_logger("storage"
                                 ).warning(f"Failed to delete file {self.filename} from storage: {e}")
         finally:
@@ -53,16 +53,21 @@ class TaskFile(Base, AsyncCRUDMixin):
         return f"<TaskFile(id={self.id}, filename='{self.filename}', original='{self.original_filename}')>"
 
     @classmethod
+    async def create_file(
+        cls
+    ): pass
+
+    @classmethod
     async def upload(
         cls,
         task_id: str,
         file_data: bytes,
         filename: str,
         content_type: Optional[str] = None,
-    ) -> "Optional[CardFile]":
+    ) -> Optional["TaskFile"]:
         """Загрузить файл в хранилище и создать запись в БД."""
 
-        from modules.storage import upload_file as _up
+        from app.modules.components.storage import upload_file as _up
 
         result = await _up(file_data, filename, content_type)
         if result.get("status") != "success":

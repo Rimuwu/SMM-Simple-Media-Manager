@@ -9,7 +9,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 
-from modules.logs import logger
+from app.modules.components.logs import logger
 
 
 STORAGE_PATH = Path('/storage_data')

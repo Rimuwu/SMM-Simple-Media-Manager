@@ -20,11 +20,11 @@ class ScheduledTask(Base, AsyncCRUDMixin):
     """
     __tablename__ = "scheduled_tasks"
 
-    task_id: Mapped[uuidPK]
+    id: Mapped[uuidPK]
 
     # ID карточки (для удобного поиска и удаления задач по карточке)
     card_id: Mapped[Optional[PyUUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cards.card_id", ondelete="CASCADE"), 
+        UUID(as_uuid=True), ForeignKey("cards.id", ondelete="CASCADE"), 
         nullable=True, index=True
     )
 
@@ -48,3 +48,23 @@ class ScheduledTask(Base, AsyncCRUDMixin):
 
     def __repr__(self) -> str:
         return f"<ScheduledTask(id={self.task_id}, execute_at='{self.execute_at}')>"
+
+    @classmethod
+    async def create_shedule(
+        cls
+    ): pass
+
+    @classmethod
+    async def remove_shedule(
+        cls
+    ): pass
+
+    @classmethod
+    async def get_tasks_for_card(
+        cls
+    ): pass
+
+    @classmethod
+    async def reschedule_tasks_for_card(
+        cls
+    ): pass

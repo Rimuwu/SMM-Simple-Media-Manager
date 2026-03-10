@@ -4,10 +4,10 @@ from enum import Enum
 class CardStatus(str, Enum):
     """Статусы карточек"""
 
-    pass_ = "pass" # Создана
-    create_review = "create_review" # Проверка тз
+    create = "create" # Создана, ждёт одобрения создания
 
-    edited = "edited" # Идёт работа
+    wait_start = "wait_start" # Одобрена, ждёт начала работы
+    working = "working" # В работе
     review = "review" # На проверке
     ready = "ready" # Готово к публикации
 

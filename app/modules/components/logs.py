@@ -2,7 +2,7 @@ import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
-from modules.timezone import now_naive as moscow_now
+from app.modules.components.timezone import now_naive as moscow_now
 
 class Logger:
     """

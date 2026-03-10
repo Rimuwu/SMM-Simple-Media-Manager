@@ -1,9 +1,10 @@
-from sqlalchemy import String, Text, Boolean, DateTime, BigInteger, ForeignKey
+from sqlalchemy import String, Text, Boolean, DateTime, BigInteger, ForeignKey, Table, Column, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID as _UUID
+from app.modules.exec import executor
 from database.connection import Base
 from database.crud_mixins import AsyncCRUDMixin
 from database.annotated_types import uuidPK, createAT, updateAT
@@ -15,14 +16,24 @@ if TYPE_CHECKING:
     from app.models.task.Task import Task
     from app.models.card.CardContent import CardContent
     from app.models.card.ClientSetting import ClientSetting
-    from app.models.card.ClientEntity import Entity
-    from app.models.Message import CardMessage
+    from app.models.card.ClientEntity import ClientEntity
+    from app.models.Message import Message
     from models.ScheduledTask import ScheduledTask
+    from app.models.card.Tag import Tag
+
+
+card_tags = Table(
+    "card_tags",
+    Base.metadata,
+    Column("card_id", UUID(as_uuid=True), ForeignKey("cards.id"), primary_key=True),
+    Column("tag_id", Integer, ForeignKey("tags.id"), primary_key=True),
+)
+
 
 class Card(Base, AsyncCRUDMixin):
     __tablename__ = "cards"
 
-    card_id: Mapped[uuidPK]
+    id: Mapped[uuidPK]
     status: Mapped[CardStatus] = mapped_column(nullable=False, default=CardStatus.pass_)
 
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -41,7 +52,9 @@ class Card(Base, AsyncCRUDMixin):
     # Право отправить работу заказчиком самостоятельно
     need_send_right: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    tags: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, default=[])
+    tags: Mapped[list["Tag"]] = relationship(
+        "Tag", secondary=card_tags, back_populates="cards", lazy="selectin"
+    )
 
     # Дополнительные поля для управления карточками
     send_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -54,7 +67,7 @@ class Card(Base, AsyncCRUDMixin):
 
     # Задание, к которому привязан этот пост
     task_id: Mapped[Optional[_UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tasks.task_id"), nullable=True)
+        UUID(as_uuid=True), ForeignKey("tasks.id"), nullable=True)
     task: Mapped[Optional["Task"]] = relationship(
         "Task", back_populates="cards", foreign_keys=[task_id], lazy="selectin")
 
@@ -64,13 +77,13 @@ class Card(Base, AsyncCRUDMixin):
         lazy="selectin")
 
     # Ентити для по клиентам. Перенесены в `entities`
-    entities_entries: Mapped[list["Entity"]] = relationship(
-        "Entity", back_populates="card", cascade="all, delete-orphan",
+    entities_entries: Mapped[list["ClientEntity"]] = relationship(
+        "ClientEntity", back_populates="card", cascade="all, delete-orphan",
         lazy="selectin")
 
     # Сообщения (forum, complete_preview и т.д.)
-    messages: Mapped[list["CardMessage"]] = relationship(
-        "CardMessage", back_populates="card", cascade="all, delete-orphan", lazy="selectin")
+    messages: Mapped[list["Message"]] = relationship(
+        "Message", back_populates="card", cascade="all, delete-orphan", lazy="selectin")
 
     # Запланированные задачи, связанные с карточкой
     scheduled_tasks: Mapped[list["ScheduledTask"]] = relationship(
@@ -118,3 +131,89 @@ class Card(Base, AsyncCRUDMixin):
                 query = query.where(cls.need_check == need_check)
             result = await session.execute(query)
             return list(result.scalars().all())
+
+
+    # Автоматическое создание с привязкой к карточке
+    @classmethod
+    async def create_card(cls
+    ): pass
+
+    # ── Изменение статуса ─────────────────────────────────────────────
+
+    # После создания
+    async def to_create(
+        self,
+        action: str
+    ): pass
+
+    # После одобрения
+    async def to_wait_start(
+        self,
+        action: str
+    ): pass
+
+    # После начала работы
+    async def to_working(
+        self,
+        action: str
+    ): pass
+
+    # После отправки на проверку
+    async def to_review(
+        self,
+        action: str
+    ): pass
+
+    # После одобрения к публикации
+    async def to_ready(
+        self,
+        action: str
+    ): pass
+
+    # После начала публикации
+    async def to_sending(
+        self
+    ): pass
+
+    # После начала публикации
+    async def to_sent(
+        self
+    ): pass
+
+
+    # ── Изменение данных (триггеры)─────────────────────────────────────────────
+
+    # Тригер изменения имени
+    async def on_name(self): pass
+
+    # Тригер изменения описания
+    async def on_description(self): pass
+
+    # Тригер изменения клиентов
+    async def on_clients(self): pass
+
+    # Тригер изменения тегов
+    async def on_tags(self): pass
+
+    # Тригер изменения времени отправки
+    async def on_send_time(self): pass
+
+    # Тригер изменения тз для картинки
+    async def on_post_images(self): pass
+
+    # Тригер изменения контента для клиента
+    async def on_contents(self): pass
+
+    # Тригер изменения настроект отсылаемых изображений
+    async def on_post_images(self): pass
+
+    # Тригер изменения настроек клиента
+    async def on_clients_settings(self): pass
+
+    # Тригер изменения ентити клиента
+    async def on_entities(self): pass
+
+
+    async def send_to_tg(self): pass
+
+    async def send_to_vk(self): pass

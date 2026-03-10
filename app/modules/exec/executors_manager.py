@@ -1,8 +1,8 @@
 from modules.exec.executor import BaseExecutor
-from modules.logs import logger
+from app.modules.components.logs import logger
 from modules.constants import EXECUTORS
 from modules.json_utils import check_env_config
-from modules.function_way import str_to_func
+from app.modules.components.function_way import str_to_func
 from typing import Dict, List, Type
 import asyncio
 import traceback

@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 class User(Base, AsyncCRUDMixin):
     __tablename__ = "users"
 
-    user_id: Mapped[uuidPK]
+    id: Mapped[uuidPK]
     name: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
 
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
@@ -52,34 +52,37 @@ class User(Base, AsyncCRUDMixin):
     # ── Классовые методы-запросы ─────────────────────────────────────────────
 
     @classmethod
-    async def find(
-        cls,
-        telegram_id=None,
-        role=None,
-        user_id=None,
-        department=None,
-    ) -> "list[User]":
-        """Найти пользователей по произвольному набору фильтров."""
-        from uuid import UUID as _UUID
-
-        filters: dict = {}
-        if telegram_id is not None:
-            filters["telegram_id"] = telegram_id
-        if role is not None:
-            filters["role"] = role
-        if department is not None:
-            filters["department"] = department
-        if user_id is not None:
-            filters["user_id"] = _UUID(str(user_id))
-        return await cls.filter_by(**filters) if filters else await cls.get_all()
+    async def create_user(
+        cls
+    ): pass
 
     @classmethod
-    async def by_telegram(cls, telegram_id: int) -> "Optional[User]":
-        """Получить пользователя по Telegram ID."""
-        return await cls.get_by_key("telegram_id", telegram_id)
+    async def get_by_telegram_id(
+        cls
+    ): pass
 
     @classmethod
-    async def role_for(cls, telegram_id: int) -> "Optional[str]":
-        """Вернуть строковое значение роли для пользователя с данным telegram_id."""
-        user = await cls.by_telegram(telegram_id)
-        return user.role.value if user else None
+    async def get_all_by_role(
+        cls
+    ): pass
+
+    async def update_role(
+        self
+    ): pass
+
+    async def update_department(
+        self
+    ): pass
+
+    async def update_can_pick(
+        self
+    ): pass
+
+    async def update_about(
+        self
+    ): pass
+
+
+    async def notify_user(
+        self,
+    ): pass

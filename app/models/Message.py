@@ -21,9 +21,11 @@ class Message(Base, AsyncCRUDMixin):
 
     id: Mapped[uuidPK]
     card_id: Mapped[_UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cards.card_id", ondelete="CASCADE"), nullable=True)
+        UUID(as_uuid=True), ForeignKey("cards.id", ondelete="CASCADE"), nullable=True
+    )
     task_id: Mapped[Optional[_UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+        UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Тип сообщения: 'forum', 'complete_preview', и т.д.
     message_type: Mapped[MessageType] = mapped_column(String, nullable=False)
@@ -44,3 +46,18 @@ class Message(Base, AsyncCRUDMixin):
 
     def __repr__(self) -> str:
         return f"<Message(id={self.id}, type='{self.message_type}', message_id={self.message_id})>"
+
+    @classmethod
+    async def create_message(
+        cls
+    ): pass
+
+    @classmethod
+    async def get_by_type(
+        cls
+    ): pass
+
+    @classmethod
+    async def delete_by_type(
+        cls
+    ): pass

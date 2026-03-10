@@ -5,7 +5,7 @@ from modules.card import card_service
 from modules.enums import CardStatus
 from uuid import UUID as _UUID
 from tg.oms.utils import callback_generator
-from modules.logs import logger
+from app.modules.components.logs import logger
 from datetime import datetime, timedelta
 
 class StatusSetterPage(Page):

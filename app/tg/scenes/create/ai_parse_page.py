@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime
 from tg.oms import Page
 from tg.oms.utils import callback_generator
-from modules.logs import logger
+from app.modules.components.logs import logger
 
 
 class AIParserPage(Page):
@@ -119,7 +119,7 @@ class AIParserPage(Page):
         }
 
         try:
-            from modules import ai as ai_module
+            from app.modules.components import ai as ai_module
             await ai_module.send(payload)
         except Exception as e:
             logger.error(f"Exception while sending AI parse request for user {self.scene.user_id}: {e}")

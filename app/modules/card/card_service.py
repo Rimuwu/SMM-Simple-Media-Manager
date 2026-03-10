@@ -7,7 +7,7 @@ from models.User import User
 from app.models.task.TaskFile import CardFile
 from app.models.card.ClientSetting import ClientSetting
 from modules.enums import CardStatus
-from modules.logs import logger
+from app.modules.components.logs import logger
 
 from typing import TYPE_CHECKING
 

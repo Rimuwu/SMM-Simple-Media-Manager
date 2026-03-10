@@ -5,7 +5,7 @@ from aiogram.types import Message
 from tg.oms.utils import list_to_inline
 from tg.oms import scene_manager
 from modules.exec.executor import BaseExecutor
-from modules.logs import logger
+from app.modules.components.logs import logger
 from models.Scene import Scene as SceneModel
 
 class TelegramExecutor(BaseExecutor):

@@ -15,7 +15,7 @@ from modules.exec.executors_client import (
     close_user_scene, update_task_scenes, close_card_related_scenes,
     notify_user, notify_users
 )
-from modules.logs import logger
+from app.modules.components.logs import logger
 from app.models.Message import CardMessage
 
 from typing import TYPE_CHECKING

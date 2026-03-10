@@ -13,7 +13,7 @@ from modules.constants import SceneNames
 from modules.tasks.scheduler import reschedule_post_tasks, reschedule_card_notifications
 from modules.calendar.calendar import update_calendar_event
 from modules.card.status_changers import to_edited
-from modules.logs import logger
+from app.modules.components.logs import logger
 
 from typing import TYPE_CHECKING
 

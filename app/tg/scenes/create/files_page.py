@@ -2,7 +2,7 @@ from asyncio import sleep
 from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
 from tg.oms import Page
 from tg.oms.utils import callback_generator, list_to_inline
-from modules.logs import logger
+from app.modules.components.logs import logger
 from modules.file_utils import (
     generate_unique_filename,
     is_image_by_mime_or_extension,

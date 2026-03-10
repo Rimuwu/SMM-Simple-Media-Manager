@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 class Task(Base, AsyncCRUDMixin):
     __tablename__ = "tasks"
 
-    task_id: Mapped[uuidPK]
+    id: Mapped[uuidPK]
 
     # Название и тз
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -27,13 +27,10 @@ class Task(Base, AsyncCRUDMixin):
     # Картинка
     image_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     image_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, default=1)
-    image_message_id: Mapped[_UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
-    )
 
     # Заказчик задания
     customer_id: Mapped[Optional[_UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     customer: Mapped[Optional["User"]] = relationship(
         "User", back_populates="own_tasks", foreign_keys=[customer_id], lazy="selectin"
@@ -41,7 +38,7 @@ class Task(Base, AsyncCRUDMixin):
 
     # Исполнитель задания
     executor_id: Mapped[Optional[_UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     executor: Mapped[Optional["User"]] = relationship(
         "User", back_populates="executed_tasks", foreign_keys=[executor_id], lazy="selectin"
@@ -49,7 +46,7 @@ class Task(Base, AsyncCRUDMixin):
 
     # Редактор
     editor_id: Mapped[Optional[_UUID]] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     editor: Mapped[Optional["User"]] = relationship(
         "User", back_populates="edited_tasks", foreign_keys=[editor_id], lazy="selectin"
@@ -72,3 +69,41 @@ class Task(Base, AsyncCRUDMixin):
 
     def __repr__(self) -> str:
         return f"<Task(id={self.task_id}, name='{self.name}')>"
+
+
+    @classmethod
+    async def create_task(
+        cls
+    ): pass
+
+    async def on_name(
+        self
+    ): pass
+
+    async def on_description(
+        self
+    ): pass
+
+    async def on_image_description(
+        self
+    ): pass
+
+    async def on_image_count(
+        self
+    ): pass
+
+    async def on_customer(
+        self
+    ): pass
+
+    async def on_executor(
+        self
+    ): pass
+
+    async def on_editor(
+        self
+    ): pass
+
+    async def on_deadline(
+        self
+    ): pass

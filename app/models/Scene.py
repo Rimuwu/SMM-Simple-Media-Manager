@@ -3,12 +3,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSON
 from database.connection import Base
 from database.crud_mixins import AsyncCRUDMixin
-from database.annotated_types import createAT, updateAT
+from database.annotated_types import createAT, updateAT, uuidPK
 
 
 class Scene(Base, AsyncCRUDMixin):
     __tablename__ = "scenes"
 
+    id: Mapped[uuidPK]
     user_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False,
                                          index=True, primary_key=True
                                          )
@@ -98,3 +99,16 @@ class Scene(Base, AsyncCRUDMixin):
         if hasattr(obj, "__dict__") and hasattr(obj, "__class__"):
             return str(obj)
         return obj
+
+
+    async def update_task_scene(self
+    ): pass
+
+    async def close_user_scene(self
+    ): pass
+
+    async def close_card_related_scenes(self
+    ): pass
+
+    async def update_scenes(self
+    ): pass

@@ -4,7 +4,7 @@ from app.models.card.Card import Card
 from models.User import User
 from modules.enums import CardStatus
 from modules.text_generators import card_executed, forum_message
-from modules.logs import logger
+from app.modules.components.logs import logger
 from modules.exec.executors_manager import manager
 from aiogram import F
 

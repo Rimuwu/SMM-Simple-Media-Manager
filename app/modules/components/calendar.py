@@ -6,7 +6,7 @@ from google.oauth2.credentials import Credentials
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from modules.logs import calendar_logger
+from app.modules.components.logs import calendar_logger
 
 class GoogleCalendarManager:
     """Менеджер для работы с Google Calendar API"""
@@ -368,88 +368,6 @@ class GoogleCalendarManager:
         except Exception as e:
             calendar_logger.error(f"Error while deleting event {event_id}: {e}")
             return False
-
-    def get_calendar_info(self) -> Optional[Dict[str, Any]]:
-        """
-        Получение информации о календаре
-
-        Returns:
-            Информация о календаре или None
-        """
-        try:
-            if not self.service:
-                calendar_logger.error("Calendar service not initialized")
-                return None
-
-            calendar_info = self.service.calendars().get(
-                calendarId=self.calendar_id
-            ).execute()
-
-            calendar_logger.info(f"Retrieved calendar info: {calendar_info.get('summary', 'Unknown')}")
-            return calendar_info
-
-        except HttpError as e:
-            calendar_logger.error(f"HTTP error while getting calendar info: {e}")
-            return None
-        except Exception as e:
-            calendar_logger.error(f"Error while getting calendar info: {e}")
-            return None
-
-    def check_availability(self,
-                          start_time: datetime,
-                          end_time: datetime) -> bool:
-        """
-        Проверка доступности времени в календаре
-
-        Args:
-            start_time: Время начала проверяемого периода
-            end_time: Время окончания проверяемого периода
-
-        Returns:
-            True если время свободно, False если занято
-        """
-        try:
-            events = self.get_events(
-                time_min=start_time,
-                time_max=end_time,
-                max_results=100
-            )
-
-            for event in events:
-                event_start = event.get('start', {})
-                event_end = event.get('end', {})
-
-                # Получаем время начала и окончания события
-                if 'dateTime' in event_start:
-                    event_start_time = datetime.fromisoformat(
-                        event_start['dateTime'].replace('Z', '+00:00')
-                    )
-                elif 'date' in event_start:
-                    event_start_time = datetime.fromisoformat(event_start['date'])
-                else:
-                    continue
-
-                if 'dateTime' in event_end:
-                    event_end_time = datetime.fromisoformat(
-                        event_end['dateTime'].replace('Z', '+00:00')
-                    )
-                elif 'date' in event_end:
-                    event_end_time = datetime.fromisoformat(event_end['date'])
-                else:
-                    continue
-
-                # Проверяем пересечение времени
-                if (start_time < event_end_time and end_time > event_start_time):
-                    calendar_logger.info(f"Time conflict found with event: {event.get('summary', 'Unknown')}")
-                    return False
-
-            calendar_logger.info("Time slot is available")
-            return True
-
-        except Exception as e:
-            calendar_logger.error(f"Error while checking availability: {e}")
-            return False
-
 
 # Создание глобального экземпляра менеджера
 calendar_manager = GoogleCalendarManager()

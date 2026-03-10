@@ -6,7 +6,7 @@ from app.models.card.Card import Card
 from models.User import User
 from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS
-from modules.logs import logger
+from app.modules.components.logs import logger
 
 
 async def get_user_role(telegram_id: int | None) -> str:

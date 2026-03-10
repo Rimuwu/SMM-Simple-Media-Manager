@@ -44,9 +44,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./logs:/logs:rw
-      - ./json:/app/json:rw
+      - ./json:/app/json:ro
       - ./storage_data:/storage_data:rw
-      - ./sessions:/sessions:rw
     networks:
       - smm_network
     deploy:

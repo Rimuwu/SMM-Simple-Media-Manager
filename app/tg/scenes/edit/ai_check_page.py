@@ -1,6 +1,6 @@
 import asyncio
 from tg.oms import Page
-from modules.logs import logger
+from app.modules.components.logs import logger
 from tg.oms.utils import callback_generator
 
 class AICheckPage(Page):
@@ -87,7 +87,7 @@ class AICheckPage(Page):
 
         try:
             # Отправляем запрос и логируем, но не блокируем основной flow (это фоновой таск)
-            from modules import ai as ai_module
+            from app.modules.components import ai as ai_module
             ai_module.send(payload)
         except Exception as e:
             logger.error(f"Exception while sending AI request for user {self.scene.user_id}: {e}")

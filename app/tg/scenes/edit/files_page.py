@@ -5,9 +5,9 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from tg.oms import Page
 from app.models.card.Card import Card
 from app.models.task.TaskFile import CardFile
-from modules.logs import logger
+from app.modules.components.logs import logger
 from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension, is_video_by_mime_or_extension, detect_file_type_by_bytes, convert_image_to_png
-from modules.storage import download_file as _dl_storage
+from app.modules.components.storage import download_file as _dl_storage
 from uuid import UUID as _UUID
 
 

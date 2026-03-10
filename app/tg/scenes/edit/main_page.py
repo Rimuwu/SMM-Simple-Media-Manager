@@ -5,7 +5,7 @@ from app.models.card.Card import Card
 from models.User import User
 from uuid import UUID as _UUID
 from modules.enums import CardStatus
-from modules.logs import logger
+from app.modules.components.logs import logger
 from tg.scenes.constants import CARD_STATUS_NAMES, format_channels, format_tags
 
 class MainPage(Page):

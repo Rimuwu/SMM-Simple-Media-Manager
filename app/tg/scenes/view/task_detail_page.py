@@ -7,7 +7,7 @@ from modules.card import card_service
 from modules.enums import CardStatus, UserRole
 from tg.scenes.edit.task_scene import TaskScene
 from tg.oms.manager import scene_manager
-from modules.logs import logger
+from app.modules.components.logs import logger
 from modules.card import card_events
 from uuid import UUID as _UUID
 from datetime import datetime
