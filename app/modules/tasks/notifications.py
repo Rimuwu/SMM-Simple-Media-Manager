@@ -1,7 +1,7 @@
 from models.Card import Card, CardStatus
 from models.User import User
 from modules.enums import UserRole
-from modules.exec import executor_bridge
+from modules.exec.executors_client import notify_user, forward_first_by_tags, send_leaderboard
 from datetime import datetime
 import html
 from modules.json_utils import open_settings, open_clients
@@ -43,7 +43,7 @@ async def send_card_deadline_reminder(card: Card, **kwargs):
         message_text = f"⏰ Напоминание о дедлайне\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\nОсталось 2 дня!"
 
         # Отправляем уведомление
-        await executor_bridge.notify_user(executor.telegram_id, message_text)
+        await notify_user(executor.telegram_id, message_text, card_id=str(card.card_id))
         
         logger.info(f"Напоминание для карточки {card.card_id} отправлено исполнителю {executor.telegram_id}")
         
@@ -72,7 +72,7 @@ async def send_forum_deadline_passed(card: Card, **kwargs):
         # Формируем сообщение
         message_text = f"⏰ Дедлайн прошел!\n📝 Задача: {card.name}\n\nЗадача просрочена!"
 
-        await executor_bridge.notify_user(
+        await notify_user(
             group_forum, message_text, reply_to=await card.get_forum_message()
         )
         
@@ -105,7 +105,7 @@ async def send_forum_no_executor_alert(card: Card, **kwargs):
         # Формируем сообщение
         message_text = f"⚠️ Внимание! Карточка без исполнителя\n\n📝 Задача: {card.name}\n⏰ Дедлайн: {deadline_str}\n\n❗ До дедлайна остался 1 день, но исполнитель не назначен!"
 
-        await executor_bridge.notify_user(
+        await notify_user(
             group_forum, message_text, reply_to=await card.get_forum_message()
         )
 
@@ -152,7 +152,7 @@ async def send_admin_no_executor_alert(card: Card, **kwargs):
         # Отправляем уведомление каждому админу
         for admin in admins:
             try:
-                await executor_bridge.notify_user(admin.telegram_id, message_text)
+                await notify_user(admin.telegram_id, message_text, card_id=str(card.card_id))
             except Exception as e:
                 logger.error(f"Ошибка отправки уведомления админу {admin.telegram_id}: {e}")
         
@@ -356,7 +356,7 @@ async def notify_admins_about_post_failure(
 
         for admin in admins:
             try:
-                await executor_bridge.notify_user(admin.telegram_id, message_text, parse_mode='HTML')
+                await notify_user(admin.telegram_id, message_text, parse_mode='HTML', card_id=str(card.card_id))
             except Exception as e:
                 logger.error(f"Ошибка уведомления админа {admin.telegram_id}: {e}")
                 
@@ -494,7 +494,7 @@ async def finalize_card_publication(card_id: str, **kwargs):
 
                     if source_chat and card.tags:
                         try:
-                            await executor_bridge.forward_first_by_tags(
+                            await forward_first_by_tags(
                                 source_chat_id=source_chat,
                                 message_id=src_msg_id,
                                 tags=card.tags,
@@ -526,7 +526,7 @@ async def finalize_card_publication(card_id: str, **kwargs):
             
             for admin in admins:
                 try:
-                    await executor_bridge.notify_user(admin.telegram_id, message_text, parse_mode='HTML')
+                    await notify_user(admin.telegram_id, message_text, parse_mode='HTML', card_id=str(card.card_id))
                 except Exception as e:
                     logger.error(f"Ошибка уведомления админа {admin.telegram_id}: {e}")
         
@@ -534,7 +534,7 @@ async def finalize_card_publication(card_id: str, **kwargs):
         logger.error(f"Ошибка финализации публикации карточки {card.card_id}: {e}", exc_info=True)
 
 # Логика генерации лидерборда перемещена в исполнителя (executors).
-# Логика лидерборда: executor_bridge.send_leaderboard вызывается перед сбросом счётчика.
+# Логика лидерборда: send_leaderboard вызывается перед сбросом счётчика.
 
 
 async def reset_monthly_tasks():
@@ -551,7 +551,7 @@ async def reset_monthly_tasks():
         group_forum = settings.get('group_forum')
 
         if group_forum:
-            await executor_bridge.send_leaderboard(
+            await send_leaderboard(
                 chat_id=group_forum,
                 period="month",
                 reply_to=settings.get('forum_topic')
@@ -587,7 +587,7 @@ async def reset_yearly_tasks():
         group_forum = settings.get('group_forum')
         
         if group_forum:
-            await executor_bridge.send_leaderboard(
+            await send_leaderboard(
                 chat_id=group_forum,
                 period="year",
                 extra_text="С новым годом дизановры!",

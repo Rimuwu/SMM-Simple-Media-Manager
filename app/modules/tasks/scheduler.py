@@ -6,11 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.ScheduledTask import ScheduledTask
-from models.Card import Card
 from modules.timezone import now_naive as moscow_now
 from modules.logs import logger
 
-# logger = logging.getLogger(__name__)
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.Card import Card
 
 
 class TaskScheduler:
@@ -78,7 +80,7 @@ class TaskScheduler:
             
             # Если указан card_id — убеждаемся, что карточка существует (передаём только card_id)
             if 'card_id' in task.arguments:
-                exists = await session.get(Card, task.arguments['card_id'])
+                exists = await session.get('Card', task.arguments['card_id'])
                 if not exists:
                     logger.error(f"Карточка {task.arguments['card_id']} не найдена")
                     await session.delete(task)
@@ -169,7 +171,7 @@ async def create_scheduled_task(
 
 
 async def schedule_card_notifications(
-    session: AsyncSession, card: Card) -> None:
+    session: AsyncSession, card: 'Card') -> None:
     """
     Запланировать уведомления для карточки.
     Создает задачи:
@@ -269,7 +271,7 @@ async def cancel_card_tasks(
     return deleted_count
 
 
-async def reschedule_card_notifications(session: AsyncSession, card: Card) -> None:
+async def reschedule_card_notifications(session: AsyncSession, card: 'Card') -> None:
     """
     Перепланировать уведомления для карточки при изменении дедлайна.
     Удаляет старые задачи и создает новые с обновленным временем.
@@ -290,7 +292,7 @@ async def reschedule_card_notifications(session: AsyncSession, card: Card) -> No
 # ================== Функции для управления тасками публикации ==================
 
 
-async def schedule_post_tasks(session: AsyncSession, card: Card) -> None:
+async def schedule_post_tasks(session: AsyncSession, card: 'Card') -> None:
     """
     Запланировать задачи публикации постов для карточки.
     Создает задачи для каждого канала (клиента) карточки.
@@ -409,7 +411,7 @@ async def cancel_post_tasks(session: AsyncSession, card_id: str) -> int:
     return deleted_count
 
 
-async def reschedule_post_tasks(session: AsyncSession, card: Card) -> None:
+async def reschedule_post_tasks(session: AsyncSession, card: 'Card') -> None:
     """
     Перепланировать задачи публикации при изменении времени отправки.
     Удаляет старые задачи публикации и создает новые.
@@ -429,7 +431,7 @@ async def reschedule_post_tasks(session: AsyncSession, card: Card) -> None:
         logger.info(f"Созданы новые задачи публикации для карточки {card.card_id}")
 
 
-async def update_post_tasks_time(session: AsyncSession, card: Card, new_time: datetime) -> int:
+async def update_post_tasks_time(session: AsyncSession, card: 'Card', new_time: datetime) -> int:
     """
     Обновить время выполнения существующих задач публикации.
     Используется для кнопки "Отправить сейчас" - не удаляет/создаёт, а меняет время.

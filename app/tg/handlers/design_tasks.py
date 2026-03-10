@@ -8,6 +8,19 @@ from modules.exec.executors_manager import manager
 from modules.constants import SETTINGS
 from modules.logs import logger
 
+
+async def get_user_role(telegram_id: int | None) -> str:
+    """Возвращает роль пользователя по его Telegram ID или 'guest' если не найден."""
+    if not telegram_id:
+        return 'guest'
+    try:
+        users = await User.filter_by(telegram_id=telegram_id)
+        if users:
+            return str(users[0].role.value if hasattr(users[0].role, 'value') else users[0].role)
+    except Exception:
+        pass
+    return 'guest'
+
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp  # type: ignore
 bot: Bot = client_executor.bot  # type: ignore

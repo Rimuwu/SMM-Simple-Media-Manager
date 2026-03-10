@@ -4,15 +4,17 @@ from uuid import UUID as _UUID
 from datetime import datetime
 
 from models.User import User
-from models.Card import Card
 from models.CardFile import CardFile
 from models.ClientSetting import ClientSetting
 from modules.enums import CardStatus
-from modules.exec import executor_bridge
 from modules.logs import logger
 
+from typing import TYPE_CHECKING
 
-async def increment_reviewers_tasks(card: Card):
+if TYPE_CHECKING:
+    from models.Card import Card
+
+async def increment_reviewers_tasks(card: 'Card'):
     """
     Увеличивает счётчик tasks_checked для всех редакторов,
     """
@@ -54,19 +56,6 @@ async def increment_customer_tasks(customer_id: str):
     except Exception as e:
         logger.error(f"Ошибка увеличения счётчика созданных задач: {e}")
 
-async def notify_executor(
-    executor_id: str, 
-    message: str, 
-    task_id: Optional[str] = None,
-    skip_if_page: Optional[str] = None,
-):
-    """Отправляет уведомление исполнителю в Telegram."""
-    try:
-        executor = await User.get_by_key("user_id", executor_id)
-        if executor:
-            await executor_bridge.notify_user(executor.telegram_id, message)
-    except Exception as e:
-        print(f"Error notifying executor {executor_id}: {e}")
 
 
 async def create_card(
@@ -83,7 +72,7 @@ async def create_card(
     image_prompt: Optional[str] = None,
     type_id=None,
     **kwargs,
-) -> Optional[Card]:
+) -> Optional['Card']:
     """Создать карточку с полными сайд-эффектами.
 
     Создаёт запись ``ClientSetting`` для каждого канала и отправляет
@@ -129,6 +118,7 @@ async def destroy_card(card_id: str) -> bool:
         delete_all_complete_previews,
     )
     from modules.calendar.calendar import delete_calendar_event
+    from models.Card import Card
 
     try:
         card = await Card.get_by_id(_UUID(str(card_id)))
@@ -169,9 +159,10 @@ async def change_card_status(
     status: CardStatus,
     who_changed: str = "admin",
     comment=None,
-) -> Optional[Card]:
+) -> Optional['Card']:
     """Сменить статус карточки через соответствующий обработчик статуса."""
     from modules.card import status_changers
+    from models.Card import Card, CardStatus
 
     try:
         card = await Card.get_by_id(_UUID(str(card_id)))

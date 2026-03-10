@@ -1,32 +1,31 @@
 """
-Мост между brain-модулями и executor-ами.
-Заменяет HTTP-взаимодействие с executors-api прямыми вызовами функций.
-
-Инициализируется в main.py после старта executor_manager.
+Шим совместимости. Вся логика перенесена в executors_client.
+Этот модуль оставлен на период миграции — используйте executors_client напрямую.
 """
-from typing import Optional, TYPE_CHECKING
-
-from tg.main import TelegramExecutor
-
-if TYPE_CHECKING:
-    from modules.exec.executors_manager import ExecutorManager
-
-# Устанавливается при старте приложения в main.py
-_executor_manager: Optional["ExecutorManager"] = None
-
-
-def set_manager(manager: "ExecutorManager") -> None:
-    """Зарегистрировать инициализированный ExecutorManager."""
-    global _executor_manager
-    _executor_manager = manager
+from modules.exec.executors_client import (  # noqa: F401
+    notify_user,
+    update_scenes,
+    send_leaderboard,
+    forward_first_by_tags,
+    send_forum_message,
+    update_forum_message,
+    delete_forum_message,
+    delete_forum_message_by_id,
+    send_complete_preview,
+    update_complete_preview,
+    delete_all_complete_previews as delete_complete_preview,
+)
 
 
-def get_manager() -> Optional["ExecutorManager"]:
-    """Получить ExecutorManager. None если ещё не инициализирован."""
-    return _executor_manager
+def get_manager():
+    from modules.exec.executors_manager import manager
+    return manager
 
 
-# ==================== Forum ====================
+def set_manager(m) -> None:
+    """Больше не требуется — manager живёт как синглтон в executors_manager."""
+    pass
+
 
 async def send_forum_message(card_id: str) -> dict:
     """

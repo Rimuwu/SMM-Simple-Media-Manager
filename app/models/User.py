@@ -28,10 +28,12 @@ class User(Base, AsyncCRUDMixin):
     canceled_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_images: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    fall_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0) # Просроченные задачи
+
     department: Mapped[Department] = mapped_column(nullable=False, default=Department.without_department)
     about: Mapped[str] = mapped_column(String, nullable=True, default=None)
 
-    can_pick: Mapped[bool] = mapped_column(nullable=False, default=False)
+    can_pick: Mapped[bool] = mapped_column(nullable=False, default=False) # Может ли заказчик выдать задание исполнителю как личное задание
 
     # Связи
     cards: Mapped[list["Card"]] = relationship(

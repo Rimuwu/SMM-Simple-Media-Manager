@@ -532,7 +532,7 @@ async def send_post(
     файлы скачиваются через :func:`download_files`.
     Отправка производится напрямую через методы нужного executor-а.
     """
-    from modules.exec import executor_bridge
+    from modules.exec.executors_manager import manager
     from modules.post_generator import generate_post, render_post_from_card
     from modules.constants import CLIENTS
 
@@ -560,7 +560,6 @@ async def send_post(
     executor_name = client_config.get("executor_name") or client_config.get("executor")
     client_id = client_config.get("client_id")
 
-    manager = executor_bridge.get_manager()
     if not manager:
         return {"success": False, "error": "ExecutorManager not initialized"}
 

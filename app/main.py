@@ -16,10 +16,8 @@ async def main():
 
     # ──────────────── 2. Запуск исполнителей (TG, VK) ────
     from modules.exec.executors_manager import manager, executors_start
-    from modules.exec import executor_bridge
 
     await executors_start()
-    executor_bridge.set_manager(manager)
 
     # ──────────────── 3. Планировщик задач ───────────────
     from database.connection import session_factory

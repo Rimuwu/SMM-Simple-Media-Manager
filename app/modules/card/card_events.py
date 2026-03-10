@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID as _UUID
 from modules.enums import CardStatus
-from models.Card import Card
 from models.User import User
 from database.connection import session_factory
 from modules.exec.executors_client import (
@@ -17,10 +16,14 @@ from modules.calendar.calendar import update_calendar_event
 from modules.card.status_changers import to_edited
 from modules.logs import logger
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.Card import Card
 
 async def on_name(
                   new_name: str,
-                  card: Optional[Card] = None, 
+                  card: Optional['Card'] = None, 
                   card_id: Optional[_UUID] = None,
                   ):
     """ Обработчик изменения названия карточки.
@@ -81,7 +84,7 @@ async def on_name(
 
 async def on_description(
     new_description: str,
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения описания карточки."""
@@ -131,7 +134,7 @@ async def on_description(
 async def on_deadline(
     new_deadline: datetime,
     old_deadline: Optional[datetime] = None,
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения дедлайна карточки."""
@@ -198,7 +201,7 @@ async def on_deadline(
 
 async def on_send_time(
     new_send_time: Optional[datetime],
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения времени публикации."""
@@ -251,7 +254,7 @@ async def on_send_time(
 
 async def on_executor(
     new_executor_id: Optional[_UUID],
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения исполнителя."""
@@ -311,7 +314,7 @@ async def on_executor(
 
 async def on_editor(
     new_editor_id: Optional[_UUID],
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения редактора."""
@@ -349,7 +352,7 @@ async def on_editor(
 
 async def on_content(
     new_content: str,
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None,
     client_key: Optional[str] = None
 ):
@@ -401,7 +404,7 @@ async def on_content(
 
 async def on_clients(
     new_clients: list[str],
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения списка каналов для публикации."""
@@ -470,7 +473,7 @@ async def on_clients(
 
 async def on_need_check(
     need_check: bool,
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения флага необходимости проверки."""
@@ -503,7 +506,7 @@ async def on_need_check(
 
 async def on_tags(
     new_tags: list[str],
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения тегов."""
@@ -544,7 +547,7 @@ async def on_tags(
 
 async def on_image_prompt(
     new_prompt: Optional[str],
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения промпта для изображения."""
@@ -570,7 +573,7 @@ async def on_image_prompt(
 
 async def on_prompt_message(
     message_id: int,
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения ID сообщения с промптом для дизайнеров."""
@@ -588,7 +591,7 @@ async def on_prompt_message(
 
 async def on_clients_settings(
     clients_settings: dict,
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения настроек для клиентов (шаблоны подписей, сетка для VK и т.д.)."""
@@ -625,7 +628,7 @@ async def on_clients_settings(
 
 async def on_entities(
     client_key_edited: str,
-    card: Optional[Card] = None, 
+    card: Optional['Card'] = None, 
     card_id: Optional[_UUID] = None
 ):
     """Обработчик изменения entities для клиентов (опросы в Telegram, авто-репост и т.д.)."""
@@ -647,7 +650,7 @@ async def on_entities(
             logger.error(f"Ошибка пересоздания превью карточки {card.card_id}: {e}")
 
 
-async def delete_and_recreate_all_completes(card: Card):
+async def delete_and_recreate_all_completes(card: 'Card'):
     """Helper: удалить все существующие превью для карточки и создать новые для всех клиентов."""
     try:
         async with session_factory() as s:

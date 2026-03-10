@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import JSON, UUID
 from datetime import datetime
 from typing import Optional
 from uuid import UUID as _UUID
+from modules.card.card_events import on_send_time
 from database.connection import Base
 from database.crud_mixins import AsyncCRUDMixin
 from database.annotated_types import uuidPK, createAT, updateAT
@@ -173,14 +174,11 @@ class Card(Base, AsyncCRUDMixin):
         """Запланировать немедленную отправку (now + 5 секунд)."""
         from modules.timezone import now_naive as moscow_now
         from datetime import timedelta
-        from modules.tasks.scheduler import reschedule_post_tasks
-        from database.connection import session_factory
 
-        await self.update(send_time=moscow_now() + timedelta(seconds=5))
-        await self.refresh()
-    
-        async with session_factory() as session:
-            await reschedule_post_tasks(session, self)
+        await on_send_time(
+            send_time=moscow_now() + timedelta(seconds=5),
+            card = self
+        )
 
         return self
 

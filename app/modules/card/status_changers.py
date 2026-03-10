@@ -5,7 +5,6 @@ from database.connection import session_factory
 from modules.enums import UserRole
 from modules.json_utils import open_clients, open_settings
 
-from models.Card import Card, CardStatus
 from models.User import User
 from modules.tasks.scheduler import schedule_card_notifications, cancel_card_tasks, schedule_post_tasks
 
@@ -19,10 +18,15 @@ from modules.exec.executors_client import (
 from modules.logs import logger
 from models.CardMessage import CardMessage
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.Card import Card, CardStatus
+
 settings = open_settings() or {}
 
 async def to_pass(
-          card: Optional[Card] = None,
+          card: Optional['Card'] = None,
           card_id: Optional[_UUID] = None, 
           who_changed: Literal[
               'executor', 'admin'] = 'admin'
@@ -79,7 +83,8 @@ async def to_pass(
                     await asyncio.create_task(
                         notify_user(
                             executor.telegram_id,
-                            "🎇 Задание возвращено на форум задач."
+                            "🎇 Задание возвращено на форум задач.",
+                            card_id=str(card.card_id)
                         )
                     )
 
@@ -133,13 +138,14 @@ async def to_pass(
         customer = await User.get_by_key('user_id', card.customer_id)
         if customer:
             await notify_user(
-                telegram_id=customer.telegram_id,
-                message=f'⚡ Задача "{card.name}" потеряла исполнителя.'
+                customer.telegram_id,
+                message=f'⚡ Задача "{card.name}" потеряла исполнителя.',
+                card_id=str(card.card_id)
             )
 
 
 async def to_edited(
-          card: Optional[Card] = None,
+          card: Optional['Card'] = None,
           card_id: Optional[_UUID] = None,
           who_changed: Any = None
                   ):
@@ -220,12 +226,13 @@ async def to_edited(
         customer = await User.get_by_key('user_id', card.customer_id)
         if customer and customer.role != UserRole.admin:
             await notify_user(
-                telegram_id=customer.telegram_id,
-                message=f'🎯 Задача "{card.name}" взята в работу.'
+                customer.telegram_id,
+                message=f'🎯 Задача "{card.name}" взята в работу.',
+                card_id=str(card.card_id)
             )
 
 async def to_review(
-          card: Optional[Card] = None,
+          card: Optional['Card'] = None,
           card_id: Optional[_UUID] = None,
           who_changed: Any = None
                   ):
@@ -337,14 +344,15 @@ async def to_review(
 
         await notify_users(
             list(listeners),
-            comment
+            comment,
+            card_id=str(card.card_id)
         )
 
     msg = f"🔔 Задача требует проверки!\n\n📝 {card.name}\n\nПожалуйста, проверьте задачу и измените статус."
-    await notify_users(recipients, msg)
+    await notify_users(recipients, msg, card_id=str(card.card_id))
 
 async def to_ready(
-          card: Optional[Card] = None,
+          card: Optional['Card'] = None,
           card_id: Optional[_UUID] = None,
           who_changed: Any = None
                   ):
@@ -463,7 +471,7 @@ async def to_ready(
                 f"🕹 Клиенты: {', '.join(client_names)}\n\n"
                 f"Задача готова к публикации. Вы можете просмотреть итоговый вид поста и дать комментарий копирайтеру."
             )
-            await notify_user(customer.telegram_id, message_text)
+            await notify_user(customer.telegram_id, message_text, card_id=str(card.card_id))
 
     # Удаление сообщения дизайнерам (prompt_message)
     if card.prompt_message:
@@ -475,7 +483,7 @@ async def to_ready(
             logger.error(f"Ошибка удаления сообщения дизайнерам: {e}")
 
 async def to_sent(
-          card: Optional[Card] = None,
+          card: Optional['Card'] = None,
           card_id: Optional[_UUID] = None,
           who_changed: Any = None
                   ):

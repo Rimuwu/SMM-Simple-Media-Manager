@@ -10,7 +10,7 @@ from modules.constants import SETTINGS
 from modules.logs import logger
 from modules.file_utils import download_telegram_file, is_image_by_mime_or_extension
 from modules.file_utils import convert_image_to_png
-from modules.exec import executor_bridge
+from modules.exec.executors_client import notify_user
 
 client_executor = manager.get("telegram_executor")
 dp: Dispatcher = client_executor.dp  # type: ignore
@@ -63,9 +63,10 @@ async def upload_image_for_card(card_id: str, file_data: bytes, file_name: str) 
             if card.executor_id:
                 executor = await User.get_by_id(card.executor_id)
                 if executor:
-                    notify_success = await executor_bridge.notify_user(
+                    notify_success = await notify_user(
                         executor.telegram_id,
-                        f"🖼 К вашей задаче \"{card.name}\" добавлено новое изображение от дизайнеров!"
+                        f"🖼 К вашей задаче \"{card.name}\" добавлено новое изображение от дизайнеров!",
+                        card_id=str(card.card_id)
                     )
 
             if notify_success:
