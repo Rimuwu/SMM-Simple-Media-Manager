@@ -421,7 +421,7 @@ async def reschedule_post_tasks(session: AsyncSession, card: Card) -> None:
     # Удаляем старые задачи публикации
     deleted_count = await cancel_post_tasks(session, str(card.card_id))
     logger.info(f"Удалено {deleted_count} старых задач публикации для карточки {card.card_id}")
-    
+
     # Создаем новые задачи только если статус ready
     from modules.enums import CardStatus
     if card.status == CardStatus.ready:

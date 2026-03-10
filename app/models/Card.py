@@ -173,8 +173,15 @@ class Card(Base, AsyncCRUDMixin):
         """Запланировать немедленную отправку (now + 5 секунд)."""
         from modules.timezone import now_naive as moscow_now
         from datetime import timedelta
+        from modules.tasks.scheduler import reschedule_post_tasks
+        from database.connection import session_factory
 
         await self.update(send_time=moscow_now() + timedelta(seconds=5))
+        await self.refresh()
+    
+        async with session_factory() as session:
+            await reschedule_post_tasks(session, self)
+
         return self
 
     def to_full_dict(self) -> dict:

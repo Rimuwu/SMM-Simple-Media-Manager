@@ -509,9 +509,10 @@ async def finalize_card_publication(card_id: str, **kwargs):
             logger.error(f"Error while preparing forward-first-by-tags in finalize_card_publication for card {card.card_id}: {e}", exc_info=True)
 
         # Получаем список каналов для отчёта
-        clients_str = ", ".join(card.clients) if card.clients else "Не указаны"
+        clients_cfg = open_clients() or {}
+        clients_names = [ clients_cfg.get(ck, {}).get('label') or ck for ck in (card.clients or []) ]
 
-        logs = normalize_logs(kwargs.get('logs', []))
+        clients_str = ", ".join(clients_names) if card.clients else "Не указаны"
 
         # Отправляем отчёт админам
         admins = await User.filter_by(role=UserRole.admin)
@@ -521,7 +522,6 @@ async def finalize_card_publication(card_id: str, **kwargs):
                 f"📝 Задача: {card.name}\n"
                 f"📢 Каналы: {clients_str}\n"
                 f"⏰ Время: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
-                f"📄 Логи публикации:\n<pre>{html.escape(logs)}</pre>"
             )
             
             for admin in admins:

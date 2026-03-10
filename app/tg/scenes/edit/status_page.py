@@ -20,6 +20,7 @@ class StatusSetterPage(Page):
         if task_id:
             cards = [c.to_full_dict() for c in await Card.find(card_id=task_id)]
             self._card_cache = cards[0] if cards else None
+
     async def can_complete(self) -> bool:
         publish_date = self.scene.data['scene'].get('publish_date')
         content = self.scene.data['scene'].get('content', None)
@@ -368,7 +369,7 @@ class StatusSetterPage(Page):
             # Вызываем специальный эндпоинт для возврата на форум
             user_role = await User.role_for(self.scene.user_id)
             who = 'executor' if user_role == 'copywriter' else 'admin'
-            
+
             await card_service.change_card_status(
                 card_id=task_id,
                 status=CardStatus.pass_,

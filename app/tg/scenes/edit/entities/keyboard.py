@@ -4,7 +4,7 @@ from tg.oms.utils import callback_generator
 from models.Entity import Entity
 from uuid import UUID as _UUID
 from datetime import datetime
-
+from modules.utils import is_valid_telegram_url
 
 class KeyboardCreatePage(TextTypeScene):
     __page_name__ = 'entities-keyboard-create'
@@ -296,9 +296,18 @@ class KeyboardCreatePage(TextTypeScene):
             # Сохраняем кнопку с полем 'style' (None — без стиля)
             buttons.append({'text': temp_text, 'url': text_input, 'style': None})
             keyboard_data['buttons'] = buttons
+
+            if not is_valid_telegram_url(text_input):
+                await callback.answer('⚠️ URL может быть недопустим для Telegram (например, содержит подчёркивания в Домене).', show_alert=True)
+                return
+
+            elif not text_input.startswith(('http://', 'https://', 'tg://', 't.me/')):
+                await callback.answer('⚠️ Требуется использовать url, начинающийся с http://, https://, tg:// или t.me/.', show_alert=True)
+                return
+
             await self.scene.update_key(self.__page_name__, 'temp_button_text', None)
             await callback.answer('✅ Кнопка добавлена')
-        
+
         elif edit_mode == 'button_text':
             idx = self.scene.data.get(self.__page_name__, {}).get('edit_button_idx')
             buttons = keyboard_data.get('buttons', [])

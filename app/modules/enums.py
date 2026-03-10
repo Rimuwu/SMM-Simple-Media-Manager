@@ -13,11 +13,15 @@ class AutomationTypes(str, Enum):
 class CardStatus(str, Enum):
     """Статусы карточек"""
 
-    pass_ = "pass"
-    edited = "edited"
-    review = "review"
-    ready = "ready"
-    sent = "sent"
+    pass_ = "pass" # Создана
+    create_review = "create_review" # Проверка тз
+
+    edited = "edited" # Идёт работа
+    review = "review" # На проверке
+    ready = "ready" # Готово к публикации
+
+    sending = "sending" # Публикуется
+    sent = "sent" # Отправлено
 
 class MessageType(str, Enum):
     """Типы сообщений"""
@@ -33,6 +37,7 @@ class UserRole(str, Enum):
     editor = "editor"
     customer = "customer"
     admin = "admin"
+    designer = "designer"
 
 class Department(str, Enum):
     """Отделы"""

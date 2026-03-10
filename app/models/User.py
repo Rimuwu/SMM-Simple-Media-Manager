@@ -25,15 +25,21 @@ class User(Base, AsyncCRUDMixin):
     tasks_checked: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tasks_created: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    canceled_tasks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_images: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     department: Mapped[Department] = mapped_column(nullable=False, default=Department.without_department)
     about: Mapped[str] = mapped_column(String, nullable=True, default=None)
 
     can_pick: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     # Связи
-    cards: Mapped[list["Card"]] = relationship("Card", back_populates="customer", foreign_keys="Card.customer_id")
-    executed_cards: Mapped[list["Card"]] = relationship("Card", back_populates="executor", foreign_keys="Card.executor_id")
-    edited_cards: Mapped[list["Card"]] = relationship("Card", back_populates="editor", foreign_keys="Card.editor_id")
+    cards: Mapped[list["Card"]] = relationship(
+        "Card", back_populates="customer", foreign_keys="Card.customer_id")
+    executed_cards: Mapped[list["Card"]] = relationship(
+        "Card", back_populates="executor", foreign_keys="Card.executor_id")
+    edited_cards: Mapped[list["Card"]] = relationship(
+        "Card", back_populates="editor", foreign_keys="Card.editor_id")
 
     def __repr__(self) -> str:
         return f"<User(id={self.user_id}, telegram_id={self.telegram_id}, role='{self.role}')>"

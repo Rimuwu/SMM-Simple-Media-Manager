@@ -1,7 +1,6 @@
 from modules.card import card_events
 from uuid import UUID as _UUID
 from tg.oms.common_pages.update_text_page import UpdateTextPage
-from modules.enums import ChangeType
 
 
 class ChangeNamePage(UpdateTextPage):
@@ -16,16 +15,16 @@ class ChangeNamePage(UpdateTextPage):
         if task:
             current_name = task.get('name', '')
             await self.scene.update_key('scene', 'task_name', current_name)
-        
+
         await super().data_preparate()
 
     async def content_worker(self) -> str:
         task = self.scene.data['scene'].get('current_task_data', {})
         current_name = task.get('name', 'Без названия')
-            
+
         self.content = self.append_variables(task_name=current_name)
         return self.content
-    
+
     async def update_to_database(self, value: str) -> bool:
         """Обновляем название в карточке"""
         task = self.scene.data['scene'].get('current_task_data')

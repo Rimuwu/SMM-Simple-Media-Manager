@@ -14,6 +14,17 @@ class EditNamePage(TextTypeScene):
 
     async def data_preparate(self):
         self.clear_content()
+        user_id = self.scene.data['scene'].get('selected_user')
+
+        if not user_id: return
+
+        self.user = None
+        users = [u.to_dict() for u in await User.find(telegram_id=user_id)]
+        if not users: return
+
+        self.user = users[0]
+        self.user_name = self.user.get('name', 'Без имени')
+
         await super().data_preparate()
 
     async def buttons_worker(self):
@@ -81,3 +92,9 @@ class EditNamePage(TextTypeScene):
     async def on_text_input(self, message, text):
         await self.scene.update_key('scene', 'user_name', text)
         await self.scene.update_message()
+
+    async def page_leave(self):
+        self.scene.data['scene']['user_name'] = None
+        self.user_name = None
+
+        return await super().page_leave()

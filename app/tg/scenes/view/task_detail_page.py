@@ -27,7 +27,7 @@ class TaskDetailPage(Page):
         if user:
             self.user = user
             if role is None:
-                await self.scene.update_key('scene', 'user_role', user.role)
+                await self.scene.update_key('scene', 'user_role', user.role.value)
 
         await self.load_task_details()
 
@@ -129,8 +129,8 @@ class TaskDetailPage(Page):
         editor_id = current_task.get('editor_id')
         user_id = str(self.user.user_id) if self.user else None
 
-        is_editor = current_task.get('editor_id', 0) == user_id
-        is_executor = current_task.get('executor_id', 0) == user_id
+        is_editor = str(current_task.get('editor_id', 0)) == user_id
+        is_executor = str(current_task.get('executor_id', 0)) == user_id
         is_admin = role == UserRole.admin
 
         if is_executor or is_admin or is_editor:
@@ -320,13 +320,17 @@ class TaskDetailPage(Page):
             task = self.scene.data['scene'].get('current_task_data')
             if not task: return
 
+            logger.info(f"Пользователь {get_user_display_name(self.user)} инициирует немедленную отправку задачи '{task.get('name')}' (ID: {task.get('card_id')})")
+
             card_id = task.get('card_id')
-            
+
             card_obj = await Card.get_by_id(_UUID(str(card_id)))
             if card_obj and card_obj.status == CardStatus.ready:
                 await card_obj.schedule_immediate()
                 await callback.answer("🚀 Задача отправлена на публикацию!", show_alert=True)
+
                 await self.load_task_details()
                 await self.scene.update_page('task-detail')
             else:
-                await callback.answer("Ошибка: задача не найдена или не в статусе 'готово'.", show_alert=True)
+                await callback.answer(
+                    "Ошибка: задача не найдена или не в статусе 'готово'.", show_alert=True)

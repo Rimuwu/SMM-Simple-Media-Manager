@@ -19,6 +19,7 @@ from models.CardFile import CardFile
 from modules.storage import download_file as _storage_download_file
 from modules.post_generator import generate_post, render_post_from_card
 from modules.logs import logger
+from modules.utils import is_valid_telegram_url
 
 
 def detect_media_type(file_data: bytes, file_name: str = '') -> str:
@@ -138,6 +139,9 @@ async def send_post_preview(
                         url = btn.get('url')
                         style = btn.get('style', None)
                         if text_btn and url:
+                            if not is_valid_telegram_url(url):
+                                logger.warning(f"Кнопка пропущена — невалидный URL: {url}")
+                                continue
                             row.append(InlineKeyboardButton(
                                 text=text_btn, url=url, style=style))
                     if row:
@@ -405,6 +409,9 @@ async def _send_post_tg(
             row = []
             for btn in entity.get('data', {}).get('buttons', []):
                 if btn.get('text') and btn.get('url'):
+                    if not is_valid_telegram_url(btn['url']):
+                        logger.warning(f"Кнопка пропущена — невалидный URL: {btn['url']}")
+                        continue
                     row.append(InlineKeyboardButton(text=btn['text'], url=btn['url']))
             if row:
                 keyboard_buttons.append(row)

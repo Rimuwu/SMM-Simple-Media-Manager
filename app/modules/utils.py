@@ -119,3 +119,14 @@ async def format_tags(tags: list[str]) -> str:
     def name_for(k: str) -> str:
         return tag_map.get(k, {}).get('name', k)
     return ', '.join(name_for(k) for k in sorted_keys)
+
+def is_valid_telegram_url(url: str) -> bool:
+    """Проверяет, что URL допустим для кнопок Telegram (нет подчёркиваний в домене)."""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ''
+        # Telegram не принимает подчёркивания в hostname
+        return '_' not in hostname and bool(parsed.scheme) and bool(hostname)
+    except Exception:
+        return False
